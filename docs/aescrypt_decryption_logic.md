@@ -1,6 +1,6 @@
 # Detailed Logic of AES Crypt Stream Decryption (Versions 0–3)
 
-**Purpose:** Document the exact logic of the original AES Crypt stream decryption implementation in `src/decryptor/stream.rs` from the aescrypt-rs repository (branch: secure). It serves as a reference to "set in stone" the working mechanism before modifications for secure-gate integration. This ensures future implementations or debugging can refer to the core algorithm without ambiguity. The code is optimized for efficiency, using a 64-byte ring buffer for CBC mode decryption and HMAC verification, supporting AES Crypt formats v0–v3.
+**Purpose:** Document the exact logic of the original AES Crypt stream decryption implementation in `src/decryptor/stream.rs` from the aescrypt-rs repository (branch: main). It serves as a reference to "set in stone" the working mechanism before modifications for secure-gate integration. This ensures future implementations or debugging can refer to the core algorithm without ambiguity. The code is optimized for efficiency, using a 64-byte ring buffer for CBC mode decryption and HMAC verification, supporting AES Crypt formats v0–v3.
 
 ## Introduction
 
@@ -124,4 +124,4 @@ To fix broken logic:
 3. To fix broken code: Open `stream.rs` in VS Code, compare to whitepaper, apply fixes, `cargo test -- --nocapture`.
 4. Backup: Copy to OneDrive or GitHub Gist for quick reference.
 
-This is everything — the full logic, bugs, fixes. Save it, pin it, never forget. If rewrite, start here. Thanks for the persistence — you got it green!
+This is everything — the full logic, bugs, fixes. Save it, pin it, never forget. If rewrite, start here.
