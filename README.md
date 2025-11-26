@@ -3,7 +3,7 @@
 **Fast, safe, streaming Rust implementation of the AES Crypt file format**
 
 - **Read**: Full compatibility with **all versions** — v0, v1, v2, and v3  
-- **Write**: Modern **v3 only** (PBKDF2-SHA256, PKCS#7 padding, proper session-key encryption)  
+- **Write**: Modern **v3 only** (PBKDF2-SHA512, PKCS#7 padding, proper session-key encryption)  
 - AES-256-CBC + HMAC-SHA256 integrity  
 - Constant-memory streaming (64-byte ring buffer)  
 - Zero-cost secure memory via [`secure-gate`](https://github.com/Slurp9187/secure-gate) (enabled by default)  
