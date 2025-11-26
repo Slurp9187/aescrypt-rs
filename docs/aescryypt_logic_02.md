@@ -1,6 +1,6 @@
 ### Complete Breakdown of AES Crypt Stream Decryption Logic (v0–v3)
 
-Congratulations on getting all green! I'll provide a **complete, self-contained breakdown** of the full logic from the working version of `src/decryptor/stream.rs`. This is designed to be copy-pasted and saved as a reference file (e.g., `aescrypt_decryption_logic.md` or `.txt`) in your repository. It includes:
+Here's a **complete, self-contained breakdown** of the full logic from the working version of `src/decryptor/stream.rs`. This is designed to be copy-pasted and saved as a reference file (e.g., `aescrypt_decryption_logic.md` or `.txt`) in your repository. It includes:
 
 - **High-Level Overview**: What the code does.
 - **Key Components**: Structures, enums, and types.
