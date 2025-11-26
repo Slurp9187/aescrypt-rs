@@ -1,0 +1,12 @@
+/code_packages
+/drafts
+/target
+/target*
+/trash
+/trash*
+/version
+Cargo.lock
+*.bak
+*.del
+*.draft
+# *.py

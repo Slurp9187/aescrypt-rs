@@ -1,0 +1,81 @@
+# ============================================================================
+# FILE: Cargo.toml
+# ============================================================================
+
+[package]
+name = "aescrypt-rs"
+version = "0.1.0"
+edition = "2021"
+description = "AES Crypt (v0-v3) Rust encryption/decryption library"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Slurp9187/aescrypt-rs"
+keywords = ["aes", "crypt", "encryption", "decryption"]
+categories = ["cryptography"]
+
+# ----------------------------------------------------------------------
+# Runtime dependencies
+# ----------------------------------------------------------------------
+[dependencies]
+aes = "0.8"
+cipher = "0.4"
+digest = "0.11.0-rc.4"
+generic-array = "1.3"
+hex = "0.4"
+hmac = "0.12"
+pbkdf2 = "0.12"
+rand = "0.9"
+secrecy = { version = "0.10", optional = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sha2 = "0.10"
+thiserror = "2.0"
+zeroize = { version = "1.8", features = ["zeroize_derive"], optional = true }
+secure-gate = { version = "0.5", features = ["zeroize"] }
+
+[features]
+default = ["zeroize"]
+zeroize = [
+  "dep:secrecy",
+  "dep:zeroize",
+  "aes/zeroize",
+  "cipher/zeroize",
+  "digest/zeroize",
+  "generic-array/zeroize",
+]
+
+# ----------------------------------------------------------------------
+# Dev / test / bench dependencies
+# ----------------------------------------------------------------------
+[dev-dependencies]
+criterion = { version = "0.7", features = ["html_reports"] }
+plotters = { version = "0.3" }
+
+# ----------------------------------------------------------------------
+# Benchmark targets
+# ----------------------------------------------------------------------
+[[bench]]
+name = "kdf"
+harness = false
+
+[[bench]]
+name = "encrypt"
+harness = false
+
+[[bench]]
+name = "decrypt"
+harness = false
+
+[[bench]]
+name = "roundtrip"
+harness = false
+
+# [[bench]]
+# name = "kdf_builders"
+# harness = false
+
+# ----------------------------------------------------------------------
+# Binary (script)
+# ----------------------------------------------------------------------
+# [[bin]]
+# name = "extract_session_data"
+# path = "scripts/extract_session_data.rs"
