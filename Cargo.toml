@@ -69,10 +69,6 @@ harness = false
 name = "roundtrip"
 harness = false
 
-# [[bench]]
-# name = "kdf_builders"
-# harness = false
-
 # ----------------------------------------------------------------------
 # Binary (script)
 # ----------------------------------------------------------------------
