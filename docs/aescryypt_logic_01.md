@@ -1,9 +1,6 @@
 # Topic: Detailed Logic of AES Crypt Stream Decryption (Versions 0–3)
 
-**Author:** Grok 4 (built by xAI)  
-**Date:** November 24, 2025  
-**Version:** 1.0  
-**Purpose:** This whitepaper documents the exact logic of the original AES Crypt stream decryption implementation in `src/decryptor/stream.rs` from the aescrypt-rs repository (branch: secure). It serves as a reference to "set in stone" the working mechanism before modifications for secure-gate integration. This ensures future implementations or debugging can refer to the core algorithm without ambiguity. The code is optimized for efficiency, using a 64-byte ring buffer for CBC mode decryption and HMAC verification, supporting AES Crypt formats v0–v3.
+**Purpose:** Document the exact logic of the original AES Crypt stream decryption implementation in `src/decryptor/stream.rs` from the aescrypt-rs repository (branch: secure). It serves as a reference to "set in stone" the working mechanism before modifications for secure-gate integration. This ensures future implementations or debugging can refer to the core algorithm without ambiguity. The code is optimized for efficiency, using a 64-byte ring buffer for CBC mode decryption and HMAC verification, supporting AES Crypt formats v0–v3.
 
 ## Introduction
 
