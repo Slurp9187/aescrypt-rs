@@ -123,7 +123,7 @@ Repeatedly compute HMAC-SHA1(key=password_utf16le, message=salt ‖ counter) unt
 
 ---
 
-### 논6. Recommendations for New Files
+### 6. Recommendations for New Files
 
 - Always write **Version 3**  
 - Use **≥ 300 000** iterations (default in aescrypt-rs)  
