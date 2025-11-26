@@ -93,7 +93,9 @@ Real-world single-threaded numbers measured with Criterion.rs on the `secure` br
 
 ## Legal & Independence
 
-`aescrypt-rs` is an **independent, community-maintained implementation** of the publicly documented ([AES Crypt file format specification](https://www.aescrypt.com/aes_file_format.html)).
+`aescrypt-rs` is an **independent, community-maintained implementation** of the publicly documented `AES Crypt Stream Format`:
+
+https://www.aescrypt.com/aes_file_format.html
 
 It is **not affiliated with, endorsed by, or supported by** Paul E. Jones, Packetizer, Inc., or Terrapane Corporation.
 
