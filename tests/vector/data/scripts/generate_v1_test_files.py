@@ -12,9 +12,9 @@ from pathlib import Path
 
 # Configuration
 VERSION = "v1"
-INPUT_DIR = Path("tests/data")
-OUTPUT_DIR = INPUT_DIR / "aes" / VERSION
+INPUT_DIR = Path("tests/vector/data")
 INPUT_FILE = INPUT_DIR / f"test_vectors_{VERSION}.json"
+OUTPUT_DIR = INPUT_DIR / "aes_test_files" / VERSION
 
 # Ensure output directory exists
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

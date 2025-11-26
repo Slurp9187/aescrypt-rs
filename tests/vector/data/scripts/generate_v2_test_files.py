@@ -2,8 +2,8 @@
 """
 Generate binary .aes test files from JSON test vectors.
 
-Input:  tests/data/test_vectors_v3.json
-Output: tests/data/aes/v3/v3_test_{i}.txt.aes
+Input:  tests/data/test_vectors_v2.json
+Output: tests/data/aes/v2/v2_test_{i}.txt.aes
 """
 
 import json
@@ -11,10 +11,10 @@ import binascii
 from pathlib import Path
 
 # Configuration
-VERSION = "v3"
-INPUT_DIR = Path("tests/data")
-OUTPUT_DIR = INPUT_DIR / "aes" / VERSION
+VERSION = "v2"
+INPUT_DIR = Path("tests/vector/data")
 INPUT_FILE = INPUT_DIR / f"test_vectors_{VERSION}.json"
+OUTPUT_DIR = INPUT_DIR / "aes_test_files" / VERSION
 
 # Ensure output directory exists
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
