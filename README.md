@@ -3,11 +3,11 @@
 **Fast, safe, streaming Rust implementation of the AES Crypt file format**
 
 - **Read**: Full compatibility with **all versions** — v0, v1, v2, and v3  
-- **Write**: Modern **v3 only** (PBKDF2-SHA512, PKCS#7 padding, proper session-key encryption)  
-- AES-256-CBC + HMAC-SHA256 integrity  
+- **Write**: Modern **v3 only** (PBKDF2-HMAC-SHA512, PKCS#7 padding, proper session-key encryption)  
+- AES-256-CBC with **HMAC-SHA256** ciphertext authentication  
 - Constant-memory streaming (64-byte ring buffer)  
 - Zero-cost secure memory via [`secure-gate`](https://github.com/Slurp9187/secure-gate) (enabled by default)  
-- No `unsafe` in the core decryption path when `zeroize` is on  
+- No `unsafe` in the core decryption path when `zeroize` is enabled  
 - Pure Rust, `#![no_std]`-compatible core  
 - Passes round-trip + deterministic tests against official AES Crypt v0–v3 files  
 
@@ -39,6 +39,14 @@ Your support keeps the original tools alive and funds future development.
 > **Why v3-only on write?**  
 > Version 3 is the only secure, future-proof variant (PBKDF2 with configurable iterations, UTF-8 passwords, PKCS#7 padding). Producing legacy formats today would be a downgrade.
 
+## Cryptographic Primitives (v3)
+
+| Layer                     | Encryption       | Integrity / KDF          |
+|---------------------------|------------------|--------------------------|
+| Password → Master Key     | –                | PBKDF2-HMAC-SHA**512**   |
+| Session Key + IV (48 B)   | AES-256-CBC      | HMAC-SHA**512**          |
+| File Payload              | AES-256-CBC      | HMAC-SHA**256**          |
+
 ## Quick Example
 
 ```rust
@@ -61,7 +69,7 @@ println!("Round-trip successful!");
 
 | Feature     | Description                                                      |
 |-------------|------------------------------------------------------------------|
-| `zeroize` (default) | Automatic secure zeroing of keys/IVs on drop (recommended)     |
+| `zeroize` (default) | Automatic secure zeroing of keys/IVs on drop (strongly recommended) |
 
 ## Installation
 
@@ -70,21 +78,18 @@ println!("Round-trip successful!");
 aescrypt-rs = "0.1"
 ```
 
-## Performance (Laptop – Intel i7-10510U @ 1.80 GHz – Windows 11 Pro – Rust 1.82 – release)
+## Performance (Intel i7-10510U @ 1.8 GHz – Windows 11 – Rust 1.82 – release)
 
-These numbers are real-world results from a typical 2019–2020 laptop (4 cores / 8 threads, 16 GB RAM) measured with Criterion.rs on the current `secure` branch.
+Real-world single-threaded numbers measured with Criterion.rs on the `secure` branch.
 
 | Workload                     | Throughput          | Notes                                      |
 |------------------------------|---------------------|--------------------------------------------|
-| Decrypt 10 MiB               | **~171 MiB/s**      | Pure streaming decryption (no KDF cost)    |
-| Encrypt 10 MiB (with KDF)    | **~160 MiB/s**      | Includes PBKDF2-SHA256 (~300k iterations)  |
+| Decrypt 10 MiB               | **~171 MiB/s**      | Pure streaming (no KDF)                    |
+| Encrypt 10 MiB (with KDF)    | **~160 MiB/s**      | Includes PBKDF2-SHA512 (~300k iterations)  |
 | Full round-trip 10 MiB       | **~76 MiB/s**       | Encrypt → decrypt back-to-back             |
-| Decrypt 1 MiB                | **~89 MiB/s**       |                                            |
-| Encrypt 1 MiB (with KDF)     | **~85 MiB/s**       |                                            |
 
-> **Key takeaway**: Even on a modest laptop, `aescrypt-rs` sustains **150–170 MiB/s** for bulk streaming operations — fast enough to encrypt/decrypt a 1 GiB file in roughly **6–7 seconds** (excluding initial key derivation, which is ~180 ms at 300k iterations).
-
-These figures are single-threaded. On modern high-core desktop CPUs (Ryzen 9, Core i9) or Apple Silicon, you’ll easily exceed **1 GiB/s**.
+> That’s **~6–7 seconds** for a full 1 GiB file on a modest 2019 laptop (excluding ~180 ms key derivation).  
+> On modern desktop CPUs or Apple Silicon, expect **>1 GiB/s**.
 
 ## Legal & Independence
 
@@ -94,7 +99,7 @@ It is **not affiliated with, endorsed by, or supported by** Paul E. Jones, Packe
 
 Correctness was verified against the official open-source C++ reference implementation (publicly available for audit at the time of development), but **no source code was copied**. All logic is idiomatic Rust using the zero-cost `secure-gate` crate.
 
-This software is provided **“as is”**, without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, and non-infringement.
+This software is provided “as is”, without warranty of any kind.
 
 ## License
 
@@ -109,8 +114,7 @@ at your option.
 
 Pull requests are very welcome!
 
-The `secure` branch contains the latest work with full `secure-gate` integration.
-
+The `secure` branch contains the latest work with full `secure-gate` integration.  
 `main` is the stable line.
 
 ---
