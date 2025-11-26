@@ -143,7 +143,7 @@ Final trailer HMAC     → ciphertext octets ONLY
 7. Official Test Vectors
 ────────────────────────────────────────────────────────────────────────────
 Permanently hosted and versioned at:
-https://github.com/Slurp9187/aescrypt-rs/tree/secure/tests/vector/data
+https://github.com/Slurp9187/aescrypt-rs/tree/main/tests/vector/data
 
 These JSON files were extracted directly from Paul E. Jones’ official binary test suite
 at https://github.com/terrapane/aescrypt_engine/tree/master/test
