@@ -44,7 +44,6 @@ pub fn decrypt<R: Read, W: Write>(
     let mut session_iv = Iv16::new([0u8; 16]);
     let mut session_key = Aes256Key::new([0u8; 32]);
 
-    // ← THIS WAS MISSING THE `?`
     extract_session_data(
         &mut input_reader,
         file_version,
