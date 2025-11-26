@@ -57,10 +57,20 @@ let plaintext = b"The quick brown fox jumps over the lazy dog";
 let password = Password::new("correct horse battery staple".to_string());
 
 let mut encrypted = Vec::new();
-encrypt(password.clone(), Cursor::new(plaintext), &mut encrypted, 600_000)?;
+encrypt(
+    Cursor::new(plaintext),   // input
+    &mut encrypted,           // output
+    password.clone(),
+    600_000,
+)?;
 
 let mut decrypted = Vec::new();
-decrypt(password, Cursor::new(&encrypted), &mut decrypted)?;
+decrypt(
+    Cursor::new(&encrypted),  // input
+    &mut decrypted,           // output
+    password,
+)?;
+
 assert_eq!(plaintext.as_slice(), decrypted);
 println!("Round-trip successful!");
 ```
