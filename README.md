@@ -168,8 +168,7 @@ at your option.
 
 Pull requests are very welcome!
 
-The `convert` branch contains the latest work on legacy conversion and test suite.  
-`main` is the stable line.
+The `main` branch is the stable line.
 
 ---
 
