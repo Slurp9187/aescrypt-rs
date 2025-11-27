@@ -3,9 +3,9 @@
 //! Zero secret exposure, zero-cost, auto-zeroizing
 
 use crate::aliases::HmacSha256;
-use crate::aliases::SecureRng;
 use crate::aliases::{Aes256Key, EncryptedSessionBlock48, Iv16, Password};
 use crate::consts::{AESCRYPT_LATEST_VERSION, PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
+use crate::crypto::rng::SecureRandomExt;
 use crate::encryptor::stream::encrypt_stream;
 use crate::encryptor::write::{
     derive_setup_key, encrypt_session_block, write_extensions, write_header, write_hmac,
@@ -42,19 +42,10 @@ where
     write_header(&mut output, AESCRYPT_LATEST_VERSION)?;
     write_extensions(&mut output, AESCRYPT_LATEST_VERSION, None)?;
 
-    let mut rng = SecureRng::new();
-
     // Generate secure random values — wrapped from birth
-    let public_iv: Iv16 = Iv16::from(rng.iv_16());
-    let session_iv: Iv16 = Iv16::from(rng.iv_16());
-    let session_key = Aes256Key::new(rng.key_32());
-
-    // use crate::aliases::{Aes256Key, Iv16};
-
-    // // One-liner, zero-cost, thread-safe, auto-zeroizing
-    // let public_iv = Iv16::random();
-    // let session_iv = Iv16::random();
-    // let session_key = Aes256Key::random(); // or .random() if preferred
+    let public_iv: Iv16 = Iv16::random();
+    let session_iv: Iv16 = Iv16::random();
+    let session_key: Aes256Key = Aes256Key::random();
 
     write_iterations(&mut output, kdf_iterations, AESCRYPT_LATEST_VERSION)?;
     write_public_iv(&mut output, &public_iv)?;

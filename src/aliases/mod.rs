@@ -1,3 +1,5 @@
+// src/aliases/mod.rs
+
 //! Global secure type aliases — secure-gate v0.5.5+
 //! Maximum overkill, minimal duplication, audit-perfect
 
