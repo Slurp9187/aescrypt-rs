@@ -2,6 +2,7 @@
 //! Deterministic AES Crypt v3 encryption with fixed session key/IV (for testing/fuzzing)
 //! secure-gate v0.5.5+ gold standard (2025)
 
+use crate::aliases::HmacSha256;
 use crate::aliases::{Aes256Key, EncryptedSessionBlock48, Iv16, Password};
 use crate::consts::{AESCRYPT_LATEST_VERSION, PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
 use crate::encryptor::stream::encrypt_stream;
@@ -10,7 +11,6 @@ use crate::encryptor::write::{
     write_octets, write_public_iv,
 };
 use crate::error::AescryptError;
-use crate::HmacSha256;
 use aes::cipher::KeyInit;
 use aes::Aes256Enc;
 use hmac::Mac;

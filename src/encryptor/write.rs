@@ -1,12 +1,12 @@
 //! src/encryptor/write.rs
 //! AES Crypt write helpers — FULL secure-gate v0.5.5+ protection
 
-use crate::aliases::{Aes256Key, Iv16, Password, PlainTextBlock16, EncryptedSessionBlock48};
+use crate::aliases::HmacSha256;
+use crate::aliases::{Aes256Key, EncryptedSessionBlock48, Iv16, Password, PlainTextBlock16};
 use crate::consts::PBKDF2_MAX_ITER;
 use crate::derive_secure_pbkdf2_key;
 use crate::error::AescryptError;
 use crate::utils::xor_blocks;
-use crate::HmacSha256;
 use aes::cipher::BlockEncrypt;
 use aes::{Aes256Enc, Block as AesBlock};
 use hmac::Mac;

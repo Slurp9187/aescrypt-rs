@@ -25,3 +25,7 @@ fixed_alias!(SessionHmacTag32, 32); // Used in session.rs + stream/utils.rs
 dynamic_alias!(MasterKey, Vec<u8>);
 dynamic_alias!(Password, String);
 dynamic_alias!(Token, String);
+
+// Re-exported crypto primitives — users get them from the same `aliases::*` import
+pub use crate::crypto::hmac::{HmacSha256, HmacSha512};
+pub use crate::crypto::rng::SecureRng;

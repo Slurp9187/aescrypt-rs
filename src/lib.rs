@@ -1,4 +1,4 @@
-//! AES Crypt encryption/decryption library (v0–v3).
+// src/lib.rs
 
 pub mod aliases;
 pub mod consts;
@@ -8,19 +8,15 @@ pub mod encryptor;
 pub mod error;
 pub mod utils;
 
-// ============================================================================
-// Core public API (always available)
-// ============================================================================
-// pub use aliases::*;
-// pub use consts::*;
-pub use crypto::hmac::{HmacSha256, HmacSha512};
-pub use crypto::rng::SecureRng;
+// High-level API — this is what 99% of users import
 pub use decryptor::decrypt;
 pub use encryptor::encrypt;
 pub use error::AescryptError;
 
-// Plain KDF (for tests / interop)
+// Low-level KDFs — intentionally public at the root because:
+// • They are needed for custom decryption flows (e (e.g. reading v0–v2 files without the high-level API)
+// • They are the only non-wrapper crypto functions users ever need directly
+// • Keeping them at the root is the established pattern in the ecosystem (see `ring`, `password-hash`, etc.)
 pub use crypto::kdf::ackdf::derive_secure_ackdf_key;
 pub use crypto::kdf::pbkdf2::derive_secure_pbkdf2_key;
-
 pub use crypto::kdf::pbkdf2_builder::Pbkdf2Builder;

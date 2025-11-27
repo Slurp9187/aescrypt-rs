@@ -2,6 +2,8 @@
 //! Aescrypt encryption — secure-gate v0.5.5+ gold standard (2025)
 //! Zero secret exposure, zero-cost, auto-zeroizing
 
+use crate::aliases::HmacSha256;
+use crate::aliases::SecureRng;
 use crate::aliases::{Aes256Key, EncryptedSessionBlock48, Iv16, Password};
 use crate::consts::{AESCRYPT_LATEST_VERSION, PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
 use crate::encryptor::stream::encrypt_stream;
@@ -10,8 +12,6 @@ use crate::encryptor::write::{
     write_iterations, write_octets, write_public_iv,
 };
 use crate::error::AescryptError;
-use crate::HmacSha256;
-use crate::SecureRng;
 use aes::cipher::KeyInit;
 use aes::Aes256Enc;
 use hmac::Mac;
@@ -48,6 +48,13 @@ where
     let public_iv: Iv16 = Iv16::from(rng.iv_16());
     let session_iv: Iv16 = Iv16::from(rng.iv_16());
     let session_key = Aes256Key::new(rng.key_32());
+
+    // use crate::aliases::{Aes256Key, Iv16};
+
+    // // One-liner, zero-cost, thread-safe, auto-zeroizing
+    // let public_iv = Iv16::random();
+    // let session_iv = Iv16::random();
+    // let session_key = Aes256Key::random(); // or .random() if preferred
 
     write_iterations(&mut output, kdf_iterations, AESCRYPT_LATEST_VERSION)?;
     write_public_iv(&mut output, &public_iv)?;
