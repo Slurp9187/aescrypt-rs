@@ -40,13 +40,7 @@ fn bench_encrypt_with_kdf(c: &mut Criterion) {
 
                     // encrypt() now takes Dynamic<String> by value
                     // We clone it here — cheap (just a Box<String> clone)
-                    encrypt(
-                        black_box(password.clone()),
-                        &mut src,
-                        &mut dst,
-                        black_box(iters),
-                    )
-                    .unwrap();
+                    encrypt(&mut src, &mut dst, black_box(&password), black_box(iters)).unwrap();
 
                     black_box(dst)
                 });

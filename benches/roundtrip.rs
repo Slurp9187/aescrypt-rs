@@ -41,7 +41,7 @@ fn bench_roundtrip(c: &mut Criterion) {
             &size,
             |b, _| {
                 // Clone once outside the timed loop – cloning a Box<String> is cheap
-                let password = password.clone();
+                let password = &password;
 
                 b.iter(|| {
                     // ----- encrypt -------------------------------------------------
@@ -50,12 +50,12 @@ fn bench_roundtrip(c: &mut Criterion) {
                         let mut src = Cursor::new(black_box(&input));
 
                         // Clone for encrypt since it takes Dynamic<String> by value
-                        let pw_for_encrypt = password.clone();
+                        let pw_for_encrypt = &password;
 
                         encrypt(
-                            black_box(pw_for_encrypt),
                             &mut src,
                             &mut encrypted,
+                            black_box(pw_for_encrypt),
                             KDF_ITERATIONS,
                         )
                         .unwrap();
@@ -67,7 +67,7 @@ fn bench_roundtrip(c: &mut Criterion) {
                         let mut src = Cursor::new(black_box(&encrypted));
 
                         // Clone for decrypt
-                        let pw_for_decrypt = password.clone();
+                        let pw_for_decrypt = &password;
 
                         decrypt(
                             &mut src,

@@ -4,7 +4,9 @@
 //! Now with maximum overkill: even public-but-sensitive buffers auto-zeroed on drop
 //! Because in crypto, we wipe everything that ever touched the stack.
 
-use crate::aliases::{Aes256Key, Iv16, PrevCiphertextBlock16, EncryptedSessionBlock48, SessionHmacTag32};
+use crate::aliases::{
+    Aes256Key, EncryptedSessionBlock48, Iv16, PrevCiphertextBlock16, SessionHmacTag32,
+};
 use crate::decryptor::read_exact_span;
 use crate::{crypto::hmac::HmacSha256, error::AescryptError, utils::xor_blocks};
 use aes::cipher::{BlockDecrypt, KeyInit};
@@ -19,14 +21,17 @@ use std::io::Read;
 /// - Full auto-zeroizing (even ciphertext & HMAC tags)
 /// - Maximum performance
 #[inline(always)]
-pub fn extract_session_data<R: Read>(
+pub fn extract_session_data<R>(
     reader: &mut R,
     file_version: u8,
     public_iv: &Iv16,
     setup_key: &Aes256Key,
     session_iv_out: &mut Iv16,
     session_key_out: &mut Aes256Key,
-) -> Result<(), AescryptError> {
+) -> Result<(), AescryptError>
+where
+    R: Read,
+{
     // v0: direct secure copy — no encryption, no HMAC
     if file_version == 0 {
         *session_iv_out = Iv16::from(*public_iv.expose_secret());
@@ -35,7 +40,8 @@ pub fn extract_session_data<R: Read>(
     }
 
     // Read encrypted session block and HMAC tag — both wrapped for auto-zeroing
-    let encrypted_block: EncryptedSessionBlock48 = EncryptedSessionBlock48::new(read_exact_span(reader)?);
+    let encrypted_block: EncryptedSessionBlock48 =
+        EncryptedSessionBlock48::new(read_exact_span(reader)?);
     let expected_hmac: SessionHmacTag32 = SessionHmacTag32::new(read_exact_span(reader)?);
 
     // HMAC verification — exact same pattern as encryption side

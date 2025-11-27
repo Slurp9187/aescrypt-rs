@@ -34,13 +34,17 @@ impl DecryptionContext {
     }
 
     #[inline(always)]
-    pub fn decrypt_cbc_loop<R: Read, W: Write>(
+    pub fn decrypt_cbc_loop<R, W>(
         &mut self,
         input: &mut R,
         output: &mut W,
         cipher: &Aes256Dec,
         hmac: &mut HmacSha256,
-    ) -> Result<(), AescryptError> {
+    ) -> Result<(), AescryptError>
+    where
+        R: Read,
+        W: Write,
+    {
         let mut initial_buffer = EncryptedSessionBlock48::new([0u8; 48]);
         let bytes_read = input.read(initial_buffer.expose_secret_mut())?;
         self.ring_buffer.expose_secret_mut()[self.head_index..self.head_index + bytes_read]

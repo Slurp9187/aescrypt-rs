@@ -3,27 +3,27 @@
 //! Fully optimized for 2025 Rust + secure-gate ecosystem
 
 use crate::error::AescryptError;
-use std::io::{ErrorKind, Read};
+use std::io::Read;
 
 /// Read exactly `N` bytes into a stack-allocated `[u8; N]`.
 ///
 /// Panics on EOF — this is correct for Aescrypt (file must be well-formed).
 #[inline(always)]
-pub fn read_exact_span<R: Read, const N: usize>(reader: &mut R) -> Result<[u8; N], AescryptError> {
+pub fn read_exact_span<R, const N: usize>(reader: &mut R) -> Result<[u8; N], AescryptError>
+where
+    R: Read,
+{
     let mut buf = [0u8; N];
-    reader.read_exact(&mut buf).map_err(|e| {
-        if e.kind() == ErrorKind::UnexpectedEof {
-            AescryptError::Header("unexpected EOF while reading header".into())
-        } else {
-            AescryptError::Io(e)
-        }
-    })?;
+    reader.read_exact(&mut buf).map_err(AescryptError::Io)?;
     Ok(buf)
 }
 
 /// Validate file magic `"AES"` + version byte (0–3 supported)
 #[inline(always)]
-pub fn read_file_version<R: Read>(reader: &mut R) -> Result<u8, AescryptError> {
+pub fn read_file_version<R>(reader: &mut R) -> Result<u8, AescryptError>
+where
+    R: Read,
+{
     let header = read_exact_span::<_, 4>(reader)?;
     if header[..3] != *b"AES" {
         return Err(AescryptError::Header(
@@ -39,13 +39,19 @@ pub fn read_file_version<R: Read>(reader: &mut R) -> Result<u8, AescryptError> {
 
 /// Read the reserved/modulo byte (v0–v2: modulo, v3: reserved)
 #[inline(always)]
-pub fn read_reserved_modulo_byte<R: Read>(reader: &mut R) -> Result<u8, AescryptError> {
+pub fn read_reserved_modulo_byte<R>(reader: &mut R) -> Result<u8, AescryptError>
+where
+    R: Read,
+{
     Ok(read_exact_span::<_, 1>(reader)?[0])
 }
 
 /// Consume all v2+ extensions (zero-copy skip)
 #[inline(always)]
-pub fn consume_all_extensions<R: Read>(reader: &mut R, version: u8) -> Result<(), AescryptError> {
+pub fn consume_all_extensions<R>(reader: &mut R, version: u8) -> Result<(), AescryptError>
+where
+    R: Read,
+{
     if version < 2 {
         return Ok(());
     }
@@ -64,7 +70,9 @@ pub fn consume_all_extensions<R: Read>(reader: &mut R, version: u8) -> Result<()
 
         while remaining > 0 {
             let to_read = remaining.min(discard.len());
-            reader.read_exact(&mut discard[..to_read])?;
+            reader
+                .read_exact(&mut discard[..to_read])
+                .map_err(AescryptError::Io)?;
             remaining -= to_read;
         }
     }
@@ -73,7 +81,10 @@ pub fn consume_all_extensions<R: Read>(reader: &mut R, version: u8) -> Result<()
 
 /// Read KDF iterations (v3+ only). Returns 0 for older versions.
 #[inline(always)]
-pub fn read_kdf_iterations<R: Read>(reader: &mut R, version: u8) -> Result<u32, AescryptError> {
+pub fn read_kdf_iterations<R>(reader: &mut R, version: u8) -> Result<u32, AescryptError>
+where
+    R: Read,
+{
     if version < 3 {
         return Ok(0);
     }

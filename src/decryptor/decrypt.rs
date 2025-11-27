@@ -17,7 +17,7 @@ use std::io::{Read, Write};
 
 /// Decrypt an Aescrypt file (v0–v3) — zero secret exposure, maximum security
 #[inline(always)]
-pub fn decrypt<R, W>(mut input: R, mut output: W, password: Password) -> Result<(), AescryptError>
+pub fn decrypt<R, W>(mut input: R, mut output: W, password: &Password) -> Result<(), AescryptError>
 where
     R: Read,
     W: Write,
@@ -35,9 +35,9 @@ where
     let mut setup_key = secure!(Aes256Key, [0u8; 32].into());
 
     if file_version <= 2 {
-        derive_secure_ackdf_key(&password, &public_iv, &mut setup_key)?;
+        derive_secure_ackdf_key(password, &public_iv, &mut setup_key)?;
     } else {
-        derive_secure_pbkdf2_key(&password, &public_iv, kdf_iterations, &mut setup_key)?;
+        derive_secure_pbkdf2_key(password, &public_iv, kdf_iterations, &mut setup_key)?;
     }
 
     // Session key/IV — secure buffers from birth

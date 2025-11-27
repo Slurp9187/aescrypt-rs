@@ -25,15 +25,19 @@ pub(crate) const V3_CREATED_BY_EXTENSION: [u8; 29] = [
 /// Encrypt plaintext → AES Crypt v3 stream with **fixed** session IV/key
 /// Used for deterministic testing and fuzzing
 #[inline(always)]
-pub fn encrypt_with_fixed_session<R: Read, W: Write>(
-    password: Password,
-    mut source: R,
-    mut destination: W,
+pub fn encrypt_with_fixed_session<R, W>(
+    mut input: R,
+    mut output: W,
+    password: &Password,
     kdf_iterations: u32,
     public_iv: &Iv16,
     session_iv: &Iv16,
     session_key: &Aes256Key,
-) -> Result<(), AescryptError> {
+) -> Result<(), AescryptError>
+where
+    R: Read,
+    W: Write,
+{
     // Validation
     if password.expose_secret().is_empty() {
         return Err(AescryptError::Header("empty password".into()));
@@ -43,19 +47,19 @@ pub fn encrypt_with_fixed_session<R: Read, W: Write>(
     }
 
     // === Header ===
-    write_header(&mut destination, AESCRYPT_LATEST_VERSION)?;
+    write_header(&mut output, AESCRYPT_LATEST_VERSION)?;
 
     // === Extensions: official CREATED_BY + terminator ===
-    destination.write_all(&V3_CREATED_BY_EXTENSION)?;
-    destination.write_all(&[0x00, 0x00])?;
+    output.write_all(&V3_CREATED_BY_EXTENSION)?;
+    output.write_all(&[0x00, 0x00])?;
 
     // === KDF parameters + public IV ===
-    write_iterations(&mut destination, kdf_iterations, AESCRYPT_LATEST_VERSION)?;
-    write_public_iv(&mut destination, public_iv)?;
+    write_iterations(&mut output, kdf_iterations, AESCRYPT_LATEST_VERSION)?;
+    write_public_iv(&mut output, public_iv)?;
 
     // === Derive setup key directly into secure buffer ===
     let mut setup_key = Aes256Key::new([0u8; 32]);
-    derive_setup_key(&password, public_iv, kdf_iterations, &mut setup_key)?;
+    derive_setup_key(password, public_iv, kdf_iterations, &mut setup_key)?;
 
     // === Create cipher and HMAC ===
     let cipher = Aes256Enc::new(setup_key.expose_secret().into());
@@ -77,11 +81,11 @@ pub fn encrypt_with_fixed_session<R: Read, W: Write>(
     hmac.update(&[AESCRYPT_LATEST_VERSION]);
 
     // === Write session block + HMAC ===
-    write_octets(&mut destination, enc_block.expose_secret())?;
-    write_hmac(&mut destination, hmac)?; // hmac moved — correct
+    write_octets(&mut output, enc_block.expose_secret())?;
+    write_hmac(&mut output, hmac)?; // hmac moved — correct
 
     // === Final stream encryption ===
-    encrypt_stream(&mut source, &mut destination, session_iv, session_key)?;
+    encrypt_stream(&mut input, &mut output, session_iv, session_key)?;
 
     Ok(())
 }
@@ -105,44 +109,46 @@ mod tests {
 
         let mut encrypted = Vec::new();
         encrypt(
-            password.clone(),
             Cursor::new(plaintext),
             &mut encrypted,
+            &password,
             iterations,
         )
         .unwrap();
 
         let mut decrypted = Vec::new();
-        decrypt(Cursor::new(&encrypted), &mut decrypted, password).unwrap();
+        decrypt(Cursor::new(&encrypted), &mut decrypted, &password).unwrap();
 
         assert_eq!(decrypted, plaintext);
     }
 
     #[test]
     fn test_fixed_session_deterministic() {
-        let password = Password::new("secret".to_string());
         let public_iv = Iv16::from([0x01; 16]);
         let session_iv = Iv16::from([0x02; 16]);
+        let password = Password::new("secret".to_string());
         let session_key = Aes256Key::from([0x03; 32]);
 
         let mut output1 = Vec::new();
         let mut output2 = Vec::new();
 
+        // FIXED: password first, then iterations
         encrypt_with_fixed_session(
-            password.clone(),
             Cursor::new(b"hello"),
             &mut output1,
-            1000,
+            &password, // ← now correct
+            1000,      // ← now correct
             &public_iv,
             &session_iv,
             &session_key,
         )
         .unwrap();
 
+        // This one was already correct
         encrypt_with_fixed_session(
-            password,
             Cursor::new(b"hello"),
             &mut output2,
+            &password,
             1000,
             &public_iv,
             &session_iv,

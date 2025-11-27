@@ -88,7 +88,7 @@ fn run_decrypt_for_version(version: AescryptVersion) {
             .unwrap_or_else(|e| panic!("Vector {i} ({}) invalid hex: {e}", version.name()));
 
         let mut decrypted = Vec::new();
-        decrypt(Cursor::new(&encrypted), &mut decrypted, password.clone())
+        decrypt(Cursor::new(&encrypted), &mut decrypted, &password)
             .unwrap_or_else(|e| panic!("Vector {i} ({}) decrypt failed: {e:?}", version.name()));
 
         assert_eq!(
@@ -119,15 +119,15 @@ fn run_roundtrip_for_version(version: AescryptVersion) {
 
         let mut encrypted = Vec::new();
         encrypt(
-            password.clone(),
             Cursor::new(plaintext),
             &mut encrypted,
+            &password,
             DEFAULT_KDF_ITERATIONS,
         )
         .unwrap_or_else(|e| panic!("Vector {i} ({}) encrypt failed: {e:?}", version.name()));
 
         let mut decrypted = Vec::new();
-        decrypt(Cursor::new(&encrypted), &mut decrypted, password.clone())
+        decrypt(Cursor::new(&encrypted), &mut decrypted, &password)
             .unwrap_or_else(|e| panic!("Vector {i} ({}) decrypt failed: {e:?}", version.name()));
 
         assert_eq!(
@@ -186,9 +186,9 @@ fn roundtrip_v3_deterministic() {
 
         let mut encrypted = Vec::new();
         encrypt_with_fixed_session(
-            password.clone(),
             Cursor::new(plaintext),
             &mut encrypted,
+            &password,
             v.kdf_iterations,
             &public_iv,
             &session_iv,
@@ -199,7 +199,7 @@ fn roundtrip_v3_deterministic() {
         assert_eq!(encrypted, expected_ct, "Ciphertext mismatch in vector {i}");
 
         let mut decrypted = Vec::new();
-        decrypt(Cursor::new(&encrypted), &mut decrypted, password.clone())
+        decrypt(Cursor::new(&encrypted), &mut decrypted, &password)
             .unwrap_or_else(|e| panic!("Vector {i}: decrypt failed: {e:?}"));
 
         assert_eq!(decrypted, plaintext, "Round-trip failed in vector {i}");
@@ -236,14 +236,14 @@ fn roundtrip_v3_empty_input() {
     let password = Password::new("test-empty".to_string());
     let mut encrypted = Vec::new();
     encrypt(
-        password.clone(),
         Cursor::new(b""),
         &mut encrypted,
+        &password,
         DEFAULT_KDF_ITERATIONS,
     )
     .unwrap();
     let mut decrypted = Vec::new();
-    decrypt(Cursor::new(&encrypted), &mut decrypted, password).unwrap();
+    decrypt(Cursor::new(&encrypted), &mut decrypted, &password).unwrap();
     assert!(decrypted.is_empty());
 }
 
@@ -253,14 +253,14 @@ fn roundtrip_v3_large_input() {
     let password = Password::new("test-large".to_string());
     let mut encrypted = Vec::new();
     encrypt(
-        password.clone(),
         Cursor::new(&plaintext),
         &mut encrypted,
+        &password,
         DEFAULT_KDF_ITERATIONS,
     )
     .unwrap();
     let mut decrypted = Vec::new();
-    decrypt(Cursor::new(&encrypted), &mut decrypted, password).unwrap();
+    decrypt(Cursor::new(&encrypted), &mut decrypted, &password).unwrap();
     assert_eq!(decrypted, plaintext);
 }
 
@@ -270,14 +270,14 @@ fn roundtrip_v3_huge_input() {
     let password = Password::new("test-huge-10mib".to_string());
     let mut encrypted = Vec::new();
     encrypt(
-        password.clone(),
         Cursor::new(&plaintext),
         &mut encrypted,
+        &password,
         DEFAULT_KDF_ITERATIONS,
     )
     .unwrap();
     let mut decrypted = Vec::new();
-    decrypt(Cursor::new(&encrypted), &mut decrypted, password).unwrap();
+    decrypt(Cursor::new(&encrypted), &mut decrypted, &password).unwrap();
     assert_eq!(decrypted, plaintext);
 }
 
@@ -296,13 +296,13 @@ fn roundtrip_extreme_1gib() {
 
     let mut encrypted = Vec::new();
     encrypt(
-        password.clone(),
         Cursor::new(&plaintext),
         &mut encrypted,
+        &password,
         DEFAULT_KDF_ITERATIONS,
     )
     .unwrap();
     let mut decrypted = Vec::new();
-    decrypt(Cursor::new(&encrypted), &mut decrypted, password).unwrap();
+    decrypt(Cursor::new(&encrypted), &mut decrypted, &password).unwrap();
     assert_eq!(decrypted, plaintext);
 }

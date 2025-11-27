@@ -25,13 +25,17 @@ pub enum StreamConfig {
 }
 
 #[inline(always)]
-pub fn decrypt_ciphertext_stream<R: Read, W: Write>(
+pub fn decrypt_ciphertext_stream<R, W>(
     mut input_reader: R,
     mut output_writer: W,
     initial_vector: &Iv16,
     encryption_key: &Aes256Key,
     config: StreamConfig,
-) -> Result<(), AescryptError> {
+) -> Result<(), AescryptError>
+where
+    R: Read,
+    W: Write,
+{
     let key_bytes = encryption_key.expose_secret();
     let cipher = Aes256Dec::new(key_bytes.into());
 

@@ -4,7 +4,7 @@
 
 - **Read**: Full compatibility with **all versions** — v0, v1, v2, and v3  
 - **Write**: Modern **v3 only** (PBKDF2-HMAC-SHA512, PKCS#7 padding, proper session-key encryption)  
-- AES-256-CBC with **HMAC-SHA256** ciphertext authentication  
+- AES-256-CBC with **HMAC-SHA256** (payload) + **HMAC-SHA512** (session) authentication
 - Constant-memory streaming (64-byte ring buffer)  
 - Zero-cost secure memory via [`secure-gate`](https://github.com/Slurp9187/secure-gate) (enabled by default)  
 - No `unsafe` in the core decryption path when `zeroize` is enabled  
@@ -44,7 +44,7 @@ Your support keeps the original tools alive and funds future development.
 | Layer                     | Encryption       | Integrity / KDF          |
 |---------------------------|------------------|--------------------------|
 | Password → Master Key     | –                | PBKDF2-HMAC-SHA**512**   |
-| Session Key + IV (48 B)   | AES-256-CBC      | HMAC-SHA**512**          |
+| Session Key + IV (48 B)   | AES-256-CBC      | HMAC-SHA**256**          |
 | File Payload              | AES-256-CBC      | HMAC-SHA**256**          |
 
 ## Quick Example
@@ -60,7 +60,7 @@ let mut encrypted = Vec::new();
 encrypt(
     Cursor::new(plaintext),   // input
     &mut encrypted,           // output
-    password.clone(),
+    &password,
     600_000,
 )?;
 
@@ -68,7 +68,7 @@ let mut decrypted = Vec::new();
 decrypt(
     Cursor::new(&encrypted),  // input
     &mut decrypted,           // output
-    password,
+    &password,
 )?;
 
 assert_eq!(plaintext.as_slice(), decrypted);

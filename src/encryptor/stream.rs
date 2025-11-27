@@ -13,12 +13,16 @@ use std::io::{Read, Write};
 type HmacSha256 = Hmac<Sha256>;
 
 #[inline(always)]
-pub fn encrypt_stream<R: Read, W: Write>(
+pub fn encrypt_stream<R, W>(
     mut source: R,
     mut destination: W,
     session_iv: &Iv16,
     session_key: &Aes256Key,
-) -> Result<(), AescryptError> {
+) -> Result<(), AescryptError>
+where
+    R: Read,
+    W: Write,
+{
     let cipher = Aes256Enc::new(session_key.expose_secret().into());
     let mut hmac = <HmacSha256 as Mac>::new_from_slice(session_key.expose_secret())
         .expect("session_key is 32 bytes");

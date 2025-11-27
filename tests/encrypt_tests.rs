@@ -29,9 +29,9 @@ fn encrypt_v3_basics() {
     for (plaintext, check_header, min_size, max_size, desc) in cases {
         let mut encrypted = Vec::new();
         encrypt(
-            password.clone(),
             Cursor::new(plaintext),
             &mut encrypted,
+            &password,
             DEFAULT_PBKDF2_ITERATIONS,
         )
         .unwrap_or_else(|e| panic!("Encryption failed for {desc}: {e:?}"));
@@ -56,9 +56,9 @@ fn encrypt_unicode_password() {
     let mut encrypted = Vec::new();
 
     encrypt(
-        password,
         Cursor::new(b"unicode test"),
         &mut encrypted,
+        &password,
         DEFAULT_PBKDF2_ITERATIONS,
     )
     .unwrap();
@@ -72,10 +72,16 @@ fn encrypt_invalid_iterations() {
     let plaintext = b"test";
 
     // Zero iterations → Header error
-    let err = encrypt(password.clone(), Cursor::new(plaintext), &mut Vec::new(), 0).unwrap_err();
+    let err = encrypt(Cursor::new(plaintext), &mut Vec::new(), &password, 0).unwrap_err();
     assert!(matches!(err, AescryptError::Header(_)));
 
     // Too many iterations → Header error
-    let err = encrypt(password, Cursor::new(plaintext), &mut Vec::new(), 5_000_001).unwrap_err();
+    let err = encrypt(
+        Cursor::new(plaintext),
+        &mut Vec::new(),
+        &password,
+        5_000_001,
+    )
+    .unwrap_err();
     assert!(matches!(err, AescryptError::Header(_)));
 }
