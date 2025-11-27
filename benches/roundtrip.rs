@@ -70,9 +70,9 @@ fn bench_roundtrip(c: &mut Criterion) {
                         let pw_for_decrypt = password.clone();
 
                         decrypt(
-                            black_box(pw_for_decrypt), // ← Dynamic<String> by value
                             &mut src,
                             &mut decrypted,
+                            black_box(pw_for_decrypt), // ← Dynamic<String> by value
                         )
                         .unwrap();
                     }

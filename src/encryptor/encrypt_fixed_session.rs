@@ -2,7 +2,7 @@
 //! Deterministic AES Crypt v3 encryption with fixed session key/IV (for testing/fuzzing)
 //! secure-gate v0.5.5+ gold standard (2025)
 
-use crate::aliases::{Aes256Key, Iv16, Password, EncryptedSessionBlock48};
+use crate::aliases::{Aes256Key, EncryptedSessionBlock48, Iv16, Password};
 use crate::consts::{AESCRYPT_LATEST_VERSION, PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
 use crate::encryptor::stream::encrypt_stream;
 use crate::encryptor::write::{
@@ -113,7 +113,7 @@ mod tests {
         .unwrap();
 
         let mut decrypted = Vec::new();
-        decrypt(password, Cursor::new(&encrypted), &mut decrypted).unwrap();
+        decrypt(Cursor::new(&encrypted), &mut decrypted, password).unwrap();
 
         assert_eq!(decrypted, plaintext);
     }

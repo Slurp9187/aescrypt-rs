@@ -56,7 +56,7 @@ fn bench_decrypt(c: &mut Criterion) {
                     let mut src = Cursor::new(black_box(&encrypted));
 
                     // decrypt takes ownership → we clone the password each time
-                    decrypt(black_box(password.clone()), &mut src, &mut dst).unwrap();
+                    decrypt(&mut src, &mut dst, black_box(password.clone())).unwrap();
 
                     black_box(dst)
                 });

@@ -17,19 +17,19 @@ use std::io::{Read, Write};
 
 /// Decrypt an Aescrypt file (v0–v3) — zero secret exposure, maximum security
 #[inline(always)]
-pub fn decrypt<R: Read, W: Write>(
-    password: Password,
-    mut input_reader: R,
-    mut output_writer: W,
-) -> Result<(), AescryptError> {
-    let file_version = read_file_version(&mut input_reader)?;
-    let reserved_modulo = read_reserved_modulo_byte(&mut input_reader)?;
-    consume_all_extensions(&mut input_reader, file_version)?;
+pub fn decrypt<R, W>(mut input: R, mut output: W, password: Password) -> Result<(), AescryptError>
+where
+    R: Read,
+    W: Write,
+{
+    let file_version = read_file_version(&mut input)?;
+    let reserved_modulo = read_reserved_modulo_byte(&mut input)?;
+    consume_all_extensions(&mut input, file_version)?;
 
-    let kdf_iterations = read_kdf_iterations(&mut input_reader, file_version)?;
+    let kdf_iterations = read_kdf_iterations(&mut input, file_version)?;
 
     // Public IV — secure from the start
-    let public_iv: Iv16 = Iv16::from(read_exact_span(&mut input_reader)?);
+    let public_iv: Iv16 = Iv16::from(read_exact_span(&mut input)?);
 
     // Setup key — secure buffer from birth
     let mut setup_key = secure!(Aes256Key, [0u8; 32].into());
@@ -45,7 +45,7 @@ pub fn decrypt<R: Read, W: Write>(
     let mut session_key = Aes256Key::new([0u8; 32]);
 
     extract_session_data(
-        &mut input_reader,
+        &mut input,
         file_version,
         &public_iv,
         &setup_key,
@@ -62,8 +62,8 @@ pub fn decrypt<R: Read, W: Write>(
     };
 
     decrypt_ciphertext_stream(
-        &mut input_reader,
-        &mut output_writer,
+        &mut input,
+        &mut output,
         &session_iv,
         &session_key,
         stream_config,
