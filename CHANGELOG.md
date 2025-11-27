@@ -5,15 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - 2025-11-26
+## [0.1.0] - 2025-11-27
 
 ### Added
 - **Initial public release** – full-featured, production-ready implementation of the AES Crypt file format (v0–v3)
 - Full **read support** for all official versions (v0, v1, v2, v3)
 - Full **write support** for modern **v3** format only (PBKDF2-SHA256, PKCS#7 padding, UTF-8 passwords, proper session key encryption)
 - High-level API: `encrypt()` and `decrypt()` with `std::io::Read`/`Write` streaming
-- Low-level deterministic API: `encrypt_with_fixed_session()` for exact ciphertext reproducibility (used in test vectors)
-- Secure memory handling via [`secure-gate`](https://github.com/Slurp9187/secure-gate) v0.5.5+ with full `zeroize` integration (enabled by default)
+- `convert_to_v3()` for seamless migration of legacy files to modern v3 format
+- Batch processing API: `encrypt_batch()` and `decrypt_batch()` with optional Rayon parallelism (via `batch-ops` feature)
+- Secure memory handling via [`secure-gate`](https://github.com/Slurp9187/secure-gate) v0.5.6+ with full `zeroize` integration (enabled by default)
 - Constant-memory streaming decryption using a 64-byte ring buffer (no heap allocations during bulk processing)
 - Comprehensive test suite:
   - 100% passing round-trip tests against official AES Crypt v0–v3 reference files
