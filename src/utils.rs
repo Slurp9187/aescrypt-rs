@@ -26,17 +26,3 @@ pub const fn xor_blocks(block_a: &[u8], block_b: &[u8], output: &mut [u8]) {
         i += 1;
     }
 }
-
-/// Convert the user password into the byte sequence expected by the KDF.
-pub fn password_bytes_for_version(password: &str, file_version: u8) -> Vec<u8> {
-    if file_version <= 2 {
-        // UTF-8 → UTF-16LE (little-endian)
-        password
-            .encode_utf16()
-            .flat_map(|u| u.to_le_bytes())
-            .collect()
-    } else {
-        // UTF-8 as-is
-        password.as_bytes().to_vec()
-    }
-}
