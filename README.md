@@ -101,6 +101,14 @@ Real-world single-threaded numbers measured with Criterion.rs on the `secure` br
 > That’s **~6–7 seconds** for a full 1 GiB file on a modest 2019 laptop (excluding ~180 ms key derivation).  
 > On modern desktop CPUs or Apple Silicon, expect **>1 GiB/s**.
 
+## Real-world parallel performance (2019 ThinkPad, 4c/8t, 15 W)
+
+| Files | Sequential | Parallel | Speedup |
+|-------|------------|----------|---------|
+| 8 × 10 MB | 1.04 s     | 367 ms   | **2.82×** |
+
+→ **70–80 % of theoretical maximum on a 5-year-old laptop**
+
 ## Legal & Independence
 
 `aescrypt-rs` is an **independent, community-maintained implementation** of the publicly documented `AES Crypt Stream Format`:

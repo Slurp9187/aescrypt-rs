@@ -31,6 +31,7 @@ sha2 = "0.10"
 thiserror = "2.0"
 zeroize = { version = "1.8", features = ["zeroize_derive"], optional = true }
 secure-gate = { version = "0.5", features = ["zeroize"] }
+rayon = { version = "1.11", optional = true }
 
 [features]
 default = ["zeroize"]
@@ -42,6 +43,7 @@ zeroize = [
   "digest/zeroize",
   "generic-array/zeroize",
 ]
+batch-ops = ["dep:rayon"]
 
 # ----------------------------------------------------------------------
 # Dev / test / bench dependencies
@@ -67,6 +69,10 @@ harness = false
 
 [[bench]]
 name = "roundtrip"
+harness = false
+
+[[bench]]
+name = "batch"
 harness = false
 
 # ----------------------------------------------------------------------
