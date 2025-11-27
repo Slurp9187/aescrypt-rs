@@ -9,6 +9,7 @@ edition = "2021"
 description = "AES Crypt (v0-v3) Rust encryption/decryption library"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Slurp9187/aescrypt-rs"
+documentation = "https://docs.rs/aescrypt-rs"
 keywords = ["aes", "crypt", "encryption", "decryption"]
 categories = ["cryptography"]
 
