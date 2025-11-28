@@ -5,7 +5,6 @@
 use crate::aliases::HmacSha256;
 use crate::aliases::{Aes256Key, EncryptedSessionBlock48, Iv16, Password};
 use crate::consts::{AESCRYPT_LATEST_VERSION, PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
-use crate::crypto::rng::SecureRandomExt;
 use crate::encryptor::stream::encrypt_stream;
 use crate::encryptor::write::{
     derive_setup_key, encrypt_session_block, write_extensions, write_header, write_hmac,
@@ -15,6 +14,7 @@ use crate::error::AescryptError;
 use aes::cipher::KeyInit;
 use aes::Aes256Enc;
 use hmac::Mac;
+use secure_gate::SecureRandomExt;
 use std::io::{Read, Write};
 
 /// Encrypt an Aescrypt file (v3+) — zero secret exposure, maximum security

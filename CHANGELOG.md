@@ -5,6 +5,25 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2025-11-27
+
+### Changed
+- **Upgraded `secure-gate` to v0.5.7** and enabled its new `rand` feature  
+  → All cryptographically secure random values (`Aes256Key`, `Iv16`, salts, etc.) are now generated with `SecureRandomExt::random()` from `secure-gate`
+  - Removes the duplicated RNG implementation (`src/crypto/rng.rs` → deleted)
+  - Zero-cost, thread-local `OsRng`, lazy-initialized, fully `no_std`-compatible
+  - Panics on RNG failure (high-assurance crypto standard)
+  - No behavior or performance regression — benchmarks remain identical (>160 MiB/s encrypt, >170 MiB/s decrypt)
+
+### Fixed
+- Minor internal clean-ups and import tidy-ups after the RNG migration
+
+### Documentation
+- Updated dependency list and feature explanations in `README.md` to reflect the new `secure-gate` version
+
+No breaking changes — fully backward compatible with 0.1.0.
+All 100+ tests (including bit-perfect v0–v3 round-trips and deterministic vectors) continue to pass.
+
 ## [0.1.0] - 2025-11-27
 
 ### Added

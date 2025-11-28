@@ -7,7 +7,7 @@
 - **Convert**: `convert_to_v3()` — **bit-perfect migration** from any legacy file to modern v3  
 - AES-256-CBC with **HMAC-SHA256** (payload) + **HMAC-SHA512** (session) authentication
 - Constant-memory streaming (64-byte ring buffer)  
-- Zero-cost secure memory via [`secure-gate`](https://github.com/Slurp9187/secure-gate) (enabled by default)  
+- **Zero-cost secure memory & cryptographically secure RNG** via [`secure-gate`](https://github.com/Slurp9187/secure-gate) v0.5.7 (enabled by default)  
 - No `unsafe` in the core decryption path when `zeroize` is enabled  
 - Pure Rust, `#![no_std]`-compatible core  
 - **100% bit-perfect round-trip verified** against all 63 official v0–v3 test vectors  
@@ -15,7 +15,6 @@
 
 [![Crates.io](https://img.shields.io/crates/v/aescrypt-rs.svg)](https://crates.io/crates/v/aescrypt-rs)
 [![Docs.rs](https://docs.rs/aescrypt-rs/badge.svg)](https://docs.rs/aescrypt-rs)
-[![CI](https://github.com/Slurp9187/aescrypt-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/Slurp9187/aescrypt-rs/actions)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
 
 ## Support the Original Author
@@ -55,15 +54,11 @@ Your support keeps the original tools alive and funds future development.
 This library has **mathematically proven bit-for-bit compatibility** via:
 
 - Full round-trip testing against all **63 official AES Crypt test vectors** (v0–v3)
-- **`convert_to_v3` test suite** that:
-  - Decrypts every legacy file
-  - Re-encrypts it as v3 using `convert_to_v3()`
-  - Decrypts the result
-  - Verifies **byte-for-byte identity** with the original plaintext
+- `convert_to_v3` test suite that decrypts legacy files → re-encrypts as v3 → decrypts again → verifies **byte-for-byte identity**
 - Uses **real-world 300,000 PBKDF2 iterations** in release mode (no shortcuts)
 - Total runtime: ~25 seconds — the sound of unbreakable data integrity
 
-This guarantees that files created with the original AES Crypt tools in 2005 will round-trip perfectly through `aescrypt-rs` in 2025 and beyond.
+Files created in 2005 with the original AES Crypt tools will round-trip perfectly through `aescrypt-rs` in 2025 and beyond.
 
 ## API Highlights
 
@@ -82,12 +77,6 @@ let mut output = BufWriter::new(File::create("secret-v3.aes")?);
 convert_to_v3(input, &mut output, &password, 300_000)?;
 println!("Legacy file successfully converted to modern v3 format!");
 ```
-
-- Works on **any** v0/v1/v2 file
-- Produces **perfect** v3 output
-- Uses real-world iteration count
-- Streaming, constant memory
-- **Bit-perfect** — proven by exhaustive testing
 
 ### Standard Encrypt / Decrypt
 
@@ -110,50 +99,58 @@ println!("Round-trip successful!");
 
 ## Features
 
-| Feature       | Description                                                             |
-|---------------|-------------------------------------------------------------------------|
-| `zeroize` (default) | Automatic secure zeroing of keys/IVs on drop (strongly recommended) |
-| `batch-ops`   | Parallel encryption/decryption using Rayon (opt-in)                     |
+| Feature       | Description                                                                 |
+|---------------|-----------------------------------------------------------------------------|
+| `zeroize` (default) | Automatic secure zeroing of keys/IVs on drop (strongly recommended)   |
+| `batch-ops`   | Parallel encryption/decryption using Rayon (opt-in)                         |
 
 ## Installation
 
 ```toml
 [dependencies]
-aescrypt-rs = "0.1"
+aescrypt-rs = "0.1.1"
+```
+
+Or with all optional features:
+
+```toml
+aescrypt-rs = { version = "0.1.1", features = ["batch-ops"] }
 ```
 
 ## Performance (Intel i7-10510U @ 1.8 GHz – Windows 11 – Rust 1.82 – release)
-
-Real-world single-threaded numbers measured with Criterion.rs.
 
 | Workload                     | Throughput          | Notes                                      |
 |------------------------------|---------------------|--------------------------------------------|
 | Decrypt 10 MiB               | **~171 MiB/s**      | Pure streaming (no KDF)                    |
 | Encrypt 10 MiB (with KDF)    | **~160 MiB/s**      | Includes PBKDF2-SHA512 (~300k iterations)  |
-| Full round-trip 10 MiB       | **~76 MiB/s**       | Encrypt to decrypt back-to-back             |
+| Full round-trip 10 MiB       | **~76 MiB/s**       | Encrypt → decrypt back-to-back             |
 
-> That’s **~6–7 seconds** for a full 1 GiB file on a modest 2019 laptop (excluding ~180 ms key derivation).  
+> ~6–7 seconds for a full 1 GiB file on a 2019 laptop (excluding ~180 ms key derivation).  
 > On modern desktop CPUs or Apple Silicon, expect **>1 GiB/s**.
 
-### Parallel performance (same machine, `batch-ops` feature enabled)
+### Parallel performance (`batch-ops` enabled)
 
 | Files         | Sequential | Parallel         | Speedup  |
 |---------------|------------|------------------|----------|
 | 8 × 10 MB     | 1.04 s     | **367 ms**       | **2.82×** |
 
-→ **Nearly 3× speedup** on a 4-core/8-thread laptop — excellent real-world scaling.
+## What's New in v0.1.1
+
+- Upgraded to **`secure-gate` v0.5.7** with the new `rand` feature  
+  → All random session keys, IVs, and salts are now generated via `SecureRandomExt::random()`  
+  → Thread-local, lazy-initialized `OsRng`, zero-cost, fully `no_std`, panic-on-failure  
+  → Removed duplicated RNG code — smaller, cleaner, and even safer
+
+No breaking changes. All tests and benchmarks remain green.
 
 ## Legal & Independence
 
-`aescrypt-rs` is an **independent, community-maintained implementation** of the publicly documented `AES Crypt Stream Format`:
-
+`aescrypt-rs` is an **independent, community-maintained implementation** of the publicly documented AES Crypt file format:  
 https://www.aescrypt.com/aes_file_format.html
 
-It is **not affiliated with, endorsed by, or supported by** Paul E. Jones, Packetizer, Inc., or Terrapane Corporation.
+It is **not affiliated with** Paul E. Jones, Packetizer, Inc., or Terrapane Corporation.
 
-Correctness was verified against the official open-source C++ reference implementation, but **no source code was copied**. All logic is idiomatic Rust using the zero-cost `secure-gate` crate.
-
-This software is provided “as is”, without warranty of any kind.
+Correctness verified against the official reference implementation — **no source code copied**.
 
 ## License
 
@@ -166,9 +163,8 @@ at your option.
 
 ## Contributing
 
-Pull requests are very welcome!
-
-The `main` branch is the stable line.
+Pull requests are very welcome!  
+`main` is the stable branch.
 
 ---
 

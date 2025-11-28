@@ -30,4 +30,3 @@ dynamic_alias!(Token, String);
 
 // Re-exported crypto primitives — users get them from the same `aliases::*` import
 pub use crate::crypto::hmac::{HmacSha256, HmacSha512};
-pub use crate::crypto::rng::SecureRng;

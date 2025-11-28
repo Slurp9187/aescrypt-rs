@@ -4,7 +4,7 @@
 
 [package]
 name = "aescrypt-rs"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "AES Crypt (v0-v3) Rust encryption/decryption library"
 license = "MIT OR Apache-2.0"
@@ -31,7 +31,7 @@ serde_json = "1.0"
 sha2 = "0.10"
 thiserror = "2.0"
 zeroize = { version = "1.8", features = ["zeroize_derive"], optional = true }
-secure-gate = { version = "0.5", features = ["zeroize"] }
+secure-gate = { version = "0.5", features = ["zeroize", "rand"] }
 rayon = { version = "1.11", optional = true }
 pipe = "0.4.0"
 
