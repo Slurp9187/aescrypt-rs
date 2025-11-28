@@ -21,14 +21,14 @@ aes = "0.8"
 hex = "0.4"
 hmac = "0.12"
 pbkdf2 = "0.12"
+pipe = "0.4.0"
 rand = "0.9"
+rayon = { version = "1.11", optional = true }
+secure-gate = { version = "0.5", features = ["zeroize", "rand"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
 thiserror = "2.0"
-secure-gate = { version = "0.5", features = ["zeroize", "rand"] }
-rayon = { version = "1.11", optional = true }
-pipe = "0.4.0"
 
 [features]
 default = ["zeroize"]

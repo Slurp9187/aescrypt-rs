@@ -1,15 +1,16 @@
 //! src/convert.rs
 //! Lossless conversion from legacy v0/v1/v2 → modern v3 format
 //! Uses only the existing, fully-tested high-level decrypt + encrypt APIs
-//! Zero plaintext exposure — pipes directly from decryptor to encryptor
+//! Streams directly from decryptor into encryptor via an in-memory pipe.
 
 use crate::aliases::Password;
 use crate::{decrypt, encrypt, AescryptError};
 use std::io::{Read, Write};
+use std::{panic, thread};
 
 /// Convert any AES Crypt v0/v1/v2 file → modern v3 format
 ///
-/// - Zero plaintext exposure (streaming pipe)
+/// - Streaming pipeline: legacy → plaintext → v3, with no extra user-space buffering
 /// - Bit-perfect content preservation (guaranteed by round-trip tests)
 /// - Uses only existing, audited code paths
 pub fn convert_to_v3<R: Read, W: Write + Send + 'static>(
@@ -18,18 +19,28 @@ pub fn convert_to_v3<R: Read, W: Write + Send + 'static>(
     password: &Password,
     iterations: u32,
 ) -> Result<(), AescryptError> {
-    // Temporary in-memory pipe: decryptor writes → encryptor reads
-    let (read_end, write_end) = pipe::pipe();
+    // In-memory pipe: decryptor writes → encryptor reads
+    let (pipe_reader, pipe_writer) = pipe::pipe();
 
-    // Fire off encryption in the background — it will read from the pipe
-    let encrypt_handle = std::thread::spawn({
-        let password = password.clone();
-        move || encrypt(read_end, output, &password, iterations)
-    });
+    // Spawn encryption thread: reads from pipe, writes v3 to `output`
+    let password_enc = password.clone();
+    let encrypt_handle =
+        thread::spawn(move || encrypt(pipe_reader, output, &password_enc, iterations));
 
-    // Stream decryption directly into the pipe (no buffering, no plaintext in memory)
-    decrypt(input, write_end, password)?;
+    // Decrypt on the calling thread, streaming directly into the pipe.
+    // Dropping `pipe_writer` (on return) closes the pipe so the encryptor sees EOF.
+    let decrypt_result = decrypt(input, pipe_writer, password);
 
-    // Wait for encryption to finish
-    encrypt_handle.join().unwrap()
+    // Wait for encryption to finish, handling possible panics explicitly.
+    let encrypt_result = match encrypt_handle.join() {
+        Ok(res) => res,
+        Err(panic_payload) => {
+            // Propagate the panic to the caller rather than silently unwrapping.
+            panic::resume_unwind(panic_payload);
+        }
+    };
+
+    // If decryption failed, return that error; otherwise return encryption result.
+    decrypt_result?;
+    encrypt_result
 }
