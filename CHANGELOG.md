@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] – 2025-11-28
+
+### Fixed
+- Fixed error propagation in `convert_to_v3`: decryption errors are no longer masked by the background encryption thread. Failures now surface correctly and immediately.
+
+### Maintenance
+- Ran `cargo machete` and ruthlessly purged all unused dependencies. Cargo.toml is once again pristine and minimal.
+
+No experimental channels, no dead code, no wasted bytes — just a tiny but important bug fix and a cleaner dependency tree.
+
 ## [0.1.1] - 2025-11-27
 
 ### Changed

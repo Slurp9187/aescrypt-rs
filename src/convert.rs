@@ -13,12 +13,16 @@ use std::{panic, thread};
 /// - Streaming pipeline: legacy → plaintext → v3, with no extra user-space buffering
 /// - Bit-perfect content preservation (guaranteed by round-trip tests)
 /// - Uses only existing, audited code paths
-pub fn convert_to_v3<R: Read, W: Write + Send + 'static>(
+pub fn convert_to_v3<R, W>(
     input: R,
     output: W,
     password: &Password,
     iterations: u32,
-) -> Result<(), AescryptError> {
+) -> Result<(), AescryptError>
+where
+    R: Read,
+    W: Write + Send + 'static,
+{
     // In-memory pipe: decryptor writes → encryptor reads
     let (pipe_reader, pipe_writer) = pipe::pipe();
 

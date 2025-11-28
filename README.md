@@ -108,13 +108,13 @@ println!("Round-trip successful!");
 
 ```toml
 [dependencies]
-aescrypt-rs = "0.1.1"
+aescrypt-rs = "0.1.2"
 ```
 
 Or with all optional features:
 
 ```toml
-aescrypt-rs = { version = "0.1.1", features = ["batch-ops"] }
+aescrypt-rs = { version = "0.1.2", features = ["batch-ops"] }
 ```
 
 ## Performance (Intel i7-10510U @ 1.8 GHz – Windows 11 – Rust 1.82 – release)
@@ -134,7 +134,7 @@ aescrypt-rs = { version = "0.1.1", features = ["batch-ops"] }
 |---------------|------------|------------------|----------|
 | 8 × 10 MB     | 1.04 s     | **367 ms**       | **2.82×** |
 
-## What's New in v0.1.1
+## `SecureRandomExt::random()`
 
 - Upgraded to **`secure-gate` v0.5.7** with the new `rand` feature  
   → All random session keys, IVs, and salts are now generated via `SecureRandomExt::random()`  
