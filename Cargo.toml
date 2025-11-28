@@ -34,6 +34,8 @@ zeroize = { version = "1.8", features = ["zeroize_derive"], optional = true }
 secure-gate = { version = "0.5", features = ["zeroize", "rand"] }
 rayon = { version = "1.11", optional = true }
 pipe = "0.4.0"
+tempfile = "3.23.0"
+crossbeam-channel = "0.5.15"
 
 [features]
 default = ["zeroize"]
@@ -76,6 +78,11 @@ harness = false
 [[bench]]
 name = "batch"
 harness = false
+
+[[bench]]
+name = "convert_wip"
+harness = false
+required-features = ["batch-ops"]
 
 # ----------------------------------------------------------------------
 # Binary (script)
