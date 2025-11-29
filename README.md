@@ -65,7 +65,7 @@ Files created in 2005 with the original AES Crypt tools will round-trip perfectl
 ### `convert_to_v3` — Migrate Legacy Files Forever
 
 ```rust
-use aescrypt_rs::{convert_to_v3, Password};
++use aescrypt_rs::{convert_to_v3, convert_to_v3_to_vec, Password};
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
 
@@ -75,6 +75,8 @@ let input = BufReader::new(File::open("secret.aes")?);
 let mut output = BufWriter::new(File::create("secret-v3.aes")?);
 
 convert_to_v3(input, &mut output, &password, 300_000)?;
+// Or get the bytes directly:
+let v3_bytes = convert_to_v3_to_vec(input, &password, 300_000)?;
 println!("Legacy file successfully converted to modern v3 format!");
 ```
 
@@ -108,13 +110,13 @@ println!("Round-trip successful!");
 
 ```toml
 [dependencies]
-aescrypt-rs = "0.1.2"
+aescrypt-rs = "0.1.3"
 ```
 
 Or with all optional features:
 
 ```toml
-aescrypt-rs = { version = "0.1.2", features = ["batch-ops"] }
+aescrypt-rs = { version = "0.1.3", features = ["batch-ops"] }
 ```
 
 ## Performance (Intel i7-10510U @ 1.8 GHz – Windows 11 – Rust 1.82 – release)

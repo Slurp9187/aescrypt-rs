@@ -8,8 +8,6 @@ use crate::{decrypt, encrypt, AescryptError};
 use std::io::{Read, Write};
 use std::{panic, thread};
 
-use std::io::{self, Cursor};
-
 /// Convert any AES Crypt v0/v1/v2 file → modern v3 format
 ///
 /// - Streaming pipeline: legacy → plaintext → v3, with no extra user-space buffering
