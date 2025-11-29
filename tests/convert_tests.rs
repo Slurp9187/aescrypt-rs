@@ -8,7 +8,8 @@
 //! - Clean, loud debug output with --nocapture
 
 use aescrypt_rs::aliases::Password;
-use aescrypt_rs::{convert_to_v3, decrypt};
+use aescrypt_rs::convert::convert_to_v3_to_vec;
+use aescrypt_rs::{convert_to_v3, decrypt, encrypt};
 use hex::decode;
 use serde::Deserialize;
 use std::fmt;
@@ -182,4 +183,41 @@ fn convert_to_v3_preserves_content_perfectly() {
 
     println!("\nAll 63 legacy files converted to v3 with bit-perfect round-trip!");
     println!("Test passed with real-world security settings.\n");
+}
+
+#[test]
+fn convert_to_v3_to_vec_round_trip() {
+    let plaintext = b"The quick brown fox jumps over the lazy dog";
+    let password = Password::new("test123".to_string());
+    let iterations = 5;
+
+    // Step 1: Create v2 file in memory
+    let mut v2_data = Vec::new();
+    encrypt(
+        Cursor::new(plaintext.as_ref()),
+        &mut v2_data,
+        &password,
+        iterations,
+    )
+    .expect("failed to create v2 file");
+
+    // Step 2: Clone data into the thread — makes it 'static
+    let v2_data_clone = v2_data.clone();
+
+    let v3_data = convert_to_v3_to_vec(
+        Cursor::new(v2_data_clone), // owned, lives forever
+        &password,
+        iterations,
+    )
+    .expect("convert_to_v3_to_vec failed");
+
+    // Step 3: Verify v3 header
+    assert_eq!(&v3_data[0..5], b"AES\x03\x00");
+
+    // Step 4: Decrypt v3 → original plaintext
+    let mut decrypted = Vec::new();
+    decrypt(Cursor::new(&v3_data), &mut decrypted, &password).expect("failed to decrypt v3");
+
+    assert_eq!(decrypted, plaintext);
+    println!("convert_to_v3_to_vec: round-trip PASSED — perfect");
 }

@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2025-11-29
+
+### Added
+- **`convert_to_v3_to_vec`** – new convenience function that converts legacy v0/v1/v2 files to v3 and returns an owned `Vec<u8>`  
+  This eliminates the painful `'static` mutable writer requirement that made testing and one-off conversions extremely difficult.  
+  Internally uses `thread::scope` for safe, zero-cost streaming (no `Box::leak`, no `unsafe`, no extra cloning).  
+  Greatly improves ergonomics for downstream crates like `encrypted-file-vault`.
+
+### Fixed
+- Lifetime and borrow-checker issues when using `convert_to_v3` with stack-allocated buffers (the root cause of many test failures).
+
+### Documentation
+- Added detailed comments and examples for the new `convert_to_v3_to_vec` API.
+
+Thanks to the heroic struggle against the borrow checker — this release finally makes the conversion API pleasant to use.
+
 ## [0.1.2] – 2025-11-28
 
 ### Fixed
