@@ -75,8 +75,6 @@ let input = BufReader::new(File::open("secret.aes")?);
 let mut output = BufWriter::new(File::create("secret-v3.aes")?);
 
 convert_to_v3(input, &mut output, &password, 300_000)?;
-// Or get the bytes directly:
-let v3_bytes = convert_to_v3_to_vec(input, &password, 300_000)?;
 println!("Legacy file successfully converted to modern v3 format!");
 ```
 
