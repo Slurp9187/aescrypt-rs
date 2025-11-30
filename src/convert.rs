@@ -48,31 +48,3 @@ where
     decrypt_result?;
     encrypt_result
 }
-
-/// Convenience: convert legacy v0/v1/v2 to v3 and return owned Vec<u8>
-/// Avoids the 'static lifetime pain in tests while keeping the original API intact
-pub fn convert_to_v3_to_vec<R: Read + Send + 'static>(
-    reader: R,
-    password: &Password,
-    iterations: u32,
-) -> Result<Vec<u8>, AescryptError> {
-    let mut output = Vec::new();
-
-    thread::scope(|s| {
-        let password_enc = password.clone();
-        let mut pipe_reader = {
-            let (pipe_reader, pipe_writer) = pipe::pipe();
-            let input = reader;
-
-            // Decryption thread
-            s.spawn(move || decrypt(input, pipe_writer, password));
-
-            pipe_reader
-        };
-
-        // Encryption happens on this thread
-        encrypt(&mut pipe_reader, &mut output, &password_enc, iterations)
-    })?;
-
-    Ok(output)
-}
