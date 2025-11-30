@@ -110,13 +110,13 @@ println!("Round-trip successful!");
 
 ```toml
 [dependencies]
-aescrypt-rs = "0.1.3"
+aescrypt-rs = "0.1.4"
 ```
 
 Or with all optional features:
 
 ```toml
-aescrypt-rs = { version = "0.1.3", features = ["batch-ops"] }
+aescrypt-rs = { version = "0.1.4", features = ["batch-ops"] }
 ```
 
 ## Performance (Intel i7-10510U @ 1.8 GHz – Windows 11 – Rust 1.82 – release)
