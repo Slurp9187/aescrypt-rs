@@ -7,6 +7,7 @@ pub mod crypto;
 pub mod decryptor;
 pub mod encryptor;
 pub mod error;
+pub mod header;
 pub mod utils;
 
 #[cfg(feature = "batch-ops")]
@@ -29,3 +30,5 @@ pub use crypto::kdf::pbkdf2_builder::Pbkdf2Builder;
 pub use batch_ops::{decrypt_batch, encrypt_batch};
 
 pub use convert::convert_to_v3;
+
+pub use header::read_version; // New: Quick version check

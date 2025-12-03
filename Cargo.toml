@@ -4,7 +4,7 @@
 
 [package]
 name = "aescrypt-rs"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 description = "AES Crypt (v0-v3) Rust encryption/decryption library"
 license = "MIT OR Apache-2.0"

@@ -3,7 +3,7 @@
 //! Global secure type aliases — secure-gate v0.5.5+
 //! Maximum overkill, minimal duplication, audit-perfect
 
-use secure_gate::{dynamic_alias, fixed_alias};
+use secure_gate::{dynamic_alias, fixed_alias, random_alias};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Core secrets — must stay separate
@@ -12,6 +12,12 @@ fixed_alias!(Aes256Key, 32); // Used: session key, HMAC key, encryption
 fixed_alias!(Iv16, 16); // Used: public IV, session IV
 fixed_alias!(PlainTextBlock16, 16); // Used: decrypted blocks in stream
 fixed_alias!(Salt16, 16); // Used: PBKDF2/ACKDF salt
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Random aliases
+// ─────────────────────────────────────────────────────────────────────────────
+random_alias!(RandomAes256Key, 32);
+random_alias!(RandomIv16, 16);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Overkill public-but-sensitive — auto-zeroed on drop

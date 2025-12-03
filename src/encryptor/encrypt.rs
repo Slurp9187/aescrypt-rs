@@ -2,8 +2,8 @@
 //! Aescrypt encryption — secure-gate v0.5.5+ gold standard (2025)
 //! Zero secret exposure, zero-cost, auto-zeroizing
 
-use crate::aliases::HmacSha256;
-use crate::aliases::{Aes256Key, EncryptedSessionBlock48, Iv16, Password};
+use crate::aliases::{Aes256Key, EncryptedSessionBlock48, Password};
+use crate::aliases::{HmacSha256, RandomAes256Key, RandomIv16};
 use crate::consts::{AESCRYPT_LATEST_VERSION, PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
 use crate::encryptor::stream::encrypt_stream;
 use crate::encryptor::write::{
@@ -43,9 +43,9 @@ where
     write_extensions(&mut output, AESCRYPT_LATEST_VERSION, None)?;
 
     // Generate secure random values — wrapped from birth
-    let public_iv: Iv16 = Iv16::random();
-    let session_iv: Iv16 = Iv16::random();
-    let session_key: Aes256Key = Aes256Key::random();
+    let public_iv = RandomIv16::new();
+    let session_iv = RandomIv16::new();
+    let session_key = RandomAes256Key::new();
 
     write_iterations(&mut output, kdf_iterations, AESCRYPT_LATEST_VERSION)?;
     write_public_iv(&mut output, &public_iv)?;

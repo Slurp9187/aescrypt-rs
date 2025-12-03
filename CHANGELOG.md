@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2025-12-02
+
+### Changed
+- **Upgraded `secure-gate` to v0.5.10 and adopted its new zero-cost random aliases** (#42)  
+  → All cryptographically secure random values (`public_iv`, `session_iv`, `session_key`) are now created with the brand-new `RandomIv16::new()` and `RandomAes256Key::new()` types introduced in secure-gate 0.5.10  
+  - Replaces the previous `Iv16::random()` / `Aes256Key::random()` calls  
+  - Zero-cost, panic-on-failure, thread-local `OsRng` (exactly the same underlying implementation)  
+  - Cleaner, more explicit intent at the call site  
+  - No allocation, no behavior change, no performance regression (benchmarks unchanged)
+
+### Maintenance
+- Added the new `RandomIv16` and `RandomAes256Key` aliases to `src/aliases/mod.rs`
+- Minor import tidy-up in `encrypt.rs` – removed unused `SecureRandomExt` re-export
+
+A tiny but extremely satisfying ergonomics win — the encryption path now reads like pure intent while staying 100% locked down with secure-gate’s gold-standard memory safety.
+
 ## [0.1.4] – 2025-11-29
 
 ### Security
