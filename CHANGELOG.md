@@ -5,7 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.5] - 2025-12-02
+## [0.1.5] - 2025-12-03
+
+### Added
+- **Quick version detection**: New `read_version<R: Read>() -> Result<u8, AescryptError>` for header-only file checks (#17)  
+  → Reads just 3–5 bytes to extract/validate version (0–3) + magic ("AES")  
+  → Errors on invalid magic, short files, or bad reserved bytes  
+  → Perfect for batch validation, legacy detection, or CLI tools  
+  - No crypto/KDF deps, fully `no_std`, <1μs per file  
+  - 100% tested against all 63 official v0–v3 vectors + edges (invalid/short/malformed)  
+  - Closes #17
 
 ### Changed
 - **Upgraded `secure-gate` to v0.5.10 and adopted its new zero-cost random aliases** (#42)  
