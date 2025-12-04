@@ -4,7 +4,8 @@
 
 - **Read**: Full compatibility with **all versions** — v0, v1, v2, and v3  
 - **Write**: Modern **v3 only** (PBKDF2-HMAC-SHA512, PKCS#7 padding, proper session-key encryption)  
-- **Convert**: `convert_to_v3()` — **bit-perfect migration** from any legacy file to modern v3  
+- **Convert**: `convert_to_v3_ext()` — **recommended** for bit-perfect migration with optional **256-bit random password upgrade**  
+- **Legacy**: `convert_to_v3()` — soft-deprecated, fully backward compatible  
 - **Detect**: `read_version()` — header-only version check in <1μs (ideal for batch tools)  
 - AES-256-CBC with **HMAC-SHA256** (payload) + **HMAC-SHA512** (session) authentication
 - Constant-memory streaming (64-byte ring buffer)  
@@ -56,7 +57,7 @@ Your support keeps the original tools alive and funds future development.
 This library has **mathematically proven bit-for-bit compatibility** via:
 
 - Full round-trip testing against all **63 official AES Crypt test vectors** (v0–v3)
-- `convert_to_v3` test suite that decrypts legacy files → re-encrypts as v3 → decrypts again → verifies **byte-for-byte identity**
+- `convert_to_v3_ext` test suite that decrypts legacy files → re-encrypts as v3 → decrypts again → verifies **byte-for-byte identity**
 - `read_version()` validated against **all 63 real headers** (including legacy v0 quirks)
 - Uses **real-world 300,000 PBKDF2 iterations** in release mode (no shortcuts)
 - Total runtime: ~25 seconds — the sound of unbreakable data integrity
@@ -77,36 +78,55 @@ let mut reader = BufReader::new(file);
 let version = read_version(&mut reader)?;  // Reads just 3–5 bytes
 
 match version {
-    0..=2 => println!("Legacy v{version} file — recommend convert_to_v3"),
+    0..=2 => println!("Legacy v{version} file — recommend convert_to_v3_ext"),
     3 => println!("Modern v3 file — good to go"),
     _ => unreachable!(),
 }
 ```
 
-### `convert_to_v3` — Migrate Legacy Files Forever
+### Recommended: `convert_to_v3_ext` — Migrate with Security Upgrade
 
 ```rust
-use aescrypt_rs::{convert_to_v3, Password};
+use aescrypt_rs::{convert_to_v3_ext, PasswordString};
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
 
-let password = Password::new("my-old-password".to_string());
+let old_password = PasswordString::new("my-old-password".to_string());
 
 let input = BufReader::new(File::open("secret.aes")?);
 let mut output = BufWriter::new(File::create("secret-v3.aes")?);
 
-convert_to_v3(input, &mut output, &password, 300_000)?;
-println!("Legacy file successfully converted to modern v3 format!");
+// Generate a 256-bit random password and return it
+let generated = convert_to_v3_ext(input, &mut output, &old_password, None, 300_000)?;
+
+if let Some(new_pw) = generated {
+    println!("New 256-bit password: {}", new_pw.expose_secret());
+    // Store this securely!
+}
+```
+
+### Reuse Old Password (Explicit)
+
+```rust
+let new_password = PasswordString::new("much-stronger-2025!".to_string());
+convert_to_v3_ext(input, &mut output, &old_password, Some(&new_password), 500_000)?;
+```
+
+### Legacy API — Still Works (Soft-Deprecated)
+
+```rust
+// This still compiles and works — but emits a warning
+convert_to_v3(input, &mut output, &old_password, 300_000)?;
 ```
 
 ### Standard Encrypt / Decrypt
 
 ```rust
-use aescrypt_rs::{encrypt, decrypt, Password};
+use aescrypt_rs::{encrypt, decrypt, PasswordString};
 use std::io::Cursor;
 
 let plaintext = b"The quick brown fox jumps over the lazy dog";
-let password = Password::new("correct horse battery staple".to_string());
+let password = PasswordString::new("correct horse battery staple".to_string());
 
 let mut encrypted = Vec::new();
 encrypt(Cursor::new(plaintext), &mut encrypted, &password, 600_000)?;
@@ -129,13 +149,13 @@ println!("Round-trip successful!");
 
 ```toml
 [dependencies]
-aescrypt-rs = "0.1.5"
+aescrypt-rs = "0.1.6"
 ```
 
 Or with all optional features:
 
 ```toml
-aescrypt-rs = { version = "0.1.5", features = ["batch-ops"] }
+aescrypt-rs = { version = "0.1.6", features = ["batch-ops"] }
 ```
 
 ## Performance (Intel i7-10510U – Windows 11 – Rust 1.82 – release)
@@ -158,12 +178,13 @@ aescrypt-rs = { version = "0.1.5", features = ["batch-ops"] }
 ## Secure Random Generation — Now Even Cleaner
 
 - Upgraded to **`secure-gate` v0.5.10**  
-  → All random IVs and session keys are now generated using the new zero-cost `RandomIv16::new()` and `RandomAes256Key::new()` types  
-  → Same bulletproof thread-local `OsRng` under the hood (lazy init, panic-on-failure, fully `no_std`)  
+  → All random IVs and session keys use zero-cost `RandomIv16::new()` and `RandomAes256Key::new()`  
+  → Random passwords via `RandomPassword32::random_hex()` — 256-bit entropy, 64-character hex  
+  → Same bulletproof thread-local `OsRng` (lazy init, panic-on-failure, fully `no_std`)  
   → No heap allocation, no performance cost, no duplicated RNG code  
   → The encryption path now reads like pure intent while staying 100% memory-safe
 
-No breaking changes. All tests and benchmarks remain pristine.
+**No breaking changes in v0.1.6** — fully backward compatible.
 
 ## Legal & Independence
 
@@ -190,4 +211,4 @@ Pull requests are very welcome!
 
 ---
 
-**aescrypt-rs** — the modern, safe, **provably perfect** way to read, write, **detect**, and **migrate** AES Crypt files in Rust.
+**aescrypt-rs** — the modern, safe, **provably perfect**, and **future-proof** way to read, write, **detect**, and **upgrade** AES Crypt files in Rust.
