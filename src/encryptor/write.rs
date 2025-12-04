@@ -1,14 +1,13 @@
 //! src/encryptor/write.rs
 //! AES Crypt write helpers — FULL secure-gate v0.5.5+ protection
 
+use crate::aliases::Aes256Key;
 use crate::aliases::HmacSha256;
-use crate::aliases::{Aes256Key, EncryptedSessionBlock48, Iv16, PasswordString, PlainTextBlock16};
+use crate::aliases::Iv16;
+use crate::aliases::PasswordString;
 use crate::consts::PBKDF2_MAX_ITER;
 use crate::derive_secure_pbkdf2_key;
 use crate::error::AescryptError;
-use crate::utils::xor_blocks;
-use aes::cipher::BlockEncrypt;
-use aes::{Aes256Enc, Block as AesBlock};
 use hmac::Mac;
 use std::io::Write;
 
@@ -68,51 +67,51 @@ pub fn derive_setup_key(
     derive_secure_pbkdf2_key(password, public_iv, iterations, out_key)
 }
 
-#[inline]
-pub fn encrypt_session_block(
-    cipher: &Aes256Enc,
-    session_iv: &Iv16,
-    session_key: &Aes256Key,
-    public_iv: &Iv16,
-    enc_block: &mut EncryptedSessionBlock48,
-    hmac: &mut HmacSha256,
-) -> Result<(), AescryptError> {
-    let mut prev = *public_iv.expose_secret();
-    let mut block = PlainTextBlock16::new([0u8; 16]);
+// #[inline]
+// pub fn encrypt_session_block(
+//     cipher: &Aes256Enc,
+//     session_iv: &Iv16,
+//     session_key: &Aes256Key,
+//     public_iv: &Iv16,
+//     enc_block: &mut EncryptedSessionBlock48,
+//     hmac: &mut HmacSha256,
+// ) -> Result<(), AescryptError> {
+//     let mut prev = *public_iv.expose_secret();
+//     let mut block = PlainTextBlock16::new([0u8; 16]);
 
-    // Block 1: session IV
-    xor_blocks(session_iv.expose_secret(), &prev, block.expose_secret_mut());
-    let mut aes_block = AesBlock::from(*block.expose_secret());
-    cipher.encrypt_block(&mut aes_block);
-    enc_block.expose_secret_mut()[0..16].copy_from_slice(aes_block.as_ref());
-    hmac.update(&enc_block.expose_secret()[0..16]);
-    prev.copy_from_slice(&enc_block.expose_secret()[0..16]);
+//     // Block 1: session IV
+//     xor_blocks(session_iv.expose_secret(), &prev, block.expose_secret_mut());
+//     let mut aes_block = AesBlock::from(*block.expose_secret());
+//     cipher.encrypt_block(&mut aes_block);
+//     enc_block.expose_secret_mut()[0..16].copy_from_slice(aes_block.as_ref());
+//     hmac.update(&enc_block.expose_secret()[0..16]);
+//     prev.copy_from_slice(&enc_block.expose_secret()[0..16]);
 
-    // Block 2: first half of session key
-    xor_blocks(
-        &session_key.expose_secret()[0..16],
-        &prev,
-        block.expose_secret_mut(),
-    );
-    aes_block = AesBlock::from(*block.expose_secret());
-    cipher.encrypt_block(&mut aes_block);
-    enc_block.expose_secret_mut()[16..32].copy_from_slice(aes_block.as_ref());
-    hmac.update(&enc_block.expose_secret()[16..32]);
-    prev.copy_from_slice(&enc_block.expose_secret()[16..32]);
+//     // Block 2: first half of session key
+//     xor_blocks(
+//         &session_key.expose_secret()[0..16],
+//         &prev,
+//         block.expose_secret_mut(),
+//     );
+//     aes_block = AesBlock::from(*block.expose_secret());
+//     cipher.encrypt_block(&mut aes_block);
+//     enc_block.expose_secret_mut()[16..32].copy_from_slice(aes_block.as_ref());
+//     hmac.update(&enc_block.expose_secret()[16..32]);
+//     prev.copy_from_slice(&enc_block.expose_secret()[16..32]);
 
-    // Block 3: second half of session key
-    xor_blocks(
-        &session_key.expose_secret()[16..32],
-        &prev,
-        block.expose_secret_mut(),
-    );
-    aes_block = AesBlock::from(*block.expose_secret());
-    cipher.encrypt_block(&mut aes_block);
-    enc_block.expose_secret_mut()[32..48].copy_from_slice(aes_block.as_ref());
-    hmac.update(&enc_block.expose_secret()[32..48]);
+//     // Block 3: second half of session key
+//     xor_blocks(
+//         &session_key.expose_secret()[16..32],
+//         &prev,
+//         block.expose_secret_mut(),
+//     );
+//     aes_block = AesBlock::from(*block.expose_secret());
+//     cipher.encrypt_block(&mut aes_block);
+//     enc_block.expose_secret_mut()[32..48].copy_from_slice(aes_block.as_ref());
+//     hmac.update(&enc_block.expose_secret()[32..48]);
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 #[inline]
 pub fn write_hmac<W: Write>(writer: &mut W, hmac: HmacSha256) -> Result<(), AescryptError> {

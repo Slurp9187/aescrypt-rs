@@ -7,7 +7,7 @@ use aescrypt_rs::encrypt;
 
 // use aescrypt_rs::encryptor::encrypt_with_fixed_session;
 mod deterministic_encrypt {
-    include!("../deterministic_encrypt/encrypt_fixed_session.rs");
+    include!("./deterministic_encrypt/encrypt_fixed_session.rs");
 }
 use self::deterministic_encrypt::encrypt_with_fixed_session;
 

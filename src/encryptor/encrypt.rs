@@ -5,10 +5,11 @@
 use crate::aliases::{Aes256Key, EncryptedSessionBlock48, PasswordString};
 use crate::aliases::{HmacSha256, RandomAes256Key, RandomIv16};
 use crate::consts::{AESCRYPT_LATEST_VERSION, PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
+use crate::encryptor::encrypt_session_block;
 use crate::encryptor::stream::encrypt_stream;
 use crate::encryptor::write::{
-    derive_setup_key, encrypt_session_block, write_extensions, write_header, write_hmac,
-    write_iterations, write_octets, write_public_iv,
+    derive_setup_key, write_extensions, write_header, write_hmac, write_iterations, write_octets,
+    write_public_iv,
 };
 use crate::error::AescryptError;
 use aes::cipher::KeyInit;
