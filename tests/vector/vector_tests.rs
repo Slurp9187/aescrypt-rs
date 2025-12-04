@@ -1,7 +1,7 @@
 //! tests/vector/vector_tests.rs
 //! Final merged vector test suite – fully compatible with v0–v3 JSON formats (2025)
 
-use aescrypt_rs::aliases::{Aes256Key, Iv16, Password};
+use aescrypt_rs::aliases::{Aes256Key, Iv16, PasswordString};
 use aescrypt_rs::decrypt;
 use aescrypt_rs::encrypt;
 
@@ -87,7 +87,7 @@ fn run_decrypt_for_version(version: AescryptVersion) {
     );
 
     let vectors: Vec<DecryptVector> = load_json(version.json_filename());
-    let password = Password::new(PASSWORD.to_string());
+    let password = PasswordString::new(PASSWORD.to_string());
 
     for (i, v) in vectors.iter().enumerate() {
         let encrypted = decode(&v.ciphertext_hex)
@@ -118,7 +118,7 @@ fn run_roundtrip_for_version(version: AescryptVersion) {
     );
 
     let vectors: Vec<RoundTripVector> = load_json(version.json_filename());
-    let password = Password::new(PASSWORD.to_string());
+    let password = PasswordString::new(PASSWORD.to_string());
 
     for (i, v) in vectors.iter().enumerate() {
         let plaintext = v.plaintext.as_bytes();
@@ -162,7 +162,7 @@ struct DeterministicVector {
 fn roundtrip_v3_deterministic() {
     eprintln!("RUNNING: Deterministic v3 test (exact ciphertext + round-trip)");
     let vectors: Vec<DeterministicVector> = load_json(AescryptVersion::deterministic_json());
-    let password = Password::new(PASSWORD.to_string());
+    let password = PasswordString::new(PASSWORD.to_string());
 
     for (i, v) in vectors.iter().enumerate() {
         let plaintext = v.plaintext.as_bytes();
@@ -239,7 +239,7 @@ fn roundtrip_all_versions() {
 // === Extreme tests ===
 #[test]
 fn roundtrip_v3_empty_input() {
-    let password = Password::new("test-empty".to_string());
+    let password = PasswordString::new("test-empty".to_string());
     let mut encrypted = Vec::new();
     encrypt(
         Cursor::new(b""),
@@ -256,7 +256,7 @@ fn roundtrip_v3_empty_input() {
 #[test]
 fn roundtrip_v3_large_input() {
     let plaintext = vec![0x41u8; 10_000];
-    let password = Password::new("test-large".to_string());
+    let password = PasswordString::new("test-large".to_string());
     let mut encrypted = Vec::new();
     encrypt(
         Cursor::new(&plaintext),
@@ -273,7 +273,7 @@ fn roundtrip_v3_large_input() {
 #[test]
 fn roundtrip_v3_huge_input() {
     let plaintext = vec![0x41u8; 10 * 1024 * 1024];
-    let password = Password::new("test-huge-10mib".to_string());
+    let password = PasswordString::new("test-huge-10mib".to_string());
     let mut encrypted = Vec::new();
     encrypt(
         Cursor::new(&plaintext),
@@ -291,7 +291,7 @@ fn roundtrip_v3_huge_input() {
 #[ignore = "1 GiB round-trip is intentionally heavy"]
 fn roundtrip_extreme_1gib() {
     const ONE_GIB: usize = 1024 * 1024 * 1024;
-    let password = Password::new("test-1gib-streaming".to_string());
+    let password = PasswordString::new("test-1gib-streaming".to_string());
 
     let chunk = [0x41u8; 4096];
     let mut plaintext = Vec::with_capacity(ONE_GIB);

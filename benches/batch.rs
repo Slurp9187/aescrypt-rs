@@ -1,9 +1,9 @@
-use aescrypt_rs::aliases::Password;
+use aescrypt_rs::aliases::PasswordString;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::hint::black_box;
 
 fn bench_batch(c: &mut Criterion) {
-    let password = Password::new("benchmark".to_string());
+    let password = PasswordString::new("benchmark".to_string());
     let data = black_box(vec![0u8; 10_000_000]); // 10 MB
 
     let mut group = c.benchmark_group("batch-ops");

@@ -3,12 +3,12 @@
 
 #[cfg(feature = "zeroize")]
 mod tests {
-    use aescrypt_rs::aliases::{Aes256Key, Password};
+    use aescrypt_rs::aliases::{Aes256Key, PasswordString};
     use aescrypt_rs::Pbkdf2Builder;
 
     #[test]
     fn pbkdf2_builder_works() {
-        let password = Password::new("hunter2".to_string());
+        let password = PasswordString::new("hunter2".to_string());
 
         let mut key = Aes256Key::new([0u8; 32]);
         Pbkdf2Builder::new()
@@ -22,7 +22,7 @@ mod tests {
 
     #[test]
     fn pbkdf2_builder_custom_params() {
-        let password = Password::new("correct horse battery staple".to_string());
+        let password = PasswordString::new("correct horse battery staple".to_string());
 
         let cases = [
             (500_000, [0xaau8; 16]),
@@ -44,7 +44,7 @@ mod tests {
 
     #[test]
     fn pbkdf2_builder_default_salt_is_random() {
-        let password = Password::new("test".to_string());
+        let password = PasswordString::new("test".to_string());
 
         let mut key1 = Aes256Key::new([0u8; 32]);
         let mut key2 = Aes256Key::new([0u8; 32]);
@@ -61,7 +61,7 @@ mod tests {
 
     #[test]
     fn pbkdf2_builder_derive_secure_new() {
-        let password = Password::new("builder-new".to_string());
+        let password = PasswordString::new("builder-new".to_string());
 
         let key: Aes256Key = Pbkdf2Builder::new()
             .with_iterations(250_000)

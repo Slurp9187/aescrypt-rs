@@ -29,6 +29,8 @@ pub use crypto::kdf::pbkdf2_builder::Pbkdf2Builder;
 #[cfg(feature = "batch-ops")]
 pub use batch_ops::{decrypt_batch, encrypt_batch};
 
+#[allow(deprecated)]
 pub use convert::convert_to_v3;
+pub use convert::convert_to_v3_ext;
 
 pub use header::read_version; // New: Quick version check

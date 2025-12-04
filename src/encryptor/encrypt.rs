@@ -2,7 +2,7 @@
 //! Aescrypt encryption — secure-gate v0.5.5+ gold standard (2025)
 //! Zero secret exposure, zero-cost, auto-zeroizing
 
-use crate::aliases::{Aes256Key, EncryptedSessionBlock48, Password};
+use crate::aliases::{Aes256Key, EncryptedSessionBlock48, PasswordString};
 use crate::aliases::{HmacSha256, RandomAes256Key, RandomIv16};
 use crate::consts::{AESCRYPT_LATEST_VERSION, PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
 use crate::encryptor::stream::encrypt_stream;
@@ -22,7 +22,7 @@ use std::io::{Read, Write};
 pub fn encrypt<R, W>(
     mut input: R,
     mut output: W,
-    password: &Password,
+    password: &PasswordString,
     kdf_iterations: u32,
 ) -> Result<(), AescryptError>
 where

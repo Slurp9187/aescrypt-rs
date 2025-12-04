@@ -1,7 +1,7 @@
 //! src/crypto/kdf/ackdf.rs
 //! Aescrypt v0–v2 ACKDF — out-param, zero-exposure, secure-gate v0.5.5+
 
-use crate::aliases::{Aes256Key, Password, Salt16};
+use crate::aliases::{Aes256Key, PasswordString, Salt16};
 use crate::utils::utf8_to_utf16le;
 use crate::AescryptError; // ← Use crate root re-exports
 use sha2::{Digest, Sha256};
@@ -19,7 +19,7 @@ pub const ACKDF_ITERATIONS: u32 = 8192;
 /// Derive ACKDF key directly into caller-provided Aes256Key buffer
 #[inline(always)]
 pub fn derive_secure_ackdf_key(
-    password: &Password,
+    password: &PasswordString,
     salt: &Salt16,
     out_key: &mut Aes256Key,
 ) -> Result<(), AescryptError> {

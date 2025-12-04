@@ -3,7 +3,7 @@
 
 #[cfg(feature = "zeroize")]
 mod tests {
-    use aescrypt_rs::aliases::{Aes256Key, Password, Salt16};
+    use aescrypt_rs::aliases::{Aes256Key, PasswordString, Salt16};
     use aescrypt_rs::{derive_secure_ackdf_key, derive_secure_pbkdf2_key};
 
     #[derive(Debug, Copy, Clone)]
@@ -33,7 +33,7 @@ mod tests {
         ];
 
         for (kdf, expected) in cases {
-            let password = Password::new("testpassword".to_owned());
+            let password = PasswordString::new("testpassword".to_owned());
             let salt = Salt16::from([0u8; 16]);
 
             let mut key = Aes256Key::new([0u8; 32]);
@@ -67,7 +67,7 @@ mod tests {
         ];
 
         for (kdf, expected) in cases {
-            let password = Password::new("password".to_owned());
+            let password = PasswordString::new("password".to_owned());
             let salt = Salt16::from([
                 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd,
                 0xee, 0xff,

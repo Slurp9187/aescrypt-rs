@@ -1,6 +1,6 @@
 //! src/crypto/kdf/pbkdf2.rs
 
-use crate::aliases::{Aes256Key, Password, Salt16};
+use crate::aliases::{Aes256Key, PasswordString, Salt16};
 use crate::AescryptError;
 
 use hmac::Hmac;
@@ -11,7 +11,7 @@ use sha2::Sha512;
 /// Zero allocation, zero copy, maximum speed + security
 #[inline(always)]
 pub fn derive_secure_pbkdf2_key(
-    password: &Password,     // &Dynamic<String>
+    password: &PasswordString,     // &Dynamic<String>
     salt: &Salt16,           // &Fixed<[u8; 16]>
     iterations: u32,         // ← primitive → by value = correct
     out_key: &mut Aes256Key, // &mut Fixed<[u8; 32]>

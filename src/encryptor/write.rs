@@ -2,7 +2,7 @@
 //! AES Crypt write helpers — FULL secure-gate v0.5.5+ protection
 
 use crate::aliases::HmacSha256;
-use crate::aliases::{Aes256Key, EncryptedSessionBlock48, Iv16, Password, PlainTextBlock16};
+use crate::aliases::{Aes256Key, EncryptedSessionBlock48, Iv16, PasswordString, PlainTextBlock16};
 use crate::consts::PBKDF2_MAX_ITER;
 use crate::derive_secure_pbkdf2_key;
 use crate::error::AescryptError;
@@ -60,7 +60,7 @@ pub fn write_public_iv<W: Write>(writer: &mut W, iv: &Iv16) -> Result<(), Aescry
 
 #[inline]
 pub fn derive_setup_key(
-    password: &Password,
+    password: &PasswordString,
     public_iv: &Iv16,
     iterations: u32,
     out_key: &mut Aes256Key,

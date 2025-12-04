@@ -3,7 +3,7 @@
 
 #[cfg(feature = "zeroize")]
 mod tests {
-    use aescrypt_rs::aliases::{Aes256Key, Password, Salt16};
+    use aescrypt_rs::aliases::{Aes256Key, PasswordString, Salt16};
     use aescrypt_rs::{derive_secure_ackdf_key, derive_secure_pbkdf2_key};
 
     #[derive(Debug, Copy, Clone)]
@@ -14,7 +14,7 @@ mod tests {
 
     #[test]
     fn secure_kdf_expected_keys() {
-        let password = Password::new("correct horse battery staple".to_string());
+        let password = PasswordString::new("correct horse battery staple".to_string());
         let salt = Salt16::from([0x11; 16]);
 
         let mut ackdf_key = Aes256Key::new([0u8; 32]);
@@ -43,7 +43,7 @@ mod tests {
 
     #[test]
     fn secure_ackdf_and_pbkdf2_differ() {
-        let password = Password::new("correct horse battery staple".to_string());
+        let password = PasswordString::new("correct horse battery staple".to_string());
         let salt = Salt16::from([0x11; 16]);
 
         let mut ackdf_key = Aes256Key::new([0u8; 32]);
@@ -67,7 +67,7 @@ mod tests {
         ];
 
         for (pw_str, desc) in cases {
-            let password = Password::new(pw_str.to_string());
+            let password = PasswordString::new(pw_str.to_string());
             let salt = Salt16::from([0x42u8; 16]);
 
             for kdf in [KdfType::Ackdf, KdfType::Pbkdf2] {

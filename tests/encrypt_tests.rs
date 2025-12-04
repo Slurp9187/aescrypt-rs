@@ -1,7 +1,7 @@
 //! tests/encrypt/encrypt_tests.rs
 //! High-level encryption tests – clean, parameterized, and green (2025)
 
-use aescrypt_rs::aliases::Password;
+use aescrypt_rs::aliases::PasswordString;
 use aescrypt_rs::consts::DEFAULT_PBKDF2_ITERATIONS;
 use aescrypt_rs::encrypt;
 use aescrypt_rs::AescryptError;
@@ -9,7 +9,7 @@ use std::io::Cursor;
 
 #[test]
 fn encrypt_v3_basics() {
-    let password = Password::new("password".to_string());
+    let password = PasswordString::new("password".to_string());
 
     // Pre-allocate the large buffer so it lives long enough
     let large_100kb = vec![0x41u8; 100_000];
@@ -52,7 +52,7 @@ fn encrypt_v3_basics() {
 
 #[test]
 fn encrypt_unicode_password() {
-    let password = Password::new("パスワード123!@#".to_string());
+    let password = PasswordString::new("パスワード123!@#".to_string());
     let mut encrypted = Vec::new();
 
     encrypt(
@@ -68,7 +68,7 @@ fn encrypt_unicode_password() {
 
 #[test]
 fn encrypt_invalid_iterations() {
-    let password = Password::new("invalid-iter".to_string());
+    let password = PasswordString::new("invalid-iter".to_string());
     let plaintext = b"test";
 
     // Zero iterations → Header error

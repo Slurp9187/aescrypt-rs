@@ -10,14 +10,14 @@ use crate::decryptor::read::{
 use crate::decryptor::session::extract_session_data;
 use crate::decryptor::stream::{decrypt_ciphertext_stream, StreamConfig};
 
-use crate::aliases::{Aes256Key, Iv16, Password};
+use crate::aliases::{Aes256Key, Iv16, PasswordString};
 use crate::error::AescryptError;
 use crate::{derive_secure_ackdf_key, derive_secure_pbkdf2_key};
 use std::io::{Read, Write};
 
 /// Decrypt an Aescrypt file (v0–v3) — zero secret exposure, maximum security
 #[inline(always)]
-pub fn decrypt<R, W>(mut input: R, mut output: W, password: &Password) -> Result<(), AescryptError>
+pub fn decrypt<R, W>(mut input: R, mut output: W, password: &PasswordString) -> Result<(), AescryptError>
 where
     R: Read,
     W: Write,

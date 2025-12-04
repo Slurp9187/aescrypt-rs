@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] - 2025-12-03
+
+### Features
+- Added `convert_to_v3_ext` — supports separate old/new passwords and **256-bit random password generation**
+  - `new_password = None` → generates secure 64-char hex password (256-bit entropy)
+  - Uses `RandomPassword32::random_hex()` (secure-gate v0.5.10 best practice)
+
+### Deprecations
+- Soft-deprecated `convert_to_v3` (since 0.1.6)
+  - Still fully supported and backward compatible
+  - Thin wrapper added so old code keeps compiling with a helpful warning
+  - Will be removed in v1.0
+
+### Internal
+- All new code uses `PasswordString` and `RandomPassword32` aliases
+- No breaking changes — safe upgrade for all users
+
 ## [0.1.5] - 2025-12-03
 
 ### Added

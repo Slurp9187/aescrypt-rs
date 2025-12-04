@@ -1,11 +1,11 @@
 #[cfg(feature = "batch-ops")]
 #[test]
 fn batch_roundtrip_sanity_check() {
-    use aescrypt_rs::aliases::Password;
+    use aescrypt_rs::aliases::PasswordString;
     use aescrypt_rs::{decrypt_batch, encrypt_batch};
     use std::io::Cursor;
 
-    let password = Password::new("sanity".to_string());
+    let password = PasswordString::new("sanity".to_string());
     let data = [b"hello parallel world"; 4]; // 4 tiny files
 
     let mut encrypted = data.map(|d| (Cursor::new(d.to_vec()), Vec::new()));

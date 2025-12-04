@@ -18,6 +18,7 @@ fixed_alias!(Salt16, 16); // Used: PBKDF2/ACKDF salt
 // ─────────────────────────────────────────────────────────────────────────────
 random_alias!(RandomAes256Key, 32);
 random_alias!(RandomIv16, 16);
+random_alias!(RandomPassword32, 32);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Overkill public-but-sensitive — auto-zeroed on drop
@@ -33,6 +34,10 @@ fixed_alias!(SessionHmacTag32, 32); // Used in session.rs + stream/utils.rs
 dynamic_alias!(MasterKey, Vec<u8>);
 dynamic_alias!(Password, String);
 dynamic_alias!(Token, String);
+
+dynamic_alias!(MasterKeyVec, Vec<u8>);
+dynamic_alias!(PasswordString, String);
+dynamic_alias!(TokenString, String);
 
 // Re-exported crypto primitives — users get them from the same `aliases::*` import
 pub use crate::crypto::hmac::{HmacSha256, HmacSha512};

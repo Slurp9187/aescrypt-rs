@@ -2,7 +2,7 @@
 // Deterministic v3 encryption – TEST ONLY
 // Exactly matches the official test vectors (including CREATED_BY extension + version byte in HMAC)
 
-use aescrypt_rs::aliases::{Aes256Key, EncryptedSessionBlock48, Iv16, Password};
+use aescrypt_rs::aliases::{Aes256Key, EncryptedSessionBlock48, Iv16, PasswordString};
 use aescrypt_rs::error::AescryptError;
 
 // Public re-exports from the library
@@ -26,7 +26,7 @@ const V3_CREATED_BY_EXTENSION: [u8; 29] = [
 pub fn encrypt_with_fixed_session<R: Read, W: Write>(
     mut source: R,
     mut destination: W,
-    password: &Password,
+    password: &PasswordString,
     iterations: u32,
     public_iv: &Iv16,
     session_iv: &Iv16,

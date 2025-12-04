@@ -4,14 +4,14 @@ use rayon::prelude::*;
 use std::io::{Read, Write};
 
 #[cfg(feature = "batch-ops")]
-use crate::aliases::Password;
+use crate::aliases::PasswordString;
 #[cfg(feature = "batch-ops")]
 use crate::{decrypt, encrypt, AescryptError};
 
 #[cfg(feature = "batch-ops")]
 pub fn encrypt_batch<R, W>(
     batch: &mut [(R, W)],
-    password: &Password,
+    password: &PasswordString,
     iterations: u32,
 ) -> Result<(), AescryptError>
 where
@@ -24,7 +24,7 @@ where
 }
 
 #[cfg(feature = "batch-ops")]
-pub fn decrypt_batch<R, W>(batch: &mut [(R, W)], password: &Password) -> Result<(), AescryptError>
+pub fn decrypt_batch<R, W>(batch: &mut [(R, W)], password: &PasswordString) -> Result<(), AescryptError>
 where
     R: Read + Send,
     W: Write + Send,

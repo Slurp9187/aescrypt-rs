@@ -7,8 +7,10 @@
 //! - Bit-perfect round-trip verification
 //! - Clean, loud debug output with --nocapture
 
-use aescrypt_rs::aliases::Password;
-use aescrypt_rs::{convert_to_v3, decrypt};
+use aescrypt_rs::aliases::PasswordString;
+#[allow(deprecated)]
+use aescrypt_rs::convert_to_v3;
+use aescrypt_rs::decrypt;
 use hex::decode;
 use serde::Deserialize;
 use std::fmt;
@@ -16,15 +18,9 @@ use std::io::{Cursor, Write};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-/// Real-world iteration count used in production
+/// PBKDF2 iteration counts
 const REAL_WORLD_ITERATIONS: u32 = 300_000;
-
-/// Fast iteration count for rapid developer feedback
 const DEBUG_ITERATIONS: u32 = 64;
-
-/// Automatically choose correct iteration count:
-//  • `cargo test` → ~3 seconds
-//  • `cargo test --release` → ~25 seconds with full security
 const TEST_KDF_ITERATIONS: u32 = if cfg!(debug_assertions) {
     DEBUG_ITERATIONS
 } else {
@@ -89,7 +85,7 @@ struct DecryptVector {
     plaintext: String,
 }
 
-/// In-memory writer that can be shared and inspected after use
+/// Thread-safe in-memory writer used by the big vector test
 #[derive(Clone)]
 struct SharedBufferWriter(Arc<Mutex<Vec<u8>>>);
 
@@ -124,7 +120,7 @@ fn convert_to_v3_preserves_content_perfectly() {
     );
     println!("This is correct and expected behavior.\n");
 
-    let password = Password::new("Hello".to_string());
+    let password = PasswordString::new("Hello".to_string());
 
     for version in AescryptVersion::all_legacy() {
         let vectors: Vec<DecryptVector> = load_json(version.json_filename());
@@ -146,8 +142,9 @@ fn convert_to_v3_preserves_content_perfectly() {
 
             let (writer, buffer_handle) = SharedBufferWriter::new();
 
+            #[allow(deprecated)]
             convert_to_v3(
-                Cursor::new(&legacy_ciphertext),
+                Cursor::new(legacy_ciphertext),
                 writer,
                 &password,
                 TEST_KDF_ITERATIONS,
