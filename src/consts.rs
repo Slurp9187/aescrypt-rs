@@ -1,3 +1,5 @@
+// src/consts.rs
+
 //! Global constants for AES Crypt implementation.
 //!
 //! Includes version, KDF parameters, and recommended defaults.
