@@ -1,6 +1,8 @@
 // src/lib.rs
 
 pub mod aliases;
+#[cfg(feature = "batch-ops")]
+pub mod batch_ops;
 pub mod consts;
 pub mod convert;
 pub mod crypto;
@@ -9,9 +11,6 @@ pub mod encryptor;
 pub mod error;
 pub mod header;
 pub mod utils;
-
-#[cfg(feature = "batch-ops")]
-pub mod batch_ops;
 
 // High-level API — this is what 99% of users import
 pub use decryptor::decrypt;
@@ -22,9 +21,9 @@ pub use error::AescryptError;
 // • They are needed for custom decryption flows (e (e.g. reading v0–v2 files without the high-level API)
 // • They are the only non-wrapper crypto functions users ever need directly
 // • Keeping them at the root is the established pattern in the ecosystem (see `ring`, `password-hash`, etc.)
+// pub use builders::Pbkdf2Builder;
 pub use crypto::kdf::ackdf::derive_secure_ackdf_key;
 pub use crypto::kdf::pbkdf2::derive_secure_pbkdf2_key;
-pub use crypto::kdf::pbkdf2_builder::Pbkdf2Builder;
 
 #[cfg(feature = "batch-ops")]
 pub use batch_ops::{decrypt_batch, encrypt_batch};
