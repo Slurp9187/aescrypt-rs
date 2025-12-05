@@ -5,10 +5,7 @@ use std::sync::{Arc, Mutex};
 
 #[allow(deprecated)]
 use aescrypt_rs::convert_to_v3;
-use aescrypt_rs::{
-    aliases::{Password, PasswordString},
-    convert_to_v3_ext, decrypt, encrypt,
-};
+use aescrypt_rs::{aliases::PasswordString, convert_to_v3_ext, decrypt, encrypt};
 
 /// Thread-safe Vec<u8> writer — the ONLY thing that satisfies W: Write + 'static
 #[derive(Clone)]
@@ -97,7 +94,7 @@ fn convert_to_v3_ext_random_password_generates_256bit() {
 #[test]
 #[allow(deprecated)]
 fn convert_to_v3_backward_compatibility_still_works() {
-    let old_pw: Password = Password::new("compat-test".to_string());
+    let old_pw: PasswordString = PasswordString::new("compat-test".to_string());
     let plaintext = b"Backward compatibility is preserved";
 
     let mut legacy = Vec::new();

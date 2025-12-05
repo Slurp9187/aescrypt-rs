@@ -11,7 +11,7 @@
 //!
 //! This is a pure crypto primitive — no I/O.
 
-use crate::aliases::{Aes256Key, EncryptedSessionBlock48, HmacSha256, Iv16, PlainTextBlock16};
+use crate::aliases::{Aes256Key32, EncryptedSessionBlock48, HmacSha256, Iv16, PlainTextBlock16};
 use crate::error::AescryptError;
 use crate::utils::xor_blocks;
 use aes::cipher::BlockEncrypt;
@@ -45,7 +45,7 @@ use hmac::digest::Update;
 pub fn encrypt_session_block(
     cipher: &Aes256Enc,
     session_iv: &Iv16,
-    session_key: &Aes256Key,
+    session_key: &Aes256Key32,
     public_iv: &Iv16,
     enc_block: &mut EncryptedSessionBlock48,
     hmac: &mut HmacSha256,

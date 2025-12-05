@@ -10,7 +10,7 @@ use crate::decryptor::read::{
 use crate::decryptor::session::extract_session_data;
 use crate::decryptor::stream::{decrypt_ciphertext_stream, StreamConfig};
 
-use crate::aliases::{Aes256Key, Iv16, PasswordString};
+use crate::aliases::{Aes256Key32, Iv16, PasswordString};
 use crate::error::AescryptError;
 use crate::{derive_secure_ackdf_key, derive_secure_pbkdf2_key};
 use std::io::{Read, Write};
@@ -32,7 +32,7 @@ where
     let public_iv: Iv16 = Iv16::from(read_exact_span(&mut input)?);
 
     // Setup key — secure buffer from birth
-    let mut setup_key = secure!(Aes256Key, [0u8; 32].into());
+    let mut setup_key = secure!(Aes256Key32, [0u8; 32].into());
 
     if file_version <= 2 {
         derive_secure_ackdf_key(password, &public_iv, &mut setup_key)?;
@@ -42,7 +42,7 @@ where
 
     // Session key/IV — secure buffers from birth
     let mut session_iv = Iv16::new([0u8; 16]);
-    let mut session_key = Aes256Key::new([0u8; 32]);
+    let mut session_key = Aes256Key32::new([0u8; 32]);
 
     extract_session_data(
         &mut input,

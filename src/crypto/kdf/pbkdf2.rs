@@ -1,6 +1,6 @@
 //! src/crypto/kdf/pbkdf2.rs
 
-use crate::aliases::{Aes256Key, PasswordString, Salt16};
+use crate::aliases::{Aes256Key32, PasswordString, Salt16};
 use crate::AescryptError;
 
 use hmac::Hmac;
@@ -14,7 +14,7 @@ pub fn derive_secure_pbkdf2_key(
     password: &PasswordString,     // &Dynamic<String>
     salt: &Salt16,           // &Fixed<[u8; 16]>
     iterations: u32,         // ← primitive → by value = correct
-    out_key: &mut Aes256Key, // &mut Fixed<[u8; 32]>
+    out_key: &mut Aes256Key32, // &mut Fixed<[u8; 32]>
 ) -> Result<(), AescryptError> {
     if iterations == 0 {
         return Err(AescryptError::Crypto("PBKDF2 iterations must be ≥1".into()));

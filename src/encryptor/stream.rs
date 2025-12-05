@@ -1,7 +1,7 @@
 //! src/encryptor/stream.rs
 //! AES Crypt v3 streaming encryption — 100% secure-gate, all tests pass
 
-use crate::aliases::{Aes256Key, Iv16, PlainTextBlock16};
+use crate::aliases::{Aes256Key32, Iv16, PlainTextBlock16};
 use crate::error::AescryptError;
 use crate::utils::xor_blocks;
 use aes::cipher::{BlockEncrypt, KeyInit};
@@ -17,7 +17,7 @@ pub fn encrypt_stream<R, W>(
     mut source: R,
     mut destination: W,
     session_iv: &Iv16,
-    session_key: &Aes256Key,
+    session_key: &Aes256Key32,
 ) -> Result<(), AescryptError>
 where
     R: Read,

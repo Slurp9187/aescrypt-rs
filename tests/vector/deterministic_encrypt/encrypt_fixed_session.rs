@@ -2,7 +2,7 @@
 // Deterministic v3 encryption – TEST ONLY
 // Exactly matches the official test vectors (including CREATED_BY extension + version byte in HMAC)
 
-use aescrypt_rs::aliases::{Aes256Key, EncryptedSessionBlock48, Iv16, PasswordString};
+use aescrypt_rs::aliases::{Aes256Key32, EncryptedSessionBlock48, Iv16, PasswordString};
 use aescrypt_rs::error::AescryptError;
 
 // Public re-exports from the library
@@ -30,7 +30,7 @@ pub fn encrypt_with_fixed_session<R: Read, W: Write>(
     iterations: u32,
     public_iv: &Iv16,
     session_iv: &Iv16,
-    session_key: &Aes256Key,
+    session_key: &Aes256Key32,
 ) -> Result<(), AescryptError> {
     // Header
     write_header(&mut destination, 3)?;
@@ -44,7 +44,7 @@ pub fn encrypt_with_fixed_session<R: Read, W: Write>(
     write_public_iv(&mut destination, public_iv)?;
 
     // Derive setup key
-    let mut setup_key = Aes256Key::new([0u8; 32]);
+    let mut setup_key = Aes256Key32::new([0u8; 32]);
     derive_setup_key(password, public_iv, iterations, &mut setup_key)?;
 
     let cipher = Aes256Enc::new(setup_key.expose_secret().into());

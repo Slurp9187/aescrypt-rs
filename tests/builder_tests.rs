@@ -3,14 +3,14 @@
 
 #[cfg(feature = "zeroize")]
 mod tests {
-    use aescrypt_rs::aliases::{Aes256Key, PasswordString};
+    use aescrypt_rs::aliases::{Aes256Key32, PasswordString};
     use aescrypt_rs::Pbkdf2Builder;
 
     #[test]
     fn pbkdf2_builder_works() {
         let password = PasswordString::new("hunter2".to_string());
 
-        let mut key = Aes256Key::new([0u8; 32]);
+        let mut key = Aes256Key32::new([0u8; 32]);
         Pbkdf2Builder::new()
             .with_iterations(1_000)
             .with_salt([0x55u8; 16])
@@ -31,7 +31,7 @@ mod tests {
         ];
 
         for (iterations, salt) in cases {
-            let mut key = Aes256Key::new([0u8; 32]);
+            let mut key = Aes256Key32::new([0u8; 32]);
             Pbkdf2Builder::new()
                 .with_iterations(iterations)
                 .with_salt(salt)
@@ -46,8 +46,8 @@ mod tests {
     fn pbkdf2_builder_default_salt_is_random() {
         let password = PasswordString::new("test".to_string());
 
-        let mut key1 = Aes256Key::new([0u8; 32]);
-        let mut key2 = Aes256Key::new([0u8; 32]);
+        let mut key1 = Aes256Key32::new([0u8; 32]);
+        let mut key2 = Aes256Key32::new([0u8; 32]);
 
         Pbkdf2Builder::new()
             .derive_secure(&password, &mut key1)
@@ -63,7 +63,7 @@ mod tests {
     fn pbkdf2_builder_derive_secure_new() {
         let password = PasswordString::new("builder-new".to_string());
 
-        let key: Aes256Key = Pbkdf2Builder::new()
+        let key: Aes256Key32 = Pbkdf2Builder::new()
             .with_iterations(250_000)
             .derive_secure_new(&password)
             .unwrap();

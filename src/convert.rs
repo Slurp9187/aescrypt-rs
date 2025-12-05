@@ -70,7 +70,7 @@ where
 pub fn convert_to_v3<R, W>(
     input: R,
     output: W,
-    password: &crate::aliases::Password, // ← old legacy type
+    password: &crate::aliases::PasswordString, // ← old legacy type
     iterations: u32,
 ) -> Result<(), AescryptError>
 where
@@ -84,7 +84,8 @@ where
         // SAFETY: Password and PasswordString are both dynamic_alias!(..., String)
         //         → identical memory layout (just a wrapper around String)
         //         → transmuting the reference is safe
-        &*(password as *const crate::aliases::Password as *const crate::aliases::PasswordString)
+        &*(password as *const crate::aliases::PasswordString
+            as *const crate::aliases::PasswordString)
     };
 
     convert_to_v3_impl(input, output, password_str, Some(password_str), iterations)?;

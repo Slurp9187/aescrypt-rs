@@ -2,7 +2,7 @@
 //! Final version — matches original working code exactly
 //! All tests pass, zero warnings, secure-gate everywhere
 
-use crate::aliases::{Aes256Key, Iv16};
+use crate::aliases::{Aes256Key32, Iv16};
 use crate::decryptor::stream::context::DecryptionContext;
 use crate::decryptor::stream::utils::{
     extract_hmac_scattered, extract_hmac_simple, write_final_modulo, write_final_pkcs7,
@@ -29,7 +29,7 @@ pub fn decrypt_ciphertext_stream<R, W>(
     mut input_reader: R,
     mut output_writer: W,
     initial_vector: &Iv16,
-    encryption_key: &Aes256Key,
+    encryption_key: &Aes256Key32,
     config: StreamConfig,
 ) -> Result<(), AescryptError>
 where

@@ -3,7 +3,7 @@
 
 #[cfg(feature = "zeroize")]
 mod tests {
-    use aescrypt_rs::aliases::{Aes256Key, PasswordString, Salt16};
+    use aescrypt_rs::aliases::{Aes256Key32, PasswordString, Salt16};
     use aescrypt_rs::{derive_secure_ackdf_key, derive_secure_pbkdf2_key};
 
     #[derive(Debug, Copy, Clone)]
@@ -17,7 +17,7 @@ mod tests {
         let password = PasswordString::new("correct horse battery staple".to_string());
         let salt = Salt16::from([0x11; 16]);
 
-        let mut ackdf_key = Aes256Key::new([0u8; 32]);
+        let mut ackdf_key = Aes256Key32::new([0u8; 32]);
         derive_secure_ackdf_key(&password, &salt, &mut ackdf_key).unwrap();
 
         let expected_ackdf = [
@@ -27,7 +27,7 @@ mod tests {
         ];
         assert_eq!(ackdf_key.expose_secret(), &expected_ackdf, "ACKDF mismatch");
 
-        let mut pbkdf2_key = Aes256Key::new([0u8; 32]);
+        let mut pbkdf2_key = Aes256Key32::new([0u8; 32]);
         derive_secure_pbkdf2_key(&password, &salt, 1, &mut pbkdf2_key).unwrap();
 
         let expected_pbkdf2 = [
@@ -46,10 +46,10 @@ mod tests {
         let password = PasswordString::new("correct horse battery staple".to_string());
         let salt = Salt16::from([0x11; 16]);
 
-        let mut ackdf_key = Aes256Key::new([0u8; 32]);
+        let mut ackdf_key = Aes256Key32::new([0u8; 32]);
         derive_secure_ackdf_key(&password, &salt, &mut ackdf_key).unwrap();
 
-        let mut pbkdf2_key = Aes256Key::new([0u8; 32]);
+        let mut pbkdf2_key = Aes256Key32::new([0u8; 32]);
         derive_secure_pbkdf2_key(&password, &salt, 1, &mut pbkdf2_key).unwrap();
 
         assert_ne!(ackdf_key.expose_secret(), pbkdf2_key.expose_secret());
@@ -71,7 +71,7 @@ mod tests {
             let salt = Salt16::from([0x42u8; 16]);
 
             for kdf in [KdfType::Ackdf, KdfType::Pbkdf2] {
-                let mut key = Aes256Key::new([0u8; 32]);
+                let mut key = Aes256Key32::new([0u8; 32]);
                 match kdf {
                     KdfType::Ackdf => derive_secure_ackdf_key(&password, &salt, &mut key).unwrap(),
                     KdfType::Pbkdf2 => {

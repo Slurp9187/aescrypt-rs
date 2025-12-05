@@ -1,7 +1,7 @@
 //! src/encryptor/write.rs
 //! AES Crypt write helpers — FULL secure-gate v0.5.5+ protection
 
-use crate::aliases::Aes256Key;
+use crate::aliases::Aes256Key32;
 use crate::aliases::HmacSha256;
 use crate::aliases::Iv16;
 use crate::aliases::PasswordString;
@@ -62,7 +62,7 @@ pub fn derive_setup_key(
     password: &PasswordString,
     public_iv: &Iv16,
     iterations: u32,
-    out_key: &mut Aes256Key,
+    out_key: &mut Aes256Key32,
 ) -> Result<(), AescryptError> {
     derive_secure_pbkdf2_key(password, public_iv, iterations, out_key)
 }

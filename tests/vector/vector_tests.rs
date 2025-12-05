@@ -1,7 +1,7 @@
 //! tests/vector/vector_tests.rs
 //! Final merged vector test suite – fully compatible with v0–v3 JSON formats (2025)
 
-use aescrypt_rs::aliases::{Aes256Key, Iv16, PasswordString};
+use aescrypt_rs::aliases::{Aes256Key32, Iv16, PasswordString};
 use aescrypt_rs::decrypt;
 use aescrypt_rs::encrypt;
 
@@ -188,7 +188,7 @@ fn roundtrip_v3_deterministic() {
         let session_key_arr: [u8; 32] = session_key_bytes
             .try_into()
             .unwrap_or_else(|_| panic!("Vector {i}: session_key must be 32 bytes"));
-        let session_key = Aes256Key::from(session_key_arr);
+        let session_key = Aes256Key32::from(session_key_arr);
 
         let mut encrypted = Vec::new();
         encrypt_with_fixed_session(
