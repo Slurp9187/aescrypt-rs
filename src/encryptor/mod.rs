@@ -13,9 +13,8 @@ pub(crate) mod write;
 
 pub use encrypt::encrypt;
 // pub use encrypt_fixed_session::encrypt_with_fixed_session;
-pub use session::encrypt_session_block;
+pub use session::{derive_setup_key, encrypt_session_block};
 pub use stream::encrypt_stream;
 pub use write::{
-    derive_setup_key, write_extensions, write_header, write_hmac, write_iterations, write_octets,
-    write_public_iv,
+    write_extensions, write_header, write_hmac, write_iterations, write_octets, write_public_iv,
 };

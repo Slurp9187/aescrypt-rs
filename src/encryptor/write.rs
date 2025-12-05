@@ -1,12 +1,8 @@
 //! src/encryptor/write.rs
-//! AES Crypt write helpers — FULL secure-gate v0.5.5+ protection
+//! AES Crypt write helpers — FULL secure-gate v0.5.10+ protection
 
-use crate::aliases::Aes256Key32;
-use crate::aliases::HmacSha256;
-use crate::aliases::Iv16;
-use crate::aliases::PasswordString;
+use crate::aliases::{HmacSha256, Iv16};
 use crate::consts::PBKDF2_MAX_ITER;
-use crate::derive_secure_pbkdf2_key;
 use crate::error::AescryptError;
 use hmac::Mac;
 use std::io::Write;
@@ -57,15 +53,7 @@ pub fn write_public_iv<W: Write>(writer: &mut W, iv: &Iv16) -> Result<(), Aescry
     write_octets(writer, iv.expose_secret())
 }
 
-#[inline]
-pub fn derive_setup_key(
-    password: &PasswordString,
-    public_iv: &Iv16,
-    iterations: u32,
-    out_key: &mut Aes256Key32,
-) -> Result<(), AescryptError> {
-    derive_secure_pbkdf2_key(password, public_iv, iterations, out_key)
-}
+// REMOVED: derive_setup_key — moved to session.rs for crypto cohesion
 
 #[inline]
 pub fn write_hmac<W: Write>(writer: &mut W, hmac: HmacSha256) -> Result<(), AescryptError> {

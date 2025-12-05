@@ -11,12 +11,34 @@
 //!
 //! This is a pure crypto primitive — no I/O.
 
-use crate::aliases::{Aes256Key32, EncryptedSessionBlock48, HmacSha256, Iv16, PlainTextBlock16};
+use crate::aliases::{
+    Aes256Key32, EncryptedSessionBlock48, HmacSha256, Iv16, PasswordString, PlainTextBlock16,
+};
+use crate::consts::PBKDF2_MAX_ITER;
+use crate::crypto::kdf::pbkdf2::derive_secure_pbkdf2_key;
 use crate::error::AescryptError;
 use crate::utils::xor_blocks;
 use aes::cipher::BlockEncrypt;
 use aes::{Aes256Enc, Block as AesBlock};
-use hmac::digest::Update;
+use hmac::Mac;
+
+/// Derive the AES-256 setup key from password + public IV using PBKDF2-HMAC-SHA512.
+/// Used to encrypt the session key/IV block.
+///
+/// This is the only place in the entire encrypt path where the user's password touches
+/// real cryptography — belongs next to the session block logic.
+#[inline]
+pub fn derive_setup_key(
+    password: &PasswordString,
+    public_iv: &Iv16,
+    iterations: u32,
+    out_key: &mut Aes256Key32,
+) -> Result<(), AescryptError> {
+    if iterations == 0 || iterations > PBKDF2_MAX_ITER {
+        return Err(AescryptError::Header("invalid KDF iterations".into()));
+    }
+    derive_secure_pbkdf2_key(password, public_iv, iterations, out_key)
+}
 
 /// Encrypts the 48-byte session block (session IV + session key) using
 /// AES-256-CBC with the master/setup key derived from the password.
