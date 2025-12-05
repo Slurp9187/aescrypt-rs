@@ -1,4 +1,4 @@
-use crate::aliases::{EncryptedSessionBlock48, Iv16, PlainTextBlock16, RingBuffer64};
+use crate::aliases::{EncryptedSessionBlock48, Iv16, Block16, RingBuffer64};
 use crate::error::AescryptError;
 use crate::utils::xor_blocks; // Note: This is crate::utils (existing), not stream/utils
 use aes::cipher::BlockDecrypt;
@@ -14,7 +14,7 @@ pub struct DecryptionContext {
     pub tail_index: usize,
     pub current_index: usize,
     pub head_index: usize,
-    pub plaintext_block: PlainTextBlock16,
+    pub plaintext_block: Block16,
     pub need_write_plaintext: bool,
 }
 
@@ -26,7 +26,7 @@ impl DecryptionContext {
             tail_index: 0,
             current_index: 16,
             head_index: 16,
-            plaintext_block: PlainTextBlock16::new([0u8; 16]),
+            plaintext_block: Block16::new([0u8; 16]),
             need_write_plaintext: false,
         };
         this.ring_buffer.expose_secret_mut()[0..16].copy_from_slice(iv.expose_secret());

@@ -1,7 +1,7 @@
 //! src/encryptor/stream.rs
 //! AES Crypt v3 streaming encryption — 100% secure-gate, all tests pass
 
-use crate::aliases::{Aes256Key32, Iv16, PlainTextBlock16};
+use crate::aliases::{Aes256Key32, Block16, Iv16};
 use crate::error::AescryptError;
 use crate::utils::xor_blocks;
 use aes::cipher::{BlockEncrypt, KeyInit};
@@ -30,7 +30,7 @@ where
     // previous ciphertext block – must stay a real [u8; 16]
     let mut prev_block: [u8; 16] = *session_iv.expose_secret();
 
-    let mut plaintext_block = PlainTextBlock16::new([0u8; 16]);
+    let mut plaintext_block = Block16::new([0u8; 16]);
 
     loop {
         let n = source.read(plaintext_block.expose_secret_mut())?;
@@ -42,7 +42,7 @@ where
         }
 
         // XOR with previous ciphertext
-        let mut xor_output = PlainTextBlock16::new([0u8; 16]);
+        let mut xor_output = Block16::new([0u8; 16]);
         xor_blocks(
             plaintext_block.expose_secret(),
             &prev_block,

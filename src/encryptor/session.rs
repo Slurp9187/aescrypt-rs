@@ -12,7 +12,7 @@
 //! This is a pure crypto primitive — no I/O.
 
 use crate::aliases::{
-    Aes256Key32, EncryptedSessionBlock48, HmacSha256, Iv16, PasswordString, PlainTextBlock16,
+    Aes256Key32, Block16, EncryptedSessionBlock48, HmacSha256, Iv16, PasswordString,
 };
 use crate::consts::PBKDF2_MAX_ITER;
 use crate::crypto::kdf::pbkdf2::derive_secure_pbkdf2_key;
@@ -73,7 +73,7 @@ pub fn encrypt_session_block(
     hmac: &mut HmacSha256,
 ) -> Result<(), AescryptError> {
     let mut prev = *public_iv.expose_secret();
-    let mut block = PlainTextBlock16::new([0u8; 16]);
+    let mut block = Block16::new([0u8; 16]);
 
     // === Block 1: session IV (16 bytes) ===
     xor_blocks(session_iv.expose_secret(), &prev, block.expose_secret_mut());

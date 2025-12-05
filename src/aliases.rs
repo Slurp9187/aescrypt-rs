@@ -36,8 +36,6 @@ dynamic_alias!(PasswordString, String);
 fixed_alias!(Aes256Key32, 32); // session key, HMAC key
 fixed_alias!(EncryptedSessionBlock48, 48); // encrypted session IV + key
 fixed_alias!(Iv16, 16); // public IV, session IV
-fixed_alias!(PlainTextBlock16, 16); // decrypted stream blocks
-fixed_alias!(PrevCiphertextBlock16, 16); // CBC chaining
 fixed_alias!(RingBuffer64, 64); // streaming decryptor ring buffer
 fixed_alias!(Salt16, 16); // PBKDF2/ACKDF salt
 fixed_alias!(SessionHmacTag32, 32); // session block HMAC
