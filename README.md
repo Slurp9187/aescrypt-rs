@@ -4,10 +4,9 @@
 
 - **Read**: Full compatibility with **all versions** — v0, v1, v2, and v3  
 - **Write**: Modern **v3 only** (PBKDF2-HMAC-SHA512, PKCS#7 padding, proper session-key encryption)  
-- **Convert**: `convert_to_v3_ext()` — **recommended** for bit-perfect migration with optional **256-bit random password upgrade**  
-- **Legacy**: `convert_to_v3()` — soft-deprecated, fully backward compatible  
-- **Detect**: `read_version()` — header-only version check in <1μs (ideal for batch tools)  
-- AES-256-CBC with **HMAC-SHA256** (payload) + **HMAC-SHA512** (session) authentication
+- **Convert**: `convert_to_v3()` — the single, final API for bit-perfect migration with optional **256-bit random password upgrade**  
+- **Detect**: `read_version()` — header-only version check in <1 μs (ideal for batch tools)  
+- AES-256-CBC with **HMAC-SHA256** (payload) + **HMAC-SHA512** (session) authentication  
 - Constant-memory streaming (64-byte ring buffer)  
 - **Zero-cost secure memory & cryptographically secure RNG** via [`secure-gate`](https://github.com/Slurp9187/secure-gate) v0.5.10 (enabled by default)  
 - No `unsafe` in the core decryption path when `zeroize` is enabled  
@@ -23,14 +22,10 @@
 
 AES Crypt was created and maintained for over two decades by **Paul E. Jones**.
 
-Paul’s work laid the foundation for secure, cross-platform file encryption that benefits everyone.
-
 If you find AES Crypt (or this Rust port) useful, please consider supporting Paul directly:
 
 - Official apps & licenses: https://www.aescrypt.com/download/
 - Business/enterprise licensing: https://www.aescrypt.com/license.html
-
-Your support keeps the original tools alive and funds future development.
 
 ## Version Support Summary
 
@@ -42,173 +37,115 @@ Your support keeps the original tools alive and funds future development.
 | **Detect version**  | Yes| Yes| Yes| Yes|
 
 > **Why v3-only on write?**  
-> Version 3 is the only secure, future-proof variant (PBKDF2 with configurable iterations, UTF-8 passwords, PKCS#7 padding). Producing legacy formats today would be a security downgrade.
+> Version 3 is the only secure, future-proof variant. Producing legacy formats today would be a security downgrade.
 
 ## Cryptographic Primitives (v3)
 
 | Layer                     | Encryption       | Integrity / KDF          |
 |---------------------------|------------------|--------------------------|
-| Password to Master Key    | –                | PBKDF2-HMAC-SHA**512**   |
-| Session Key + IV (48 B)   | AES-256-CBC      | HMAC-SHA**256**          |
-| File Payload              | AES-256-CBC      | HMAC-SHA**256**          |
-
-## Proven Correctness — The Gold Standard
-
-This library has **mathematically proven bit-for-bit compatibility** via:
-
-- Full round-trip testing against all **63 official AES Crypt test vectors** (v0–v3)
-- `convert_to_v3_ext` test suite that decrypts legacy files → re-encrypts as v3 → decrypts again → verifies **byte-for-byte identity**
-- `read_version()` validated against **all 63 real headers** (including legacy v0 quirks)
-- Uses **real-world 300,000 PBKDF2 iterations** in release mode (no shortcuts)
-- Total runtime: ~25 seconds — the sound of unbreakable data integrity
-
-Files created in 2005 with the original AES Crypt tools will round-trip perfectly through `aescrypt-rs` in 2025 and beyond.
+| Password → Master Key     | –                | PBKDF2-HMAC-SHA512       |
+| Session Key + IV (48 B)   | AES-256-CBC      | HMAC-SHA256              |
+| File Payload              | AES-256-CBC      | HMAC-SHA256              |
 
 ## API Highlights
 
-### Quick Version Check — Batch-Friendly
+### Detect file version (header only)
 
 ```rust
 use aescrypt_rs::read_version;
 use std::fs::File;
 use std::io::BufReader;
 
-let file = File::open("maybe-legacy.aes")?;
+let file = File::open("file.aes")?;
 let mut reader = BufReader::new(file);
-let version = read_version(&mut reader)?;  // Reads just 3–5 bytes
-
-match version {
-    0..=2 => println!("Legacy v{version} file — recommend convert_to_v3_ext"),
-    3 => println!("Modern v3 file — good to go"),
-    _ => unreachable!(),
-}
+let version = read_version(&mut reader)?; // reads ≤5 bytes
 ```
 
-### Recommended: `convert_to_v3_ext` — Migrate with Security Upgrade
+### Convert legacy → modern v3
 
 ```rust
-use aescrypt_rs::{convert_to_v3_ext, PasswordString};
+use aescrypt_rs::{convert_to_v3, PasswordString};
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
 
-let old_password = PasswordString::new("my-old-password".to_string());
+let old_pw = PasswordString::new("old123".into());
 
-let input = BufReader::new(File::open("secret.aes")?);
-let mut output = BufWriter::new(File::create("secret-v3.aes")?);
+let input  = BufReader::new(File::open("legacy.aes")?);
+let output = BufWriter::new(File::create("modern.aes")?);
 
-// Generate a 256-bit random password and return it
-let generated = convert_to_v3_ext(input, &mut output, &old_password, None, 300_000)?;
+// Upgrade to 256-bit random password (recommended for legacy files)
+let generated = convert_to_v3(input, output, &old_pw, None, 300_000)?;
 
 if let Some(new_pw) = generated {
-    println!("New 256-bit password: {}", new_pw.expose_secret());
-    // Store this securely!
+    println!("New random password: {}", new_pw.expose_secret());
 }
 ```
 
-### Reuse Old Password (Explicit)
+Passing `Some(&"")` also triggers random generation — convenient shortcut.
+
+### Explicit new password
 
 ```rust
-let new_password = PasswordString::new("much-stronger-2025!".to_string());
-convert_to_v3_ext(input, &mut output, &old_password, Some(&new_password), 500_000)?;
+let new_pw = PasswordString::new("much-stronger-2025!".into());
+convert_to_v3(input, output, &old_pw, Some(&new_pw), 500_000)?;
 ```
 
-### Legacy API — Still Works (Soft-Deprecated)
-
-```rust
-// This still compiles and works — but emits a warning
-convert_to_v3(input, &mut output, &old_password, 300_000)?;
-```
-
-### Standard Encrypt / Decrypt
+### Standard encrypt / decrypt
 
 ```rust
 use aescrypt_rs::{encrypt, decrypt, PasswordString};
 use std::io::Cursor;
 
-let plaintext = b"The quick brown fox jumps over the lazy dog";
-let password = PasswordString::new("correct horse battery staple".to_string());
+let pw = PasswordString::new("correct horse battery staple".into());
+let data = b"top secret";
 
-let mut encrypted = Vec::new();
-encrypt(Cursor::new(plaintext), &mut encrypted, &password, 600_000)?;
+let mut ciphertext = Vec::new();
+encrypt(Cursor::new(data), &mut ciphertext, &pw, 600_000)?;
 
-let mut decrypted = Vec::new();
-decrypt(Cursor::new(&encrypted), &mut decrypted, &password)?;
-
-assert_eq!(plaintext.as_slice(), decrypted);
-println!("Round-trip successful!");
+let mut plaintext = Vec::new();
+decrypt(Cursor::new(&ciphertext), &mut plaintext, &pw)?;
+assert_eq!(data, &plaintext[..]);
 ```
+
+## Performance (release mode, modern laptop)
+
+| Workload               | Throughput          |
+|--------------------------|---------------------|
+| Decrypt 10 MiB           | ~158 MiB/s          |
+| Encrypt 10 MiB (with KDF)| ~149 MiB/s          |
+| Round-trip 10 MiB        | ~75 MiB/s           |
+| Batch 16×10 MiB (parallel) | ~200 MiB/s total  |
+
+All benchmarks include full 300,000 PBKDF2 iterations when applicable.
 
 ## Features
 
-| Feature       | Description                                                                 |
-|---------------|-----------------------------------------------------------------------------|
-| `zeroize` (default) | Automatic secure zeroing of keys/IVs on drop (strongly recommended)   |
-| `batch-ops`   | Parallel encryption/decryption using Rayon (opt-in)                         |
+| Feature       | Description                                      |
+|---------------|--------------------------------------------------|
+| `zeroize` (default) | Automatic secure memory wiping on drop     |
+| `batch-ops`   | Parallel batch processing via Rayon              |
 
 ## Installation
 
 ```toml
 [dependencies]
-aescrypt-rs = "0.1.6"
+aescrypt-rs = "0.2.0"
 ```
 
-Or with all optional features:
+With optional features:
 
 ```toml
-aescrypt-rs = { version = "0.1.6", features = ["batch-ops"] }
+aescrypt-rs = { version = "0.2.0", features = ["batch-ops"] }
 ```
-
-## Performance (Intel i7-10510U – Windows 11 – Rust 1.82 – release)
-
-| Workload                     | Throughput          | Notes                                      |
-|------------------------------|---------------------|--------------------------------------------|
-| Decrypt 10 MiB               | **~171 MiB/s**      | Pure streaming (no KDF)                    |
-| Encrypt 10 MiB (with KDF)    | **~160 MiB/s**      | Includes PBKDF2-SHA512 (~300k iterations)  |
-| Full round-trip 10 MiB       | **~76 MiB/s**       | Encrypt → decrypt back-to-back             |
-
-> ~6–7 seconds for a full 1 GiB file on a 2019 laptop (excluding ~180 ms key derivation).  
-> On modern desktop CPUs or Apple Silicon, expect **>1 GiB/s**.
-
-### Parallel performance (`batch-ops` enabled)
-
-| Files         | Sequential | Parallel         | Speedup  |
-|---------------|------------|------------------|----------|
-| 8 × 10 MB     | 1.04 s     | **367 ms**       | **2.82×** |
-
-## Secure Random Generation — Now Even Cleaner
-
-- Upgraded to **`secure-gate` v0.5.10**  
-  → All random IVs and session keys use zero-cost `RandomIv16::new()` and `RandomAes256Key::new()`  
-  → Random passwords via `RandomPassword32::random_hex()` — 256-bit entropy, 64-character hex  
-  → Same bulletproof thread-local `OsRng` (lazy init, panic-on-failure, fully `no_std`)  
-  → No heap allocation, no performance cost, no duplicated RNG code  
-  → The encryption path now reads like pure intent while staying 100% memory-safe
-
-**No breaking changes in v0.1.6** — fully backward compatible.
-
-## Legal & Independence
-
-`aescrypt-rs` is an **independent, community-maintained implementation** of the publicly documented AES Crypt file format:  
-https://www.aescrypt.com/aes_file_format.html
-
-It is **not affiliated with** Paul E. Jones, Packetizer, Inc., or Terrapane Corporation.
-
-Correctness verified against the official reference implementation — **no source code copied**.
 
 ## License
 
-Licensed under either of
-
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-- MIT license ([LICENSE-MIT](LICENSE-MIT))
-
-at your option.
+Licensed under MIT or Apache-2.0 at your option.
 
 ## Contributing
 
-Pull requests are very welcome!  
-`main` is the stable branch.
+Pull requests welcome! `main` is the stable branch.
 
 ---
 
-**aescrypt-rs** — the modern, safe, **provably perfect**, and **future-proof** way to read, write, **detect**, and **upgrade** AES Crypt files in Rust.
+**aescrypt-rs** — the modern, safe, and future-proof way to handle AES Crypt files in Rust.

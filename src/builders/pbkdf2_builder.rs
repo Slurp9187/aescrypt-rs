@@ -3,6 +3,7 @@
 //! Zero-cost, zero-exposure, idiomatic, audit-ready
 
 use crate::aliases::{Aes256Key32, PasswordString, Salt16};
+use crate::consts::DEFAULT_PBKDF2_ITERATIONS;
 use crate::derive_secure_pbkdf2_key;
 use crate::error::AescryptError;
 use rand::{rngs::OsRng, TryRngCore};
@@ -25,7 +26,8 @@ impl Pbkdf2Builder {
             .try_fill_bytes(&mut salt)
             .expect("OS RNG failed — system is critically broken");
         Self {
-            iterations: 600_000, // OWASP/NIST 2025+ recommendation
+            // iterations: 600_000, // OWASP/NIST 2025+ recommendation
+            iterations: DEFAULT_PBKDF2_ITERATIONS, // OWASP/NIST 2025+ recommendation
             salt,
         }
     }

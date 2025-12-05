@@ -5,6 +5,37 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-12-04
+
+### Breaking Changes
+- Renamed `convert_to_v3_ext` to `convert_to_v3` (now the only conversion API).
+- Removed the old `convert_to_v3` entirely (soft-deprecated since 0.1.6).
+- Replaced all short aliases with explicit, size-tagged CamelCase names (e.g., `Aes256Key` → `Aes256Key32`, `Iv16` remains, `EncryptedSessionBlock48` unchanged).
+- Random aliases now size-tagged (e.g., `RandomAes256Key32`).
+- Public API in `lib.rs` minimized and re-exported with new names.
+
+### Added
+- Generic `SpanBuffer<const N: usize>` as secure stack buffer (alias to `secure-gate::Fixed<[u8; N]>`).
+- Strongly-typed sub-types of `SpanBuffer` for semantic clarity: `Block16`, `Trailer32`, `Trailer33`, `InitialRead48`, `Pbkdf2HashState32`, `Pbkdf2DerivedKey32`, `AckdfHashState32`.
+- Empty string (`Some("")`) now triggers random 256-bit password generation (same as `None`).
+- Generated random passwords use 1 PBKDF2 iteration; supplied passwords use full count.
+
+### Changed
+- Moved `derive_setup_key` from `encryptor/write.rs` to `encryptor/session.rs` for better cohesion.
+- Hardened ACKDF temporary hash buffer with `AckdfHashState32`.
+- Updated all internal code, tests, and benchmarks to use new alias names.
+- Consolidated conversion tests into single file (`tests/convert_tests.rs`).
+
+### Removed
+- Deprecated `convert_to_v3` and related wrappers.
+- Unused or redundant aliases (e.g., `PrevCiphertextBlock16` replaced by `Block16`).
+
+### Fixed
+- Resolved HMAC constructor ambiguity in session extraction.
+- Fixed lifetimes and formatting in conversion tests.
+
+All tests (including 63 vectors) pass with and without `zeroize`. Benchmarks unchanged (>165 MiB/s decrypt, >160 MiB/s encrypt).
+
 ## [0.1.6] - 2025-12-03
 
 ### Features
