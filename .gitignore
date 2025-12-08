@@ -2,16 +2,13 @@
 /code_packages
 /drafts
 /references*
-/target
 /target*
-/trash
 /trash*
-/version
+
 Cargo.lock
 *.bak
 *.del
 *.draft
-# *.py
 
 docs/aescrypt_decryption_logic.md
 docs/stream_format_enhanced.md
