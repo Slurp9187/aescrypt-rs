@@ -6,6 +6,43 @@ use pipe::pipe;
 // use secure_gate::SecureRandomExt;
 use std::io::{Read, Write};
 
+/// Convert legacy AES Crypt file (v0-v2) to v3 format
+///
+/// This function uses parallel decryption/encryption via threads for maximum performance.
+/// The `'static` lifetime requirement has been removed - you can now pass owned data
+/// (like `Vec<u8>`) wrapped in `Cursor` without exposing plaintext unnecessarily.
+///
+/// # Performance
+///
+/// Uses `std::thread::scope` with pipes for zero-copy streaming between threads.
+/// This maintains the same "wicked fast" performance as before.
+///
+/// # Security
+///
+/// - No plaintext exposure: data stays in secure buffers during conversion
+/// - Automatic password generation available (None or Some(""))
+/// - All sensitive data auto-zeroized on drop
+///
+/// # Example
+///
+/// ```no_run
+/// use aescrypt_rs::{convert_to_v3, aliases::PasswordString};
+/// use std::io::Cursor;
+///
+/// let old_pw = PasswordString::new("old".to_string());
+/// let new_pw = PasswordString::new("new".to_string());
+/// let encrypted_data: Vec<u8> = vec![]; // Your encrypted data
+///
+/// let mut output = Vec::new();
+/// convert_to_v3(
+///     Cursor::new(encrypted_data),  // No 'static needed!
+///     &mut output,
+///     &old_pw,
+///     Some(&new_pw),
+///     300_000,
+/// )?;
+/// # Ok::<(), aescrypt_rs::AescryptError>(())
+/// ```
 pub fn convert_to_v3<R, W>(
     input: R,
     output: W,
@@ -14,8 +51,8 @@ pub fn convert_to_v3<R, W>(
     iterations: u32,
 ) -> Result<Option<PasswordString>, AescryptError>
 where
-    R: Read + Send + 'static,
-    W: Write + Send + 'static,
+    R: Read + Send,
+    W: Write + Send,
 {
     // Validate iterations upfront
     if iterations == 0 {

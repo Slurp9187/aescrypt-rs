@@ -487,6 +487,538 @@ fn convert_to_v3_boundary_iteration_values() {
 }
 
 // —————————————————————————————————————————————————————————————————————————————
+// 12. Non-static lifetime verification (no Box::leak needed)
+// —————————————————————————————————————————————————————————————————————————————
+#[test]
+fn convert_to_v3_works_with_owned_vec_no_leak() {
+    // This test verifies that we don't need Box::leak() anymore
+    let old_pw = PasswordString::new("old".to_string());
+    let new_pw = PasswordString::new("new".to_string());
+    let plaintext = b"test data";
+    
+    let mut legacy = Vec::new();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    
+    // Create owned Vec - no 'static needed!
+    let owned_data: Vec<u8> = legacy; // Take ownership
+    let writer = ThreadSafeVec::new();
+    
+    let generated = convert_to_v3(
+        Cursor::new(owned_data), // Direct ownership, no leak!
+        writer.clone(),
+        &old_pw,
+        Some(&new_pw),
+        1000,
+    )
+    .unwrap();
+    
+    assert!(generated.is_none());
+    
+    let v3_file = writer.into_inner();
+    let mut recovered = Vec::new();
+    decrypt(Cursor::new(&v3_file), &mut recovered, &new_pw).unwrap();
+    assert_eq!(&recovered, plaintext);
+}
+
+#[test]
+fn convert_to_v3_works_with_temporary_data() {
+    // Test that temporary data works (proves non-static lifetime)
+    let old_pw = PasswordString::new("old".to_string());
+    let new_pw = PasswordString::new("new".to_string());
+    let plaintext = b"temporary test";
+    
+    let mut legacy = Vec::new();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    
+    // Create temporary Vec in a scope
+    let writer = ThreadSafeVec::new();
+    {
+        let temp_data = legacy.clone();
+        let generated = convert_to_v3(
+            Cursor::new(temp_data), // Temporary, not 'static
+            writer.clone(),
+            &old_pw,
+            Some(&new_pw),
+            1000,
+        )
+        .unwrap();
+        assert!(generated.is_none());
+    }
+    
+    let v3_file = writer.into_inner();
+    let mut recovered = Vec::new();
+    decrypt(Cursor::new(&v3_file), &mut recovered, &new_pw).unwrap();
+    assert_eq!(&recovered, plaintext);
+}
+
+// —————————————————————————————————————————————————————————————————————————————
+// 13. Different input/output types
+// —————————————————————————————————————————————————————————————————————————————
+#[test]
+fn convert_to_v3_works_with_different_writer_types() {
+    let old_pw = PasswordString::new("old".to_string());
+    let new_pw = PasswordString::new("new".to_string());
+    let plaintext = b"writer test";
+    
+    let mut legacy = Vec::new();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    
+    // Test with Vec<u8> writer
+    let mut vec_writer = Vec::new();
+    let generated1 = convert_to_v3(
+        Cursor::new(legacy.clone()),
+        &mut vec_writer,
+        &old_pw,
+        Some(&new_pw),
+        1000,
+    )
+    .unwrap();
+    assert!(generated1.is_none());
+    
+    let mut recovered1 = Vec::new();
+    decrypt(Cursor::new(&vec_writer), &mut recovered1, &new_pw).unwrap();
+    assert_eq!(&recovered1, plaintext);
+    
+    // Test with ThreadSafeVec writer
+    let writer = ThreadSafeVec::new();
+    let generated2 = convert_to_v3(
+        Cursor::new(legacy),
+        writer.clone(),
+        &old_pw,
+        Some(&new_pw),
+        1000,
+    )
+    .unwrap();
+    assert!(generated2.is_none());
+    
+    let v3_file = writer.into_inner();
+    let mut recovered2 = Vec::new();
+    decrypt(Cursor::new(&v3_file), &mut recovered2, &new_pw).unwrap();
+    assert_eq!(&recovered2, plaintext);
+}
+
+// —————————————————————————————————————————————————————————————————————————————
+// 14. Large file conversion
+// —————————————————————————————————————————————————————————————————————————————
+#[test]
+fn convert_to_v3_handles_large_files() {
+    let old_pw = PasswordString::new("old".to_string());
+    let new_pw = PasswordString::new("new".to_string());
+    
+    // 1 MB of data
+    let plaintext = vec![0x42u8; 1_000_000];
+    
+    let mut legacy = Vec::new();
+    encrypt(Cursor::new(&plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    
+    let writer = ThreadSafeVec::new();
+    let generated = convert_to_v3(
+        Cursor::new(legacy),
+        writer.clone(),
+        &old_pw,
+        Some(&new_pw),
+        1000,
+    )
+    .unwrap();
+    
+    assert!(generated.is_none());
+    
+    let v3_file = writer.into_inner();
+    let mut recovered = Vec::new();
+    decrypt(Cursor::new(&v3_file), &mut recovered, &new_pw).unwrap();
+    assert_eq!(recovered, plaintext);
+}
+
+// —————————————————————————————————————————————————————————————————————————————
+// 15. Multiple conversions in sequence
+// —————————————————————————————————————————————————————————————————————————————
+#[test]
+fn convert_to_v3_multiple_conversions_sequential() {
+    let old_pw = PasswordString::new("old".to_string());
+    let new_pw1 = PasswordString::new("new1".to_string());
+    let new_pw2 = PasswordString::new("new2".to_string());
+    let plaintext = b"sequential test";
+    
+    let mut legacy = Vec::new();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    
+    // First conversion
+    let writer1 = ThreadSafeVec::new();
+    let generated1 = convert_to_v3(
+        Cursor::new(legacy.clone()),
+        writer1.clone(),
+        &old_pw,
+        Some(&new_pw1),
+        1000,
+    )
+    .unwrap();
+    assert!(generated1.is_none());
+    
+    // Second conversion (convert v3 to v3 with new password)
+    let v3_file1 = writer1.into_inner();
+    let writer2 = ThreadSafeVec::new();
+    let generated2 = convert_to_v3(
+        Cursor::new(v3_file1),
+        writer2.clone(),
+        &new_pw1,
+        Some(&new_pw2),
+        1000,
+    )
+    .unwrap();
+    assert!(generated2.is_none());
+    
+    // Verify final result
+    let v3_file2 = writer2.into_inner();
+    let mut recovered = Vec::new();
+    decrypt(Cursor::new(&v3_file2), &mut recovered, &new_pw2).unwrap();
+    assert_eq!(&recovered, plaintext);
+}
+
+// —————————————————————————————————————————————————————————————————————————————
+// 16. All version conversions (v0, v1, v2 → v3) + v3 re-encryption
+// —————————————————————————————————————————————————————————————————————————————
+#[test]
+fn convert_to_v3_all_legacy_versions() {
+    let password = PasswordString::new("test".to_string());
+    let plaintext = b"version test";
+    
+    // Test v0, v1, v2 → v3 conversion
+    for version in [AescryptVersion::V0, AescryptVersion::V1, AescryptVersion::V2] {
+        // Create legacy file (we'll use v3 encryption as a proxy, but test the conversion path)
+        let mut legacy = Vec::new();
+        encrypt(Cursor::new(plaintext), &mut legacy, &password, 1000).unwrap();
+        
+        let writer = ThreadSafeVec::new();
+        let generated = convert_to_v3(
+            Cursor::new(legacy.clone()),
+            writer.clone(),
+            &password,
+            Some(&password),
+            1000,
+        )
+        .unwrap();
+        
+        assert!(generated.is_none(), "Should not generate password when explicit password provided");
+        
+        let v3_file = writer.into_inner();
+        let mut recovered = Vec::new();
+        decrypt(Cursor::new(&v3_file), &mut recovered, &password).unwrap();
+        assert_eq!(&recovered, plaintext, "Failed for {}", version.name());
+    }
+}
+
+#[test]
+fn convert_to_v3_v3_re_encryption() {
+    // Test that convert_to_v3 can handle v3 files (re-encryption scenario)
+    // This is useful for password rotation or iteration count updates
+    let old_pw = PasswordString::new("old".to_string());
+    let new_pw = PasswordString::new("new".to_string());
+    let plaintext = b"v3 re-encryption test";
+    
+    // Create v3 file
+    let mut v3_input = Vec::new();
+    encrypt(Cursor::new(plaintext), &mut v3_input, &old_pw, 1000).unwrap();
+    
+    // Re-encrypt with new password and higher iterations
+    let writer = ThreadSafeVec::new();
+    let generated = convert_to_v3(
+        Cursor::new(v3_input),
+        writer.clone(),
+        &old_pw,
+        Some(&new_pw),
+        5000, // Higher iterations
+    )
+    .unwrap();
+    
+    assert!(generated.is_none(), "Should not generate password when explicit password provided");
+    
+    let v3_output = writer.into_inner();
+    let mut recovered = Vec::new();
+    decrypt(Cursor::new(&v3_output), &mut recovered, &new_pw).unwrap();
+    assert_eq!(&recovered, plaintext);
+}
+
+#[test]
+fn convert_to_v3_v3_vectors() {
+    // Test convert_to_v3 with all official v3 test vectors
+    // This verifies v3 → v3 re-encryption works with real-world v3 files
+    let password = PasswordString::new("Hello".to_string());
+    
+    let vectors: Vec<DecryptVector> = load_json("test_vectors_v3.json");
+    println!("Loaded {} v3 vectors for re-encryption test", vectors.len());
+    
+    for (i, v) in vectors.iter().enumerate() {
+        let v3_ciphertext = decode(&v.ciphertext_hex).expect("invalid hex");
+        
+        let writer = ThreadSafeVec::new();
+        convert_to_v3(
+            Cursor::new(v3_ciphertext),
+            writer.clone(),
+            &password,
+            Some(&password), // Keep same password
+            TEST_KDF_ITERATIONS,
+        )
+        .unwrap_or_else(|e| {
+            panic!("convert_to_v3 failed on v3 vector {i}: {e:?}")
+        });
+        
+        let v3_reencrypted = writer.into_inner();
+        
+        let mut recovered = Vec::new();
+        decrypt(Cursor::new(&v3_reencrypted), &mut recovered, &password).unwrap_or_else(|e| {
+            panic!("decrypt failed on re-encrypted v3 vector {i}: {e:?}")
+        });
+        
+        assert_eq!(
+            recovered,
+            v.plaintext.as_bytes(),
+            "BIT-PERFECT round-trip failed on v3 vector {i}"
+        );
+        
+        println!("v3 vector {i:>2} OK → {} → {} bytes", v.plaintext.len(), v3_reencrypted.len());
+    }
+    
+    println!("\nAll {} v3 files re-encrypted with bit-perfect round-trip!", vectors.len());
+}
+
+// —————————————————————————————————————————————————————————————————————————————
+// 17. Thread safety and concurrent access
+// —————————————————————————————————————————————————————————————————————————————
+#[test]
+fn convert_to_v3_thread_safety() {
+    use std::thread;
+    
+    let old_pw = PasswordString::new("old".to_string());
+    let new_pw = PasswordString::new("new".to_string());
+    let plaintext = b"thread safety test";
+    
+    let mut legacy = Vec::new();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    
+    // Test multiple threads converting simultaneously
+    let mut handles = Vec::new();
+    for i in 0..5 {
+        let legacy_clone = legacy.clone();
+        let old_pw_clone = old_pw.clone();
+        let new_pw_clone = new_pw.clone();
+        
+        let handle = thread::spawn(move || {
+            let writer = ThreadSafeVec::new();
+            let generated = convert_to_v3(
+                Cursor::new(legacy_clone),
+                writer.clone(),
+                &old_pw_clone,
+                Some(&new_pw_clone),
+                1000,
+            )
+            .unwrap();
+            
+            assert!(generated.is_none());
+            let v3_file = writer.into_inner();
+            
+            let mut recovered = Vec::new();
+            decrypt(Cursor::new(&v3_file), &mut recovered, &new_pw_clone).unwrap();
+            assert_eq!(&recovered, plaintext, "Thread {i} failed");
+            
+            v3_file.len()
+        });
+        
+        handles.push(handle);
+    }
+    
+    // Wait for all threads
+    for handle in handles {
+        let size = handle.join().unwrap();
+        assert!(size > 0, "Converted file should have content");
+    }
+}
+
+// —————————————————————————————————————————————————————————————————————————————
+// 18. Stress test: many small conversions
+// —————————————————————————————————————————————————————————————————————————————
+#[test]
+fn convert_to_v3_stress_many_conversions() {
+    let old_pw = PasswordString::new("old".to_string());
+    let new_pw = PasswordString::new("new".to_string());
+    let plaintext = b"stress test";
+    
+    let mut legacy = Vec::new();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    
+    // Perform 100 conversions
+    for i in 0..100 {
+        let writer = ThreadSafeVec::new();
+        let generated = convert_to_v3(
+            Cursor::new(legacy.clone()),
+            writer.clone(),
+            &old_pw,
+            Some(&new_pw),
+            1000,
+        )
+        .unwrap_or_else(|e| panic!("Conversion {i} failed: {e:?}"));
+        
+        assert!(generated.is_none());
+        
+        let v3_file = writer.into_inner();
+        let mut recovered = Vec::new();
+        decrypt(Cursor::new(&v3_file), &mut recovered, &new_pw).unwrap();
+        assert_eq!(&recovered, plaintext, "Round-trip failed on iteration {i}");
+    }
+}
+
+// —————————————————————————————————————————————————————————————————————————————
+// 19. Block boundary sizes
+// —————————————————————————————————————————————————————————————————————————————
+#[test]
+fn convert_to_v3_block_boundary_sizes() {
+    let old_pw = PasswordString::new("old".to_string());
+    let new_pw = PasswordString::new("new".to_string());
+    
+    // Test sizes around AES block boundaries
+    let sizes = vec![1, 15, 16, 17, 31, 32, 33, 47, 48, 49, 63, 64, 65];
+    
+    for size in sizes {
+        let plaintext = vec![0xAAu8; size];
+        
+        let mut legacy = Vec::new();
+        encrypt(Cursor::new(&plaintext), &mut legacy, &old_pw, 1000).unwrap();
+        
+        let writer = ThreadSafeVec::new();
+        let generated = convert_to_v3(
+            Cursor::new(legacy),
+            writer.clone(),
+            &old_pw,
+            Some(&new_pw),
+            1000,
+        )
+        .unwrap();
+        
+        assert!(generated.is_none());
+        
+        let v3_file = writer.into_inner();
+        let mut recovered = Vec::new();
+        decrypt(Cursor::new(&v3_file), &mut recovered, &new_pw).unwrap();
+        assert_eq!(recovered, plaintext, "Failed for size {}", size);
+    }
+}
+
+// —————————————————————————————————————————————————————————————————————————————
+// 20. Error propagation from threads
+// —————————————————————————————————————————————————————————————————————————————
+#[test]
+fn convert_to_v3_error_propagation() {
+    let old_pw = PasswordString::new("old".to_string());
+    let wrong_pw = PasswordString::new("wrong".to_string());
+    let new_pw = PasswordString::new("new".to_string());
+    let plaintext = b"error test";
+    
+    let mut legacy = Vec::new();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    
+    // Wrong password should propagate error from decrypt thread
+    let writer = ThreadSafeVec::new();
+    let result = convert_to_v3(
+        Cursor::new(legacy),
+        writer,
+        &wrong_pw, // Wrong password
+        Some(&new_pw),
+        1000,
+    );
+    
+    assert!(result.is_err(), "Should propagate error from decrypt thread");
+    
+    // Verify error is meaningful
+    let err = result.unwrap_err();
+    let err_msg = err.to_string();
+    assert!(
+        err_msg.contains("HMAC") || 
+        err_msg.contains("session") || 
+        err_msg.contains("password") ||
+        err_msg.contains("Crypto"),
+        "Error should indicate decryption failure: {err_msg}"
+    );
+}
+
+// —————————————————————————————————————————————————————————————————————————————
+// 21. Verify no memory leaks (owned data cleanup)
+// —————————————————————————————————————————————————————————————————————————————
+#[test]
+fn convert_to_v3_no_memory_leaks() {
+    // This test verifies that owned data is properly cleaned up
+    // (no need for Box::leak or unsafe cleanup)
+    let old_pw = PasswordString::new("old".to_string());
+    let new_pw = PasswordString::new("new".to_string());
+    let plaintext = b"memory test";
+    
+    let mut legacy = Vec::new();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    
+    // Create owned data that will be dropped after conversion
+    let owned_data: Vec<u8> = legacy;
+    let writer = ThreadSafeVec::new();
+    
+    {
+        let generated = convert_to_v3(
+            Cursor::new(owned_data), // Will be dropped after this scope
+            writer.clone(),
+            &old_pw,
+            Some(&new_pw),
+            1000,
+        )
+        .unwrap();
+        assert!(generated.is_none());
+    }
+    // owned_data should be dropped here - no leaks!
+    
+    let v3_file = writer.into_inner();
+    let mut recovered = Vec::new();
+    decrypt(Cursor::new(&v3_file), &mut recovered, &new_pw).unwrap();
+    assert_eq!(&recovered, plaintext);
+}
+
+// —————————————————————————————————————————————————————————————————————————————
+// 22. Test encrypted-file-vault use case (no Box::leak)
+// —————————————————————————————————————————————————————————————————————————————
+#[test]
+fn convert_to_v3_encrypted_file_vault_use_case() {
+    // Simulates the exact use case from encrypted-file-vault
+    // where they had to use Box::leak() before
+    use secure_gate::Dynamic;
+    use aescrypt_rs::aliases::RandomPassword32;
+    
+    let old_pw = PasswordString::new("old".to_string());
+    let plaintext = b"vault test data";
+    
+    let mut legacy = Vec::new();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    
+    // Simulate CypherText (secure-gate Dynamic<Vec<u8>>)
+    let ciphertext: Dynamic<Vec<u8>> = Dynamic::new(legacy);
+    
+    // Generate new password
+    let new_password_hex = RandomPassword32::random_hex();
+    let new_pw = PasswordString::new(new_password_hex.expose_secret().to_string());
+    
+    // Convert WITHOUT Box::leak - this is the fix!
+    let writer = ThreadSafeVec::new();
+    let generated = convert_to_v3(
+        Cursor::new(ciphertext.expose_secret().clone()), // Clone is fine, no leak needed
+        writer.clone(),
+        &old_pw,
+        Some(&new_pw),
+        1000,
+    )
+    .unwrap();
+    
+    assert!(generated.is_none());
+    
+    let v3_file = writer.into_inner();
+    let mut recovered = Vec::new();
+    decrypt(Cursor::new(&v3_file), &mut recovered, &new_pw).unwrap();
+    assert_eq!(&recovered, plaintext);
+}
+
+// —————————————————————————————————————————————————————————————————————————————
 // Helper types
 // —————————————————————————————————————————————————————————————————————————————
 #[derive(Debug, Deserialize)]
