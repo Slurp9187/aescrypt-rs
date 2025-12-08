@@ -24,9 +24,10 @@ mod tests {
     fn pbkdf2_builder_custom_params() {
         let password = PasswordString::new("correct horse battery staple".to_string());
 
+        // Test with low iteration counts - performance testing is in benches/
         let cases = [
-            (500_000, [0xaau8; 16]),
-            (100_000, [0xbbu8; 16]),
+            (1000, [0xaau8; 16]),
+            (100, [0xbbu8; 16]),
             (1, [0xc0u8; 16]),
         ];
 

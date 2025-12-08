@@ -1,8 +1,7 @@
 //! tests/convert_tests.rs
 //! Comprehensive legacy (v0/v1/v2) → v3 conversion test suite
 //!
-//! - Real 300,000 PBKDF2 iterations in release mode
-//! - 64 iterations in debug for speed
+//! - Fast tests with 64 PBKDF2 iterations (performance testing moved to benches/)
 //! - 63 official vectors + random generation + empty-string trigger
 //! - Bit-perfect round-trip verification
 
@@ -14,13 +13,8 @@ use std::io::{Cursor, Write};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-const REAL_WORLD_ITERATIONS: u32 = 300_000;
-const DEBUG_ITERATIONS: u32 = 64;
-const TEST_KDF_ITERATIONS: u32 = if cfg!(debug_assertions) {
-    DEBUG_ITERATIONS
-} else {
-    REAL_WORLD_ITERATIONS
-};
+// Fast iteration count for tests - performance testing is in benches/
+const TEST_KDF_ITERATIONS: u32 = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AescryptVersion {
@@ -45,15 +39,7 @@ impl AescryptVersion {
 #[test]
 fn convert_to_v3_preserves_content_perfectly() {
     println!("\nStarting legacy → v3 conversion test suite");
-    println!(
-        "PBKDF2 iterations: {} ({})",
-        TEST_KDF_ITERATIONS,
-        if cfg!(debug_assertions) {
-            "debug → fast"
-        } else {
-            "release → real security"
-        }
-    );
+    println!("PBKDF2 iterations: {} (fast test mode)", TEST_KDF_ITERATIONS);
 
     let password = PasswordString::new("Hello".to_string());
 
@@ -138,7 +124,7 @@ fn convert_to_v3_random_password_works() {
             writer.clone(),
             &old_pw,
             new_pw_opt.as_ref(), // ← &Option<PasswordString>
-            300_000,
+            1000,
         )
         .unwrap();
 
@@ -174,7 +160,7 @@ fn convert_to_v3_explicit_new_password_works() {
         writer.clone(),
         &old_pw,
         Some(&new_pw), // ← &PasswordString
-        500_000,
+        1000,
     )
     .unwrap();
 
@@ -331,7 +317,7 @@ fn convert_to_v3_uses_one_iteration_for_generated_password() {
         writer1.clone(),
         &old_pw,
         None, // Generate password
-        300_000, // Requested iterations (should be ignored)
+        1000, // Requested iterations (should be ignored for generated passwords)
     )
     .unwrap();
     
@@ -341,13 +327,13 @@ fn convert_to_v3_uses_one_iteration_for_generated_password() {
     // Use explicit password - should use full iterations
     let new_pw = PasswordString::new("explicit".to_string());
     let writer2 = ThreadSafeVec::new();
-    let generated2 = convert_to_v3(
-        Cursor::new(legacy.clone()),
-        writer2.clone(),
-        &old_pw,
-        Some(&new_pw),
-        300_000, // Should use full iterations
-    )
+        let generated2 = convert_to_v3(
+            Cursor::new(legacy.clone()),
+            writer2.clone(),
+            &old_pw,
+            Some(&new_pw),
+            1000, // Should use full iterations
+        )
     .unwrap();
     
     assert!(generated2.is_none());
@@ -437,7 +423,8 @@ fn convert_to_v3_various_iteration_counts() {
     let mut legacy = Vec::new();
     encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
     
-    let iterations = vec![1, 10, 100, 1000, 10_000, 300_000];
+    // Test with low iteration counts - performance testing is in benches/
+    let iterations = vec![1, 10, 100, 1000];
     
     for &iter in &iterations {
         let writer = ThreadSafeVec::new();

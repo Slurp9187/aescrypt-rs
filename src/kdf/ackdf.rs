@@ -1,4 +1,4 @@
-//! src/crypto/kdf/ackdf.rs
+//! src/kdf/ackdf.rs
 //! AES Crypt v0–v2 ACKDF — out-param, zero-exposure, secure-gate
 
 use crate::aliases::{AckdfHashState32, Aes256Key32, PasswordString, Salt16};
@@ -45,3 +45,4 @@ pub fn derive_secure_ackdf_key(
 
     Ok(())
 }
+

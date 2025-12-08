@@ -17,8 +17,8 @@ fn kdf_benches(c: &mut Criterion) {
     let pw: Dynamic<String> = Dynamic::new("benchmark-password".to_string());
     let salt: Fixed<[u8; 16]> = Fixed::new([0x42; 16]);
 
-    // PBKDF2 with various iterations (from original kdf.rs)
-    for &iters in &[1_000, 10_000, 100_000, 300_000] {
+    // PBKDF2 with various iterations - comprehensive performance testing
+    for &iters in &[1_000, 10_000, 100_000, 300_000, 500_000, 1_000_000] {
         let id = BenchmarkId::new("pbkdf2_iterations", iters);
         group.bench_with_input(id, &iters, |b, &iters| {
             b.iter(|| {

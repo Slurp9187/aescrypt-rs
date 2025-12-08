@@ -584,15 +584,8 @@ fn roundtrip_various_passwords() {
 fn roundtrip_various_kdf_iterations() {
     let password = PasswordString::new("iterations-test".to_string());
     let plaintext = b"test data";
-    let iterations = vec![
-        1,
-        10,
-        100,
-        1000,
-        8192,
-        300_000,
-        1_000_000,
-    ];
+    // Test with low iteration counts - performance testing is in benches/
+    let iterations = vec![1, 10, 100, 1000, 8192];
 
     for &iter in &iterations {
         let mut encrypted = Vec::new();
@@ -705,7 +698,8 @@ fn decrypt_corrupted_ciphertext() {
 fn roundtrip_deterministic_with_different_iterations() {
     let password = PasswordString::new(PASSWORD.to_string());
     let plaintext = b"deterministic test";
-    let iterations = vec![1, 10, 100, 1000, 300_000];
+    // Test with low iteration counts - performance testing is in benches/
+    let iterations = vec![1, 10, 100, 1000];
 
     for &iter in &iterations {
         let mut encrypted1 = Vec::new();

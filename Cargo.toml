@@ -64,6 +64,11 @@ harness = false
 [[bench]]
 name = "batch"
 harness = false
+required-features = ["batch-ops"]
+
+[[bench]]
+name = "iterations"
+harness = false
 
 # [[bench]]
 # name = "convert_wip"

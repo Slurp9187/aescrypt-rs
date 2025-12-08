@@ -1,7 +1,11 @@
+#[cfg(feature = "batch-ops")]
 use aescrypt_rs::aliases::PasswordString;
+#[cfg(feature = "batch-ops")]
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+#[cfg(feature = "batch-ops")]
 use std::hint::black_box;
 
+#[cfg(feature = "batch-ops")]
 fn bench_batch(c: &mut Criterion) {
     let password = PasswordString::new("benchmark".to_string());
     let data = black_box(vec![0u8; 10_000_000]); // 10 MB
@@ -41,5 +45,7 @@ fn bench_batch(c: &mut Criterion) {
     group.finish();
 }
 
+#[cfg(feature = "batch-ops")]
 criterion_group!(benches, bench_batch);
+#[cfg(feature = "batch-ops")]
 criterion_main!(benches);

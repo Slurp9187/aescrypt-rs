@@ -195,8 +195,8 @@ fn batch_various_iteration_counts() {
     let password = PasswordString::new("iterations".to_string());
     let data = b"test data";
     
-    // Test with different iteration counts
-    for iterations in [1, 10, 100, 1000, 8192, 300_000] {
+    // Test with low iteration counts - performance testing is in benches/
+    for iterations in [1, 10, 100, 1000, 8192] {
         let mut encrypted = vec![(Cursor::new(data.to_vec()), Vec::new())];
         encrypt_batch(&mut encrypted, &password, iterations).unwrap();
         

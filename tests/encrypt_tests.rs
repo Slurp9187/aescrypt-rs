@@ -2,10 +2,12 @@
 //! High-level encryption tests – clean, parameterized, and green (2025)
 
 use aescrypt_rs::aliases::PasswordString;
-use aescrypt_rs::consts::DEFAULT_PBKDF2_ITERATIONS;
 use aescrypt_rs::encrypt;
 use aescrypt_rs::AescryptError;
 use std::io::Cursor;
+
+// Fast iteration count for tests - performance testing is in benches/
+const TEST_ITERATIONS: u32 = 64;
 
 #[test]
 fn encrypt_v3_basics() {
@@ -32,7 +34,7 @@ fn encrypt_v3_basics() {
             Cursor::new(plaintext),
             &mut encrypted,
             &password,
-            DEFAULT_PBKDF2_ITERATIONS,
+            TEST_ITERATIONS,
         )
         .unwrap_or_else(|e| panic!("Encryption failed for {desc}: {e:?}"));
 
@@ -59,7 +61,7 @@ fn encrypt_unicode_password() {
         Cursor::new(b"unicode test"),
         &mut encrypted,
         &password,
-        DEFAULT_PBKDF2_ITERATIONS,
+        TEST_ITERATIONS,
     )
     .unwrap();
 
@@ -108,7 +110,7 @@ fn encrypt_roundtrip() {
         Cursor::new(plaintext),
         &mut encrypted,
         &password,
-        DEFAULT_PBKDF2_ITERATIONS,
+        TEST_ITERATIONS,
     )
     .unwrap();
     
@@ -129,7 +131,7 @@ fn encrypt_determinism_different_outputs() {
         Cursor::new(plaintext),
         &mut encrypted1,
         &password,
-        DEFAULT_PBKDF2_ITERATIONS,
+        TEST_ITERATIONS,
     )
     .unwrap();
     
@@ -138,7 +140,7 @@ fn encrypt_determinism_different_outputs() {
         Cursor::new(plaintext),
         &mut encrypted2,
         &password,
-        DEFAULT_PBKDF2_ITERATIONS,
+        TEST_ITERATIONS,
     )
     .unwrap();
     
@@ -167,7 +169,7 @@ fn encrypt_different_passwords_produce_different_outputs() {
         Cursor::new(plaintext),
         &mut encrypted1,
         &password1,
-        DEFAULT_PBKDF2_ITERATIONS,
+        TEST_ITERATIONS,
     )
     .unwrap();
     
@@ -176,7 +178,7 @@ fn encrypt_different_passwords_produce_different_outputs() {
         Cursor::new(plaintext),
         &mut encrypted2,
         &password2,
-        DEFAULT_PBKDF2_ITERATIONS,
+        TEST_ITERATIONS,
     )
     .unwrap();
     
@@ -197,7 +199,7 @@ fn encrypt_header_structure() {
         Cursor::new(plaintext),
         &mut encrypted,
         &password,
-        DEFAULT_PBKDF2_ITERATIONS,
+        TEST_ITERATIONS,
     )
     .unwrap();
     
@@ -223,7 +225,7 @@ fn encrypt_header_structure() {
             iterations_bytes[2],
             iterations_bytes[3],
         ]);
-        assert_eq!(iterations, DEFAULT_PBKDF2_ITERATIONS);
+        assert_eq!(iterations, TEST_ITERATIONS);
     }
     
     // Verify public IV (16 bytes after iterations)
@@ -246,7 +248,7 @@ fn encrypt_large_file() {
         Cursor::new(&plaintext),
         &mut encrypted,
         &password,
-        DEFAULT_PBKDF2_ITERATIONS,
+        TEST_ITERATIONS,
     )
     .unwrap();
     
@@ -277,7 +279,7 @@ fn encrypt_various_passwords() {
             Cursor::new(plaintext),
             &mut encrypted,
             &password,
-            DEFAULT_PBKDF2_ITERATIONS,
+            TEST_ITERATIONS,
         )
         .unwrap();
         

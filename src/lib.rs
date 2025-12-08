@@ -5,7 +5,7 @@ pub mod batch_ops;
 pub mod builders;
 pub mod consts;
 pub mod convert;
-pub mod crypto;
+pub mod kdf;
 pub mod decryptor;
 pub mod encryptor;
 pub mod error;
@@ -25,8 +25,8 @@ pub use error::AescryptError;
 // • Keeping them at the root is the established pattern in the ecosystem (see `ring`, `password-hash`, etc.)
 pub use builders::pbkdf2_builder::Pbkdf2Builder;
 
-pub use crypto::kdf::ackdf::derive_secure_ackdf_key;
-pub use crypto::kdf::pbkdf2::derive_secure_pbkdf2_key;
+pub use kdf::ackdf::derive_secure_ackdf_key;
+pub use kdf::pbkdf2::derive_secure_pbkdf2_key;
 
 #[cfg(feature = "batch-ops")]
 pub use batch_ops::{decrypt_batch, encrypt_batch};
