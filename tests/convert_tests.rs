@@ -675,38 +675,8 @@ fn convert_to_v3_multiple_conversions_sequential() {
 }
 
 // —————————————————————————————————————————————————————————————————————————————
-// 16. All version conversions (v0, v1, v2 → v3) + v3 re-encryption
+// 16. v3 re-encryption (password rotation)
 // —————————————————————————————————————————————————————————————————————————————
-#[test]
-fn convert_to_v3_all_legacy_versions() {
-    let password = PasswordString::new("test".to_string());
-    let plaintext = b"version test";
-    
-    // Test v0, v1, v2 → v3 conversion
-    for version in [AescryptVersion::V0, AescryptVersion::V1, AescryptVersion::V2] {
-        // Create legacy file (we'll use v3 encryption as a proxy, but test the conversion path)
-        let mut legacy = Vec::new();
-        encrypt(Cursor::new(plaintext), &mut legacy, &password, 1000).unwrap();
-        
-        let writer = ThreadSafeVec::new();
-        let generated = convert_to_v3(
-            Cursor::new(legacy.clone()),
-            writer.clone(),
-            &password,
-            Some(&password),
-            1000,
-        )
-        .unwrap();
-        
-        assert!(generated.is_none(), "Should not generate password when explicit password provided");
-        
-        let v3_file = writer.into_inner();
-        let mut recovered = Vec::new();
-        decrypt(Cursor::new(&v3_file), &mut recovered, &password).unwrap();
-        assert_eq!(&recovered, plaintext, "Failed for {}", version.name());
-    }
-}
-
 #[test]
 fn convert_to_v3_v3_re_encryption() {
     // Test that convert_to_v3 can handle v3 files (re-encryption scenario)

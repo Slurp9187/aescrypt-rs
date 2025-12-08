@@ -184,78 +184,8 @@ fn encrypt_different_passwords_produce_different_outputs() {
     assert_ne!(encrypted1, encrypted2);
 }
 
-#[test]
-fn encrypt_block_boundary_sizes() {
-    use aescrypt_rs::decrypt;
-    
-    let password = PasswordString::new("boundary-test".to_string());
-    
-    // Test sizes around AES block boundaries
-    let sizes = vec![1, 15, 16, 17, 31, 32, 33, 47, 48, 49];
-    
-    for size in sizes {
-        let plaintext = vec![0xAAu8; size];
-        
-        let mut encrypted = Vec::new();
-        encrypt(
-            Cursor::new(&plaintext),
-            &mut encrypted,
-            &password,
-            DEFAULT_PBKDF2_ITERATIONS,
-        )
-        .unwrap();
-        
-        let mut decrypted = Vec::new();
-        decrypt(Cursor::new(&encrypted), &mut decrypted, &password).unwrap();
-        
-        assert_eq!(decrypted, plaintext, "Round-trip failed for size {}", size);
-    }
-}
-
-#[test]
-fn encrypt_various_iteration_counts() {
-    use aescrypt_rs::decrypt;
-    
-    let password = PasswordString::new("iterations-test".to_string());
-    let plaintext = b"test data";
-    
-    let iterations = vec![1, 10, 100, 1000, 8192, 300_000];
-    
-    for &iter in &iterations {
-        let mut encrypted = Vec::new();
-        encrypt(
-            Cursor::new(plaintext),
-            &mut encrypted,
-            &password,
-            iter,
-        )
-        .unwrap();
-        
-        let mut decrypted = Vec::new();
-        decrypt(Cursor::new(&encrypted), &mut decrypted, &password).unwrap();
-        
-        assert_eq!(decrypted, plaintext, "Round-trip failed with {} iterations", iter);
-    }
-}
-
-#[test]
-fn encrypt_boundary_iteration_values() {
-    let password = PasswordString::new("boundary-iter".to_string());
-    let plaintext = b"test";
-    
-    // Test minimum valid value
-    let mut encrypted = Vec::new();
-    let result = encrypt(
-        Cursor::new(plaintext),
-        &mut encrypted,
-        &password,
-        1, // Minimum valid
-    );
-    assert!(result.is_ok(), "Should accept 1 iteration (minimum boundary)");
-    
-    // Test maximum valid value (but skip in regular tests due to slowness)
-    // We test rejection of 5_000_001 in encrypt_invalid_iterations
-}
+// Note: Block boundary and iteration count tests are in vector_tests.rs
+// to avoid duplication. See roundtrip_block_boundary_sizes and roundtrip_various_kdf_iterations
 
 #[test]
 fn encrypt_header_structure() {

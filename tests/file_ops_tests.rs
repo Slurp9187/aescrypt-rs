@@ -7,7 +7,7 @@
 use aescrypt_rs::aliases::PasswordString;
 use aescrypt_rs::{convert_to_v3, decrypt, encrypt};
 use std::fs::File;
-use std::io::{BufReader, BufWriter, Cursor, Read, Write};
+use std::io::{BufReader, Cursor};
 use std::path::PathBuf;
 
 const PASSWORD: &str = "Hello";
@@ -298,7 +298,6 @@ fn round_trip_from_actual_files() {
 // —————————————————————————————————————————————————————————————————————————————
 #[test]
 fn handle_missing_file_gracefully() {
-    let password = PasswordString::new(PASSWORD.to_string());
     let non_existent = PathBuf::from("nonexistent_file.aes");
     
     let file = File::open(&non_existent);
