@@ -187,6 +187,308 @@ fn convert_to_v3_explicit_new_password_works() {
 }
 
 // —————————————————————————————————————————————————————————————————————————————
+// 4. Error handling: invalid iterations
+// —————————————————————————————————————————————————————————————————————————————
+#[test]
+fn convert_to_v3_rejects_zero_iterations() {
+    let old_pw = PasswordString::new("old".to_string());
+    let new_pw = PasswordString::new("new".to_string());
+    let plaintext = b"test";
+    
+    let mut legacy = Vec::new();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    
+    let writer = ThreadSafeVec::new();
+    let result = convert_to_v3(
+        Cursor::new(legacy),
+        writer,
+        &old_pw,
+        Some(&new_pw),
+        0,
+    );
+    
+    assert!(result.is_err());
+    match result.unwrap_err() {
+        aescrypt_rs::AescryptError::Header(msg) => {
+            assert!(msg.contains("zero") || msg.contains("KDF iterations"));
+        }
+        e => panic!("Unexpected error type: {:?}", e),
+    }
+}
+
+#[test]
+fn convert_to_v3_rejects_too_many_iterations() {
+    let old_pw = PasswordString::new("old".to_string());
+    let new_pw = PasswordString::new("new".to_string());
+    let plaintext = b"test";
+    
+    let mut legacy = Vec::new();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    
+    let writer = ThreadSafeVec::new();
+    let result = convert_to_v3(
+        Cursor::new(legacy),
+        writer,
+        &old_pw,
+        Some(&new_pw),
+        5_000_001,
+    );
+    
+    assert!(result.is_err());
+    match result.unwrap_err() {
+        aescrypt_rs::AescryptError::Header(msg) => {
+            assert!(msg.contains("5M") || msg.contains("too high"));
+        }
+        e => panic!("Unexpected error type: {:?}", e),
+    }
+}
+
+// —————————————————————————————————————————————————————————————————————————————
+// 5. Error handling: wrong old password
+// —————————————————————————————————————————————————————————————————————————————
+#[test]
+fn convert_to_v3_rejects_wrong_old_password() {
+    let correct_pw = PasswordString::new("correct".to_string());
+    let wrong_pw = PasswordString::new("wrong".to_string());
+    let new_pw = PasswordString::new("new".to_string());
+    let plaintext = b"test";
+    
+    let mut legacy = Vec::new();
+    encrypt(Cursor::new(plaintext), &mut legacy, &correct_pw, 1000).unwrap();
+    
+    let writer = ThreadSafeVec::new();
+    let result = convert_to_v3(
+        Cursor::new(legacy),
+        writer,
+        &wrong_pw, // Wrong password
+        Some(&new_pw),
+        1000,
+    );
+    
+    assert!(result.is_err());
+    // Should fail during decryption phase
+    match result.unwrap_err() {
+        aescrypt_rs::AescryptError::Crypto(_) | aescrypt_rs::AescryptError::Header(_) => {},
+        e => panic!("Unexpected error type: {:?}", e),
+    }
+}
+
+// —————————————————————————————————————————————————————————————————————————————
+// 6. Generated password uniqueness
+// —————————————————————————————————————————————————————————————————————————————
+#[test]
+fn convert_to_v3_generated_passwords_are_unique() {
+    let old_pw = PasswordString::new("old".to_string());
+    let plaintext = b"test";
+    
+    let mut legacy = Vec::new();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    
+    // Generate multiple passwords
+    let mut passwords = Vec::new();
+    for _ in 0..5 {
+        let writer = ThreadSafeVec::new();
+        let generated = convert_to_v3(
+            Cursor::new(legacy.clone()),
+            writer,
+            &old_pw,
+            None, // Generate password
+            1000,
+        )
+        .unwrap();
+        
+        let pw = generated.expect("should generate password");
+        passwords.push(pw);
+    }
+    
+    // All passwords should be different
+    for i in 0..passwords.len() {
+        for j in (i + 1)..passwords.len() {
+            assert_ne!(
+                passwords[i].expose_secret(),
+                passwords[j].expose_secret(),
+                "Generated passwords should be unique"
+            );
+        }
+    }
+}
+
+// —————————————————————————————————————————————————————————————————————————————
+// 7. Effective iterations verification
+// —————————————————————————————————————————————————————————————————————————————
+#[test]
+fn convert_to_v3_uses_one_iteration_for_generated_password() {
+    let old_pw = PasswordString::new("old".to_string());
+    let plaintext = b"test";
+    
+    let mut legacy = Vec::new();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    
+    // Generate password - should use 1 iteration
+    let writer1 = ThreadSafeVec::new();
+    let generated1 = convert_to_v3(
+        Cursor::new(legacy.clone()),
+        writer1.clone(),
+        &old_pw,
+        None, // Generate password
+        300_000, // Requested iterations (should be ignored)
+    )
+    .unwrap();
+    
+    let pw1 = generated1.expect("should generate password");
+    let v3_file1 = writer1.into_inner();
+    
+    // Use explicit password - should use full iterations
+    let new_pw = PasswordString::new("explicit".to_string());
+    let writer2 = ThreadSafeVec::new();
+    let generated2 = convert_to_v3(
+        Cursor::new(legacy.clone()),
+        writer2.clone(),
+        &old_pw,
+        Some(&new_pw),
+        300_000, // Should use full iterations
+    )
+    .unwrap();
+    
+    assert!(generated2.is_none());
+    let v3_file2 = writer2.into_inner();
+    
+    // Both should decrypt correctly
+    let mut recovered1 = Vec::new();
+    decrypt(Cursor::new(&v3_file1), &mut recovered1, &pw1).unwrap();
+    assert_eq!(&recovered1, plaintext);
+    
+    let mut recovered2 = Vec::new();
+    decrypt(Cursor::new(&v3_file2), &mut recovered2, &new_pw).unwrap();
+    assert_eq!(&recovered2, plaintext);
+    
+    // Files should be different due to different iterations/salts
+    assert_ne!(v3_file1, v3_file2);
+}
+
+// —————————————————————————————————————————————————————————————————————————————
+// 8. Edge cases: empty input
+// —————————————————————————————————————————————————————————————————————————————
+#[test]
+fn convert_to_v3_handles_empty_input() {
+    let old_pw = PasswordString::new("old".to_string());
+    let new_pw = PasswordString::new("new".to_string());
+    
+    let mut legacy = Vec::new();
+    encrypt(Cursor::new(&[]), &mut legacy, &old_pw, 1000).unwrap();
+    
+    let writer = ThreadSafeVec::new();
+    let generated = convert_to_v3(
+        Cursor::new(legacy),
+        writer.clone(),
+        &old_pw,
+        Some(&new_pw),
+        1000,
+    )
+    .unwrap();
+    
+    assert!(generated.is_none());
+    
+    let v3_file = writer.into_inner();
+    let mut recovered = Vec::new();
+    decrypt(Cursor::new(&v3_file), &mut recovered, &new_pw).unwrap();
+    assert_eq!(recovered, Vec::<u8>::new());
+}
+
+// —————————————————————————————————————————————————————————————————————————————
+// 9. Edge cases: unicode passwords
+// —————————————————————————————————————————————————————————————————————————————
+#[test]
+fn convert_to_v3_handles_unicode_passwords() {
+    let old_pw = PasswordString::new("パスワード".to_string());
+    let new_pw = PasswordString::new("新密码123!@#".to_string());
+    let plaintext = b"unicode test";
+    
+    let mut legacy = Vec::new();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    
+    let writer = ThreadSafeVec::new();
+    let generated = convert_to_v3(
+        Cursor::new(legacy),
+        writer.clone(),
+        &old_pw,
+        Some(&new_pw),
+        1000,
+    )
+    .unwrap();
+    
+    assert!(generated.is_none());
+    
+    let v3_file = writer.into_inner();
+    let mut recovered = Vec::new();
+    decrypt(Cursor::new(&v3_file), &mut recovered, &new_pw).unwrap();
+    assert_eq!(&recovered, plaintext);
+}
+
+// —————————————————————————————————————————————————————————————————————————————
+// 10. Various iteration counts
+// —————————————————————————————————————————————————————————————————————————————
+#[test]
+fn convert_to_v3_various_iteration_counts() {
+    let old_pw = PasswordString::new("old".to_string());
+    let new_pw = PasswordString::new("new".to_string());
+    let plaintext = b"test";
+    
+    let mut legacy = Vec::new();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    
+    let iterations = vec![1, 10, 100, 1000, 10_000, 300_000];
+    
+    for &iter in &iterations {
+        let writer = ThreadSafeVec::new();
+        let generated = convert_to_v3(
+            Cursor::new(legacy.clone()),
+            writer.clone(),
+            &old_pw,
+            Some(&new_pw),
+            iter,
+        )
+        .unwrap();
+        
+        assert!(generated.is_none());
+        
+        let v3_file = writer.into_inner();
+        let mut recovered = Vec::new();
+        decrypt(Cursor::new(&v3_file), &mut recovered, &new_pw).unwrap();
+        assert_eq!(&recovered, plaintext, "Failed with {} iterations", iter);
+    }
+}
+
+// —————————————————————————————————————————————————————————————————————————————
+// 11. Boundary iteration values
+// —————————————————————————————————————————————————————————————————————————————
+#[test]
+fn convert_to_v3_boundary_iteration_values() {
+    let old_pw = PasswordString::new("old".to_string());
+    let new_pw = PasswordString::new("new".to_string());
+    let plaintext = b"test";
+    
+    let mut legacy = Vec::new();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    
+    // Test boundary values
+    let valid_iterations = vec![1, 5_000_000];
+    
+    for &iter in &valid_iterations {
+        let writer = ThreadSafeVec::new();
+        let result = convert_to_v3(
+            Cursor::new(legacy.clone()),
+            writer,
+            &old_pw,
+            Some(&new_pw),
+            iter,
+        );
+        
+        assert!(result.is_ok(), "Should accept {} iterations", iter);
+    }
+}
+
+// —————————————————————————————————————————————————————————————————————————————
 // Helper types
 // —————————————————————————————————————————————————————————————————————————————
 #[derive(Debug, Deserialize)]
