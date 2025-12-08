@@ -85,3 +85,275 @@ fn encrypt_invalid_iterations() {
     .unwrap_err();
     assert!(matches!(err, AescryptError::Header(_)));
 }
+
+#[test]
+fn encrypt_empty_password() {
+    let password = PasswordString::new(String::new());
+    let plaintext = b"test";
+    
+    let err = encrypt(Cursor::new(plaintext), &mut Vec::new(), &password, 1000).unwrap_err();
+    assert!(matches!(err, AescryptError::Header(_)));
+    assert!(err.to_string().contains("empty password") || err.to_string().contains("password"));
+}
+
+#[test]
+fn encrypt_roundtrip() {
+    use aescrypt_rs::decrypt;
+    
+    let password = PasswordString::new("roundtrip-test".to_string());
+    let plaintext = b"Hello, encrypted world!";
+    
+    let mut encrypted = Vec::new();
+    encrypt(
+        Cursor::new(plaintext),
+        &mut encrypted,
+        &password,
+        DEFAULT_PBKDF2_ITERATIONS,
+    )
+    .unwrap();
+    
+    let mut decrypted = Vec::new();
+    decrypt(Cursor::new(&encrypted), &mut decrypted, &password).unwrap();
+    
+    assert_eq!(decrypted, plaintext);
+}
+
+#[test]
+fn encrypt_determinism_different_outputs() {
+    // Same input should produce different outputs due to random IVs/keys
+    let password = PasswordString::new("determinism".to_string());
+    let plaintext = b"same input";
+    
+    let mut encrypted1 = Vec::new();
+    encrypt(
+        Cursor::new(plaintext),
+        &mut encrypted1,
+        &password,
+        DEFAULT_PBKDF2_ITERATIONS,
+    )
+    .unwrap();
+    
+    let mut encrypted2 = Vec::new();
+    encrypt(
+        Cursor::new(plaintext),
+        &mut encrypted2,
+        &password,
+        DEFAULT_PBKDF2_ITERATIONS,
+    )
+    .unwrap();
+    
+    // Outputs should be different (due to random IVs/session keys)
+    assert_ne!(encrypted1, encrypted2, "Same input should produce different encrypted output");
+    
+    // But both should decrypt to same plaintext
+    use aescrypt_rs::decrypt;
+    let mut decrypted1 = Vec::new();
+    let mut decrypted2 = Vec::new();
+    decrypt(Cursor::new(&encrypted1), &mut decrypted1, &password).unwrap();
+    decrypt(Cursor::new(&encrypted2), &mut decrypted2, &password).unwrap();
+    
+    assert_eq!(decrypted1, plaintext);
+    assert_eq!(decrypted2, plaintext);
+}
+
+#[test]
+fn encrypt_different_passwords_produce_different_outputs() {
+    let password1 = PasswordString::new("password1".to_string());
+    let password2 = PasswordString::new("password2".to_string());
+    let plaintext = b"same plaintext";
+    
+    let mut encrypted1 = Vec::new();
+    encrypt(
+        Cursor::new(plaintext),
+        &mut encrypted1,
+        &password1,
+        DEFAULT_PBKDF2_ITERATIONS,
+    )
+    .unwrap();
+    
+    let mut encrypted2 = Vec::new();
+    encrypt(
+        Cursor::new(plaintext),
+        &mut encrypted2,
+        &password2,
+        DEFAULT_PBKDF2_ITERATIONS,
+    )
+    .unwrap();
+    
+    // Different passwords should produce different outputs
+    assert_ne!(encrypted1, encrypted2);
+}
+
+#[test]
+fn encrypt_block_boundary_sizes() {
+    use aescrypt_rs::decrypt;
+    
+    let password = PasswordString::new("boundary-test".to_string());
+    
+    // Test sizes around AES block boundaries
+    let sizes = vec![1, 15, 16, 17, 31, 32, 33, 47, 48, 49];
+    
+    for size in sizes {
+        let plaintext = vec![0xAAu8; size];
+        
+        let mut encrypted = Vec::new();
+        encrypt(
+            Cursor::new(&plaintext),
+            &mut encrypted,
+            &password,
+            DEFAULT_PBKDF2_ITERATIONS,
+        )
+        .unwrap();
+        
+        let mut decrypted = Vec::new();
+        decrypt(Cursor::new(&encrypted), &mut decrypted, &password).unwrap();
+        
+        assert_eq!(decrypted, plaintext, "Round-trip failed for size {}", size);
+    }
+}
+
+#[test]
+fn encrypt_various_iteration_counts() {
+    use aescrypt_rs::decrypt;
+    
+    let password = PasswordString::new("iterations-test".to_string());
+    let plaintext = b"test data";
+    
+    let iterations = vec![1, 10, 100, 1000, 8192, 300_000];
+    
+    for &iter in &iterations {
+        let mut encrypted = Vec::new();
+        encrypt(
+            Cursor::new(plaintext),
+            &mut encrypted,
+            &password,
+            iter,
+        )
+        .unwrap();
+        
+        let mut decrypted = Vec::new();
+        decrypt(Cursor::new(&encrypted), &mut decrypted, &password).unwrap();
+        
+        assert_eq!(decrypted, plaintext, "Round-trip failed with {} iterations", iter);
+    }
+}
+
+#[test]
+fn encrypt_boundary_iteration_values() {
+    let password = PasswordString::new("boundary-iter".to_string());
+    let plaintext = b"test";
+    
+    // Test minimum valid value
+    let mut encrypted = Vec::new();
+    let result = encrypt(
+        Cursor::new(plaintext),
+        &mut encrypted,
+        &password,
+        1, // Minimum valid
+    );
+    assert!(result.is_ok(), "Should accept 1 iteration (minimum boundary)");
+    
+    // Test maximum valid value (but skip in regular tests due to slowness)
+    // We test rejection of 5_000_001 in encrypt_invalid_iterations
+}
+
+#[test]
+fn encrypt_header_structure() {
+    let password = PasswordString::new("header-test".to_string());
+    let plaintext = b"test";
+    
+    let mut encrypted = Vec::new();
+    encrypt(
+        Cursor::new(plaintext),
+        &mut encrypted,
+        &password,
+        DEFAULT_PBKDF2_ITERATIONS,
+    )
+    .unwrap();
+    
+    // Verify header structure
+    assert!(encrypted.len() >= 5, "Should have at least header (5 bytes)");
+    assert_eq!(&encrypted[0..3], b"AES", "Invalid magic");
+    assert_eq!(encrypted[3], 3, "Invalid version");
+    assert_eq!(encrypted[4], 0x00, "Invalid reserved byte");
+    
+    // Verify extensions (2 bytes after header)
+    if encrypted.len() >= 7 {
+        // Extensions should be present (0x00 0x00 for v3 with no extensions)
+        assert_eq!(encrypted[5], 0x00);
+        assert_eq!(encrypted[6], 0x00);
+    }
+    
+    // Verify iterations (4 bytes, big-endian)
+    if encrypted.len() >= 11 {
+        let iterations_bytes = &encrypted[7..11];
+        let iterations = u32::from_be_bytes([
+            iterations_bytes[0],
+            iterations_bytes[1],
+            iterations_bytes[2],
+            iterations_bytes[3],
+        ]);
+        assert_eq!(iterations, DEFAULT_PBKDF2_ITERATIONS);
+    }
+    
+    // Verify public IV (16 bytes after iterations)
+    if encrypted.len() >= 27 {
+        let public_iv = &encrypted[11..27];
+        assert_eq!(public_iv.len(), 16, "Public IV should be 16 bytes");
+    }
+}
+
+#[test]
+fn encrypt_large_file() {
+    use aescrypt_rs::decrypt;
+    
+    let password = PasswordString::new("large-file".to_string());
+    // 1 MB of data
+    let plaintext = vec![0x42u8; 1_000_000];
+    
+    let mut encrypted = Vec::new();
+    encrypt(
+        Cursor::new(&plaintext),
+        &mut encrypted,
+        &password,
+        DEFAULT_PBKDF2_ITERATIONS,
+    )
+    .unwrap();
+    
+    // Encrypted should be larger than plaintext (due to padding, headers, HMAC)
+    assert!(encrypted.len() > plaintext.len());
+    
+    let mut decrypted = Vec::new();
+    decrypt(Cursor::new(&encrypted), &mut decrypted, &password).unwrap();
+    
+    assert_eq!(decrypted, plaintext);
+}
+
+#[test]
+fn encrypt_various_passwords() {
+    use aescrypt_rs::decrypt;
+    
+    let plaintext = b"test data";
+    let passwords = vec![
+        PasswordString::new("simple".to_string()),
+        PasswordString::new("complex!@#$%^&*()".to_string()),
+        PasswordString::new("very-long-password-that-exceeds-normal-length-expectations".to_string()),
+        PasswordString::new("with\nnewlines\tand\ttabs".to_string()),
+    ];
+    
+    for password in passwords {
+        let mut encrypted = Vec::new();
+        encrypt(
+            Cursor::new(plaintext),
+            &mut encrypted,
+            &password,
+            DEFAULT_PBKDF2_ITERATIONS,
+        )
+        .unwrap();
+        
+        let mut decrypted = Vec::new();
+        decrypt(Cursor::new(&encrypted), &mut decrypted, &password).unwrap();
+        
+        assert_eq!(decrypted, plaintext);
+    }
+}
