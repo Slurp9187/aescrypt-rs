@@ -81,8 +81,8 @@ use hex::decode;
 use serde::Deserialize;
 use std::io::Cursor;
 
-const PASSWORD: &str = "Hello";
-const DEFAULT_KDF_ITERATIONS: u32 = 5;
+mod common;
+use common::{TEST_DATA, TEST_DATA_SHORT, TEST_ITERATION_VALUES, TEST_ITERATIONS, TEST_PASSWORD};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AescryptVersion {
@@ -152,7 +152,7 @@ fn run_decrypt_for_version(version: AescryptVersion) {
     );
 
     let vectors: Vec<DecryptVector> = load_json(version.json_filename());
-    let password = PasswordString::new(PASSWORD.to_string());
+    let password = PasswordString::new(TEST_PASSWORD.to_string());
 
     for (i, v) in vectors.iter().enumerate() {
         let encrypted = decode(&v.ciphertext_hex)
@@ -183,7 +183,7 @@ fn run_roundtrip_for_version(version: AescryptVersion) {
     );
 
     let vectors: Vec<RoundTripVector> = load_json(version.json_filename());
-    let password = PasswordString::new(PASSWORD.to_string());
+    let password = PasswordString::new(TEST_PASSWORD.to_string());
 
     for (i, v) in vectors.iter().enumerate() {
         let plaintext = v.plaintext.as_bytes();
@@ -193,7 +193,7 @@ fn run_roundtrip_for_version(version: AescryptVersion) {
             Cursor::new(plaintext),
             &mut encrypted,
             &password,
-            DEFAULT_KDF_ITERATIONS,
+            TEST_ITERATIONS,
         )
         .unwrap_or_else(|e| panic!("Vector {i} ({}) encrypt failed: {e:?}", version.name()));
 
@@ -227,7 +227,7 @@ struct DeterministicVector {
 fn roundtrip_v3_deterministic() {
     eprintln!("RUNNING: Deterministic v3 test (exact ciphertext + round-trip)");
     let vectors: Vec<DeterministicVector> = load_json(AescryptVersion::deterministic_json());
-    let password = PasswordString::new(PASSWORD.to_string());
+    let password = PasswordString::new(TEST_PASSWORD.to_string());
 
     for (i, v) in vectors.iter().enumerate() {
         let plaintext = v.plaintext.as_bytes();
@@ -310,7 +310,7 @@ fn roundtrip_v3_empty_input() {
         Cursor::new(b""),
         &mut encrypted,
         &password,
-        DEFAULT_KDF_ITERATIONS,
+        TEST_ITERATIONS,
     )
     .unwrap();
     let mut decrypted = Vec::new();
@@ -327,7 +327,7 @@ fn roundtrip_v3_large_input() {
         Cursor::new(&plaintext),
         &mut encrypted,
         &password,
-        DEFAULT_KDF_ITERATIONS,
+        TEST_ITERATIONS,
     )
     .unwrap();
     let mut decrypted = Vec::new();
@@ -344,7 +344,7 @@ fn roundtrip_v3_huge_input() {
         Cursor::new(&plaintext),
         &mut encrypted,
         &password,
-        DEFAULT_KDF_ITERATIONS,
+        TEST_ITERATIONS,
     )
     .unwrap();
     let mut decrypted = Vec::new();
@@ -370,7 +370,7 @@ fn roundtrip_extreme_1gib() {
         Cursor::new(&plaintext),
         &mut encrypted,
         &password,
-        DEFAULT_KDF_ITERATIONS,
+        TEST_ITERATIONS,
     )
     .unwrap();
     let mut decrypted = Vec::new();
@@ -381,7 +381,7 @@ fn roundtrip_extreme_1gib() {
 // === Error Handling Tests ===
 #[test]
 fn decrypt_wrong_password() {
-    let correct_password = PasswordString::new(PASSWORD.to_string());
+    let correct_password = PasswordString::new(TEST_PASSWORD.to_string());
     let wrong_password = PasswordString::new("WrongPassword".to_string());
 
     // Encrypt with correct password
@@ -391,7 +391,7 @@ fn decrypt_wrong_password() {
         Cursor::new(plaintext),
         &mut encrypted,
         &correct_password,
-        DEFAULT_KDF_ITERATIONS,
+        TEST_ITERATIONS,
     )
     .unwrap();
 
@@ -410,14 +410,14 @@ fn decrypt_wrong_password() {
 
 #[test]
 fn decrypt_corrupted_hmac() {
-    let password = PasswordString::new(PASSWORD.to_string());
-    let plaintext = b"test data";
+    let password = PasswordString::new(TEST_PASSWORD.to_string());
+    let plaintext = TEST_DATA;
     let mut encrypted = Vec::new();
     encrypt(
         Cursor::new(plaintext),
         &mut encrypted,
         &password,
-        DEFAULT_KDF_ITERATIONS,
+        TEST_ITERATIONS,
     )
     .unwrap();
 
@@ -439,14 +439,14 @@ fn decrypt_corrupted_hmac() {
 
 #[test]
 fn decrypt_corrupted_session_hmac() {
-    let password = PasswordString::new(PASSWORD.to_string());
-    let plaintext = b"test data";
+    let password = PasswordString::new(TEST_PASSWORD.to_string());
+    let plaintext = TEST_DATA;
     let mut encrypted = Vec::new();
     encrypt(
         Cursor::new(plaintext),
         &mut encrypted,
         &password,
-        DEFAULT_KDF_ITERATIONS,
+        TEST_ITERATIONS,
     )
     .unwrap();
 
@@ -472,7 +472,7 @@ fn decrypt_corrupted_session_hmac() {
 
 #[test]
 fn decrypt_invalid_magic() {
-    let password = PasswordString::new(PASSWORD.to_string());
+    let password = PasswordString::new(TEST_PASSWORD.to_string());
     let mut invalid_data = vec![0xFFu8; 100];
     invalid_data[0] = b'X'; // Wrong magic
     invalid_data[1] = b'Y';
@@ -492,7 +492,7 @@ fn decrypt_invalid_magic() {
 
 #[test]
 fn decrypt_unsupported_version() {
-    let password = PasswordString::new(PASSWORD.to_string());
+    let password = PasswordString::new(TEST_PASSWORD.to_string());
     let mut invalid_data = vec![0u8; 100];
     invalid_data[0] = b'A';
     invalid_data[1] = b'E';
@@ -513,14 +513,14 @@ fn decrypt_unsupported_version() {
 
 #[test]
 fn decrypt_truncated_file() {
-    let password = PasswordString::new(PASSWORD.to_string());
-    let plaintext = b"test data";
+    let password = PasswordString::new(TEST_PASSWORD.to_string());
+    let plaintext = TEST_DATA;
     let mut encrypted = Vec::new();
     encrypt(
         Cursor::new(plaintext),
         &mut encrypted,
         &password,
-        DEFAULT_KDF_ITERATIONS,
+        TEST_ITERATIONS,
     )
     .unwrap();
 
@@ -536,13 +536,13 @@ fn decrypt_truncated_file() {
 #[test]
 fn encrypt_empty_password() {
     let empty_password = PasswordString::new("".to_string());
-    let plaintext = b"test";
+    let plaintext = TEST_DATA_SHORT;
 
     let result = encrypt(
         Cursor::new(plaintext),
         &mut Vec::new(),
         &empty_password,
-        DEFAULT_KDF_ITERATIONS,
+        TEST_ITERATIONS,
     );
 
     assert!(result.is_err(), "Encryption with empty password should fail");
@@ -557,7 +557,7 @@ fn encrypt_empty_password() {
 #[test]
 fn encrypt_invalid_iterations() {
     let password = PasswordString::new("test".to_string());
-    let plaintext = b"test";
+    let plaintext = TEST_DATA_SHORT;
 
     // Zero iterations
     let result = encrypt(
@@ -602,7 +602,7 @@ fn roundtrip_block_boundary_sizes() {
             Cursor::new(&plaintext),
             &mut encrypted,
             &password,
-            DEFAULT_KDF_ITERATIONS,
+            TEST_ITERATIONS,
         )
         .unwrap();
 
@@ -618,7 +618,7 @@ fn roundtrip_block_boundary_sizes() {
 
 #[test]
 fn roundtrip_various_passwords() {
-    let plaintext = b"test data";
+    let plaintext = TEST_DATA;
     let passwords = vec![
         PasswordString::new("simple".to_string()),
         PasswordString::new("complex!@#$%^&*()".to_string()),
@@ -634,7 +634,7 @@ fn roundtrip_various_passwords() {
             Cursor::new(plaintext),
             &mut encrypted,
             &password,
-            DEFAULT_KDF_ITERATIONS,
+            TEST_ITERATIONS,
         )
         .unwrap();
 
@@ -648,9 +648,9 @@ fn roundtrip_various_passwords() {
 #[test]
 fn roundtrip_various_kdf_iterations() {
     let password = PasswordString::new("iterations-test".to_string());
-    let plaintext = b"test data";
+    let plaintext = TEST_DATA;
     // Test with low iteration counts - performance testing is in benches/
-    let iterations = vec![1, 5, 10];
+    let iterations = TEST_ITERATION_VALUES.to_vec();
 
     for &iter in &iterations {
         let mut encrypted = Vec::new();
@@ -690,7 +690,7 @@ fn roundtrip_various_input_patterns() {
             Cursor::new(&pattern),
             &mut encrypted,
             &password,
-            DEFAULT_KDF_ITERATIONS,
+            TEST_ITERATIONS,
         )
         .unwrap();
 
@@ -713,7 +713,7 @@ fn roundtrip_small_inputs() {
             Cursor::new(&plaintext),
             &mut encrypted,
             &password,
-            DEFAULT_KDF_ITERATIONS,
+            TEST_ITERATIONS,
         )
         .unwrap();
 
@@ -729,14 +729,14 @@ fn roundtrip_small_inputs() {
 
 #[test]
 fn decrypt_corrupted_ciphertext() {
-    let password = PasswordString::new(PASSWORD.to_string());
-    let plaintext = b"test data";
+    let password = PasswordString::new(TEST_PASSWORD.to_string());
+    let plaintext = TEST_DATA;
     let mut encrypted = Vec::new();
     encrypt(
         Cursor::new(plaintext),
         &mut encrypted,
         &password,
-        DEFAULT_KDF_ITERATIONS,
+        TEST_ITERATIONS,
     )
     .unwrap();
 
@@ -761,10 +761,10 @@ fn decrypt_corrupted_ciphertext() {
 
 #[test]
 fn roundtrip_deterministic_with_different_iterations() {
-    let password = PasswordString::new(PASSWORD.to_string());
+    let password = PasswordString::new(TEST_PASSWORD.to_string());
     let plaintext = b"deterministic test";
     // Test with low iteration counts - performance testing is in benches/
-    let iterations = vec![1, 5, 10];
+    let iterations = TEST_ITERATION_VALUES.to_vec();
 
     for &iter in &iterations {
         let mut encrypted1 = Vec::new();

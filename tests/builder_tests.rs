@@ -1,8 +1,12 @@
 //! tests/builder/builder_tests.rs
 //! PBKDF2 builder – final, verified green on Windows (2025)
 
+mod common;
+
 #[cfg(feature = "zeroize")]
 mod tests {
+    use super::common::TEST_ITERATIONS;
+
     use aescrypt_rs::aliases::{Aes256Key32, PasswordString};
     use aescrypt_rs::Pbkdf2Builder;
 
@@ -26,8 +30,8 @@ mod tests {
 
         // Test with low iteration counts - performance testing is in benches/
         let cases = [
-            (5, [0xaau8; 16]),
-            (5, [0xbbu8; 16]),
+            (TEST_ITERATIONS, [0xaau8; 16]),
+            (TEST_ITERATIONS, [0xbbu8; 16]),
             (1, [0xc0u8; 16]),
         ];
 
@@ -107,7 +111,7 @@ mod tests {
     #[test]
     fn pbkdf2_builder_clone() {
         let builder1 = Pbkdf2Builder::new()
-            .with_iterations(5)
+            .with_iterations(TEST_ITERATIONS)
             .with_salt([0xBB; 16]);
         
         let builder2 = builder1.clone();
@@ -120,7 +124,7 @@ mod tests {
     fn pbkdf2_builder_determinism() {
         let password = PasswordString::new("deterministic".to_string());
         let salt = [0xCC; 16];
-        let iterations = 5;
+        let iterations = TEST_ITERATIONS;
         
         let mut key1 = Aes256Key32::new([0u8; 32]);
         let mut key2 = Aes256Key32::new([0u8; 32]);
@@ -147,7 +151,7 @@ mod tests {
     #[test]
     fn pbkdf2_builder_salt_sensitivity() {
         let password = PasswordString::new("salt-test".to_string());
-        let iterations = 5;
+        let iterations = TEST_ITERATIONS;
         
         let mut key1 = Aes256Key32::new([0u8; 32]);
         let mut key2 = Aes256Key32::new([0u8; 32]);
@@ -201,7 +205,7 @@ mod tests {
     #[test]
     fn pbkdf2_builder_password_sensitivity() {
         let salt = [0xEE; 16];
-        let iterations = 5;
+        let iterations = TEST_ITERATIONS;
         
         let mut key1 = Aes256Key32::new([0u8; 32]);
         let mut key2 = Aes256Key32::new([0u8; 32]);
@@ -233,10 +237,10 @@ mod tests {
         let builder = Pbkdf2Builder::new()
             .with_iterations(5_000)
             .with_salt([0xFF; 16])
-            .with_iterations(5) // Override previous
+            .with_iterations(TEST_ITERATIONS) // Override previous
             .with_salt([0xAA; 16]); // Override previous
         
-        assert_eq!(builder.iterations(), 5);
+        assert_eq!(builder.iterations(), TEST_ITERATIONS);
         assert_eq!(builder.salt(), &[0xAA; 16]);
         
         builder.derive_secure(&password, &mut key).unwrap();

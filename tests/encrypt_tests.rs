@@ -8,8 +8,8 @@ use aescrypt_rs::encrypt;
 use aescrypt_rs::AescryptError;
 use std::io::Cursor;
 
-// Fast iteration count for tests - performance testing is in benches/
-const TEST_ITERATIONS: u32 = 5;
+mod common;
+use common::{TEST_DATA, TEST_DATA_SHORT, TEST_ITERATIONS};
 
 #[test]
 fn encrypt_v3_basics() {
@@ -73,7 +73,7 @@ fn encrypt_unicode_password() {
 #[test]
 fn encrypt_invalid_iterations() {
     let password = PasswordString::new("invalid-iter".to_string());
-    let plaintext = b"test";
+    let plaintext = TEST_DATA_SHORT;
 
     // Zero iterations → Header error
     let err = encrypt(Cursor::new(plaintext), &mut Vec::new(), &password, 0).unwrap_err();
@@ -93,9 +93,9 @@ fn encrypt_invalid_iterations() {
 #[test]
 fn encrypt_empty_password() {
     let password = PasswordString::new(String::new());
-    let plaintext = b"test";
+    let plaintext = TEST_DATA_SHORT;
     
-    let err = encrypt(Cursor::new(plaintext), &mut Vec::new(), &password, 5).unwrap_err();
+    let err = encrypt(Cursor::new(plaintext), &mut Vec::new(), &password, TEST_ITERATIONS).unwrap_err();
     assert!(matches!(err, AescryptError::Header(_)));
     assert!(err.to_string().contains("empty password") || err.to_string().contains("password"));
 }
@@ -194,7 +194,7 @@ fn encrypt_different_passwords_produce_different_outputs() {
 #[test]
 fn encrypt_header_structure() {
     let password = PasswordString::new("header-test".to_string());
-    let plaintext = b"test";
+    let plaintext = TEST_DATA_SHORT;
     
     let mut encrypted = Vec::new();
     encrypt(
@@ -267,7 +267,7 @@ fn encrypt_large_file() {
 fn encrypt_various_passwords() {
     use aescrypt_rs::decrypt;
     
-    let plaintext = b"test data";
+    let plaintext = TEST_DATA;
     let passwords = vec![
         PasswordString::new("simple".to_string()),
         PasswordString::new("complex!@#$%^&*()".to_string()),

@@ -1,8 +1,12 @@
 //! tests/kdf/kdf_tests.rs
 //! General secure KDF tests — with merged edge cases, corrected PBKDF2 (2025)
 
+mod common;
+
 #[cfg(feature = "zeroize")]
 mod tests {
+    use super::common::{TEST_ITERATION_VALUES, TEST_ITERATIONS};
+
     use aescrypt_rs::aliases::{Aes256Key32, PasswordString, Salt16};
     use aescrypt_rs::{derive_secure_ackdf_key, derive_secure_pbkdf2_key};
 
@@ -107,7 +111,7 @@ mod tests {
         let salt = Salt16::from([0x42; 16]);
 
         // Test with low iteration counts - performance testing is in benches/
-        let iteration_counts = vec![1, 5, 10];
+        let iteration_counts = TEST_ITERATION_VALUES.to_vec();
 
         for &iterations in &iteration_counts {
             let mut key1 = Aes256Key32::new([0u8; 32]);

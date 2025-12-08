@@ -4,13 +4,14 @@
 //! Tests decryption, conversion, and rotation using actual AES Crypt files
 //! from tests/test_data/aes_test_files/
 
+mod common;
+use common::{TEST_ITERATIONS, TEST_PASSWORD};
+
 use aescrypt_rs::aliases::PasswordString;
 use aescrypt_rs::{convert_to_v3, decrypt, encrypt};
 use std::fs::File;
 use std::io::{BufReader, Cursor};
 use std::path::PathBuf;
-
-const PASSWORD: &str = "Hello";
 
 fn get_aes_test_file_path(version: &str, index: usize) -> PathBuf {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
@@ -37,7 +38,7 @@ fn get_v3_deterministic_path(index: usize) -> PathBuf {
 // —————————————————————————————————————————————————————————————————————————————
 #[test]
 fn decrypt_actual_v0_files() {
-    let password = PasswordString::new(PASSWORD.to_string());
+    let password = PasswordString::new(TEST_PASSWORD.to_string());
     
     for i in 0..21 {
         let file_path = get_aes_test_file_path("v0", i);
@@ -61,7 +62,7 @@ fn decrypt_actual_v0_files() {
 
 #[test]
 fn decrypt_actual_v1_files() {
-    let password = PasswordString::new(PASSWORD.to_string());
+    let password = PasswordString::new(TEST_PASSWORD.to_string());
     
     for i in 0..21 {
         let file_path = get_aes_test_file_path("v1", i);
@@ -79,7 +80,7 @@ fn decrypt_actual_v1_files() {
 
 #[test]
 fn decrypt_actual_v2_files() {
-    let password = PasswordString::new(PASSWORD.to_string());
+    let password = PasswordString::new(TEST_PASSWORD.to_string());
     
     for i in 0..21 {
         let file_path = get_aes_test_file_path("v2", i);
@@ -97,7 +98,7 @@ fn decrypt_actual_v2_files() {
 
 #[test]
 fn decrypt_actual_v3_files() {
-    let password = PasswordString::new(PASSWORD.to_string());
+    let password = PasswordString::new(TEST_PASSWORD.to_string());
     
     for i in 0..21 {
         let file_path = get_aes_test_file_path("v3", i);
@@ -118,7 +119,7 @@ fn decrypt_actual_v3_files() {
 // —————————————————————————————————————————————————————————————————————————————
 #[test]
 fn convert_v0_file_to_v3() {
-    let old_pw = PasswordString::new(PASSWORD.to_string());
+    let old_pw = PasswordString::new(TEST_PASSWORD.to_string());
     let new_pw = PasswordString::new("NewPassword123!".to_string());
     
     // Test with first few files
@@ -130,7 +131,7 @@ fn convert_v0_file_to_v3() {
         
         // Convert to v3
         let mut output = Vec::new();
-        convert_to_v3(reader, &mut output, &old_pw, Some(&new_pw), 5)
+        convert_to_v3(reader, &mut output, &old_pw, Some(&new_pw), TEST_ITERATIONS)
             .unwrap_or_else(|e| panic!("Failed to convert v0 file {i} to v3: {e:?}"));
         
         // Verify v3 file can be decrypted with new password
@@ -144,7 +145,7 @@ fn convert_v0_file_to_v3() {
 
 #[test]
 fn convert_v1_file_to_v3() {
-    let old_pw = PasswordString::new(PASSWORD.to_string());
+    let old_pw = PasswordString::new(TEST_PASSWORD.to_string());
     let new_pw = PasswordString::new("NewPassword123!".to_string());
     
     for i in 0..5 {
@@ -154,7 +155,7 @@ fn convert_v1_file_to_v3() {
         let reader = BufReader::new(input_file);
         
         let mut output = Vec::new();
-        convert_to_v3(reader, &mut output, &old_pw, Some(&new_pw), 5)
+        convert_to_v3(reader, &mut output, &old_pw, Some(&new_pw), TEST_ITERATIONS)
             .unwrap_or_else(|e| panic!("Failed to convert v1 file {i} to v3: {e:?}"));
         
         let mut decrypted = Vec::new();
@@ -167,7 +168,7 @@ fn convert_v1_file_to_v3() {
 
 #[test]
 fn convert_v2_file_to_v3() {
-    let old_pw = PasswordString::new(PASSWORD.to_string());
+    let old_pw = PasswordString::new(TEST_PASSWORD.to_string());
     let new_pw = PasswordString::new("NewPassword123!".to_string());
     
     for i in 0..5 {
@@ -177,7 +178,7 @@ fn convert_v2_file_to_v3() {
         let reader = BufReader::new(input_file);
         
         let mut output = Vec::new();
-        convert_to_v3(reader, &mut output, &old_pw, Some(&new_pw), 5)
+        convert_to_v3(reader, &mut output, &old_pw, Some(&new_pw), TEST_ITERATIONS)
             .unwrap_or_else(|e| panic!("Failed to convert v2 file {i} to v3: {e:?}"));
         
         let mut decrypted = Vec::new();
@@ -193,7 +194,7 @@ fn convert_v2_file_to_v3() {
 // —————————————————————————————————————————————————————————————————————————————
 #[test]
 fn rotate_v3_file_password() {
-    let old_pw = PasswordString::new(PASSWORD.to_string());
+    let old_pw = PasswordString::new(TEST_PASSWORD.to_string());
     let new_pw = PasswordString::new("RotatedPassword456!".to_string());
     
     for i in 0..5 {
@@ -204,7 +205,7 @@ fn rotate_v3_file_password() {
         
         // Rotate password (v3 → v3)
         let mut output = Vec::new();
-        convert_to_v3(reader, &mut output, &old_pw, Some(&new_pw), 5)
+        convert_to_v3(reader, &mut output, &old_pw, Some(&new_pw), TEST_ITERATIONS)
             .unwrap_or_else(|e| panic!("Failed to rotate v3 file {i}: {e:?}"));
         
         // Verify new password works
@@ -226,7 +227,7 @@ fn rotate_v3_file_password() {
 // —————————————————————————————————————————————————————————————————————————————
 #[test]
 fn upgrade_file_with_auto_generated_password() {
-    let old_pw = PasswordString::new(PASSWORD.to_string());
+    let old_pw = PasswordString::new(TEST_PASSWORD.to_string());
     
     for i in 0..3 {
         let input_path = get_aes_test_file_path("v0", i);
@@ -236,7 +237,7 @@ fn upgrade_file_with_auto_generated_password() {
         
         // Auto-generate password
         let mut output = Vec::new();
-        let generated_pw = convert_to_v3(reader, &mut output, &old_pw, None, 5)
+        let generated_pw = convert_to_v3(reader, &mut output, &old_pw, None, TEST_ITERATIONS)
             .unwrap_or_else(|e| panic!("Failed to upgrade v0 file {i} with auto-password: {e:?}"))
             .expect("Should generate password");
         
@@ -261,7 +262,7 @@ fn upgrade_file_with_auto_generated_password() {
 // —————————————————————————————————————————————————————————————————————————————
 #[test]
 fn round_trip_from_actual_files() {
-    let password = PasswordString::new(PASSWORD.to_string());
+    let password = PasswordString::new(TEST_PASSWORD.to_string());
     
     for i in 0..5 {
         // Decrypt original file
@@ -276,7 +277,7 @@ fn round_trip_from_actual_files() {
         
         // Re-encrypt
         let mut re_encrypted = Vec::new();
-        encrypt(Cursor::new(&plaintext), &mut re_encrypted, &password, 5)
+        encrypt(Cursor::new(&plaintext), &mut re_encrypted, &password, TEST_ITERATIONS)
             .unwrap_or_else(|e| panic!("Failed to re-encrypt file {i}: {e:?}"));
         
         // Decrypt again
@@ -307,7 +308,7 @@ fn handle_missing_file_gracefully() {
 // —————————————————————————————————————————————————————————————————————————————
 #[test]
 fn decrypt_deterministic_v3_files() {
-    let password = PasswordString::new(PASSWORD.to_string());
+    let password = PasswordString::new(TEST_PASSWORD.to_string());
     
     for i in 0..21 {
         let file_path = get_v3_deterministic_path(i);
@@ -328,7 +329,7 @@ fn decrypt_deterministic_v3_files() {
 // —————————————————————————————————————————————————————————————————————————————
 #[test]
 fn batch_convert_legacy_files() {
-    let old_pw = PasswordString::new(PASSWORD.to_string());
+    let old_pw = PasswordString::new(TEST_PASSWORD.to_string());
     let new_pw = PasswordString::new("BatchPassword789!".to_string());
     
     let versions = ["v0", "v1", "v2"];
@@ -341,7 +342,7 @@ fn batch_convert_legacy_files() {
                 let reader = BufReader::new(input_file);
                 
                 let mut output = Vec::new();
-                if convert_to_v3(reader, &mut output, &old_pw, Some(&new_pw), 5).is_ok() {
+                if convert_to_v3(reader, &mut output, &old_pw, Some(&new_pw), TEST_ITERATIONS).is_ok() {
                     success_count += 1;
                 }
             }

@@ -1,4 +1,9 @@
 #[cfg(feature = "batch-ops")]
+mod common;
+#[cfg(feature = "batch-ops")]
+use common::{TEST_DATA, TEST_ITERATION_VALUES, TEST_ITERATIONS};
+
+#[cfg(feature = "batch-ops")]
 use aescrypt_rs::aliases::PasswordString;
 #[cfg(feature = "batch-ops")]
 use aescrypt_rs::{decrypt_batch, encrypt_batch, AescryptError};
@@ -12,7 +17,7 @@ fn batch_roundtrip_sanity_check() {
     let data = [b"hello parallel world"; 4]; // 4 tiny files
 
     let mut encrypted = data.map(|d| (Cursor::new(d.to_vec()), Vec::new()));
-    encrypt_batch(&mut encrypted, &password, 5).unwrap();
+    encrypt_batch(&mut encrypted, &password, TEST_ITERATIONS).unwrap();
 
     let mut decrypted = encrypted
         .into_iter()
@@ -31,7 +36,7 @@ fn batch_empty_batch() {
     let mut batch: Vec<(Cursor<Vec<u8>>, Vec<u8>)> = Vec::new();
     
     // Empty batch should succeed (no-op)
-    encrypt_batch(&mut batch, &password, 5).unwrap();
+    encrypt_batch(&mut batch, &password, TEST_ITERATIONS).unwrap();
     assert!(batch.is_empty());
 }
 
@@ -42,7 +47,7 @@ fn batch_single_file() {
     let data = b"single file test";
     
     let mut encrypted = vec![(Cursor::new(data.to_vec()), Vec::new())];
-    encrypt_batch(&mut encrypted, &password, 5).unwrap();
+    encrypt_batch(&mut encrypted, &password, TEST_ITERATIONS).unwrap();
     
     let mut decrypted = vec![(Cursor::new(encrypted[0].1.clone()), Vec::new())];
     decrypt_batch(&mut decrypted, &password).unwrap();
@@ -67,7 +72,7 @@ fn batch_different_file_sizes() {
     let mut encrypted: Vec<_> = data.iter()
         .map(|d| (Cursor::new(d.clone()), Vec::new()))
         .collect();
-    encrypt_batch(&mut encrypted, &password, 5).unwrap();
+    encrypt_batch(&mut encrypted, &password, TEST_ITERATIONS).unwrap();
     
     let mut decrypted: Vec<_> = encrypted.iter()
         .map(|(_, buf)| (Cursor::new(buf.clone()), Vec::new()))
@@ -82,13 +87,13 @@ fn batch_different_file_sizes() {
 #[test]
 fn batch_large_batch() {
     let password = PasswordString::new("large".to_string());
-    let data = b"test data";
+    let data = TEST_DATA;
     
     // Create 100 files
     let mut encrypted: Vec<_> = (0..100)
         .map(|_| (Cursor::new(data.to_vec()), Vec::new()))
         .collect();
-    encrypt_batch(&mut encrypted, &password, 5).unwrap();
+    encrypt_batch(&mut encrypted, &password, TEST_ITERATIONS).unwrap();
     
     let mut decrypted: Vec<_> = encrypted.iter()
         .map(|(_, buf)| (Cursor::new(buf.clone()), Vec::new()))
@@ -108,7 +113,7 @@ fn batch_wrong_password() {
     let data = b"secret data";
     
     let mut encrypted = vec![(Cursor::new(data.to_vec()), Vec::new())];
-    encrypt_batch(&mut encrypted, &password, 5).unwrap();
+    encrypt_batch(&mut encrypted, &password, TEST_ITERATIONS).unwrap();
     
     let mut decrypted = vec![(Cursor::new(encrypted[0].1.clone()), Vec::new())];
     let result = decrypt_batch(&mut decrypted, &wrong_password);
@@ -124,7 +129,7 @@ fn batch_wrong_password() {
 #[test]
 fn batch_invalid_iterations_zero() {
     let password = PasswordString::new("test".to_string());
-    let data = b"test data";
+    let data = TEST_DATA;
     let mut batch = vec![(Cursor::new(data.to_vec()), Vec::new())];
     
     let result = encrypt_batch(&mut batch, &password, 0);
@@ -139,7 +144,7 @@ fn batch_invalid_iterations_zero() {
 #[test]
 fn batch_invalid_iterations_too_large() {
     let password = PasswordString::new("test".to_string());
-    let data = b"test data";
+    let data = TEST_DATA;
     let mut batch = vec![(Cursor::new(data.to_vec()), Vec::new())];
     
     let result = encrypt_batch(&mut batch, &password, 5_000_001);
@@ -154,10 +159,10 @@ fn batch_invalid_iterations_too_large() {
 #[test]
 fn batch_empty_password() {
     let password = PasswordString::new(String::new());
-    let data = b"test data";
+    let data = TEST_DATA;
     let mut batch = vec![(Cursor::new(data.to_vec()), Vec::new())];
     
-    let result = encrypt_batch(&mut batch, &password, 5);
+    let result = encrypt_batch(&mut batch, &password, TEST_ITERATIONS);
     assert!(result.is_err());
     match result.unwrap_err() {
         AescryptError::Header(_) => {},
@@ -170,14 +175,14 @@ fn batch_empty_password() {
 fn batch_partial_failure_wrong_password() {
     let password1 = PasswordString::new("password1".to_string());
     let password2 = PasswordString::new("password2".to_string());
-    let data = b"test data";
+    let data = TEST_DATA;
     
     // Encrypt two files with different passwords
     let mut encrypted1 = vec![(Cursor::new(data.to_vec()), Vec::new())];
-    encrypt_batch(&mut encrypted1, &password1, 5).unwrap();
+    encrypt_batch(&mut encrypted1, &password1, TEST_ITERATIONS).unwrap();
     
     let mut encrypted2 = vec![(Cursor::new(data.to_vec()), Vec::new())];
-    encrypt_batch(&mut encrypted2, &password2, 5).unwrap();
+    encrypt_batch(&mut encrypted2, &password2, TEST_ITERATIONS).unwrap();
     
     // Try to decrypt both with password1 (second should fail)
     let mut batch = vec![
@@ -193,12 +198,12 @@ fn batch_partial_failure_wrong_password() {
 #[test]
 fn batch_various_iteration_counts() {
     let password = PasswordString::new("iterations".to_string());
-    let data = b"test data";
+    let data = TEST_DATA;
     
     // Test with low iteration counts - performance testing is in benches/
-    for iterations in [1, 5, 10] {
+    for iterations in TEST_ITERATION_VALUES {
         let mut encrypted = vec![(Cursor::new(data.to_vec()), Vec::new())];
-        encrypt_batch(&mut encrypted, &password, iterations).unwrap();
+        encrypt_batch(&mut encrypted, &password, *iterations).unwrap();
         
         let mut decrypted = vec![(Cursor::new(encrypted[0].1.clone()), Vec::new())];
         decrypt_batch(&mut decrypted, &password).unwrap();
@@ -221,7 +226,7 @@ fn batch_mixed_sizes_and_empty() {
     let mut encrypted: Vec<_> = data.iter()
         .map(|d| (Cursor::new(d.clone()), Vec::new()))
         .collect();
-    encrypt_batch(&mut encrypted, &password, 5).unwrap();
+    encrypt_batch(&mut encrypted, &password, TEST_ITERATIONS).unwrap();
     
     let mut decrypted: Vec<_> = encrypted.iter()
         .map(|(_, buf)| (Cursor::new(buf.clone()), Vec::new()))
