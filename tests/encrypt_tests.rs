@@ -2,12 +2,14 @@
 //! High-level encryption tests – clean, parameterized, and green (2025)
 
 use aescrypt_rs::aliases::PasswordString;
+use aescrypt_rs::consts::DEFAULT_PBKDF2_ITERATIONS;
+use aescrypt_rs::decrypt;
 use aescrypt_rs::encrypt;
 use aescrypt_rs::AescryptError;
 use std::io::Cursor;
 
 // Fast iteration count for tests - performance testing is in benches/
-const TEST_ITERATIONS: u32 = 64;
+const TEST_ITERATIONS: u32 = 5;
 
 #[test]
 fn encrypt_v3_basics() {
@@ -93,7 +95,7 @@ fn encrypt_empty_password() {
     let password = PasswordString::new(String::new());
     let plaintext = b"test";
     
-    let err = encrypt(Cursor::new(plaintext), &mut Vec::new(), &password, 1000).unwrap_err();
+    let err = encrypt(Cursor::new(plaintext), &mut Vec::new(), &password, 5).unwrap_err();
     assert!(matches!(err, AescryptError::Header(_)));
     assert!(err.to_string().contains("empty password") || err.to_string().contains("password"));
 }
@@ -288,4 +290,25 @@ fn encrypt_various_passwords() {
         
         assert_eq!(decrypted, plaintext);
     }
+}
+
+#[test]
+fn encrypt_with_real_world_iterations() {
+    // Test with real-world DEFAULT_PBKDF2_ITERATIONS (300,000) to verify production settings work
+    let password = PasswordString::new("real-world-test".to_string());
+    let plaintext = b"test data for real-world iteration count";
+    
+    let mut encrypted = Vec::new();
+    encrypt(
+        Cursor::new(plaintext),
+        &mut encrypted,
+        &password,
+        DEFAULT_PBKDF2_ITERATIONS,
+    )
+    .unwrap();
+    
+    let mut decrypted = Vec::new();
+    decrypt(Cursor::new(&encrypted), &mut decrypted, &password).unwrap();
+    
+    assert_eq!(decrypted, plaintext);
 }

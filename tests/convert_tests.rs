@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 // Fast iteration count for tests - performance testing is in benches/
-const TEST_KDF_ITERATIONS: u32 = 64;
+const TEST_KDF_ITERATIONS: u32 = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AescryptVersion {
@@ -110,7 +110,7 @@ fn convert_to_v3_random_password_works() {
     let plaintext = b"Upgrade me to quantum-resistant!";
 
     let mut legacy = Vec::new();
-    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 5).unwrap();
 
     // Test both None and Some("")
     for new_pw_opt in [
@@ -124,7 +124,7 @@ fn convert_to_v3_random_password_works() {
             writer.clone(),
             &old_pw,
             new_pw_opt.as_ref(), // ← &Option<PasswordString>
-            1000,
+            5,
         )
         .unwrap();
 
@@ -152,7 +152,7 @@ fn convert_to_v3_explicit_new_password_works() {
     let plaintext = b"Secret message that must survive migration";
 
     let mut legacy = Vec::new();
-    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 5).unwrap();
 
     let writer = ThreadSafeVec::new();
     let generated = convert_to_v3(
@@ -160,7 +160,7 @@ fn convert_to_v3_explicit_new_password_works() {
         writer.clone(),
         &old_pw,
         Some(&new_pw), // ← &PasswordString
-        1000,
+        5,
     )
     .unwrap();
 
@@ -182,7 +182,7 @@ fn convert_to_v3_rejects_zero_iterations() {
     let plaintext = b"test";
     
     let mut legacy = Vec::new();
-    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 5).unwrap();
     
     let writer = ThreadSafeVec::new();
     let result = convert_to_v3(
@@ -209,7 +209,7 @@ fn convert_to_v3_rejects_too_many_iterations() {
     let plaintext = b"test";
     
     let mut legacy = Vec::new();
-    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 5).unwrap();
     
     let writer = ThreadSafeVec::new();
     let result = convert_to_v3(
@@ -240,7 +240,7 @@ fn convert_to_v3_rejects_wrong_old_password() {
     let plaintext = b"test";
     
     let mut legacy = Vec::new();
-    encrypt(Cursor::new(plaintext), &mut legacy, &correct_pw, 1000).unwrap();
+    encrypt(Cursor::new(plaintext), &mut legacy, &correct_pw, 5).unwrap();
     
     let writer = ThreadSafeVec::new();
     let result = convert_to_v3(
@@ -248,7 +248,7 @@ fn convert_to_v3_rejects_wrong_old_password() {
         writer,
         &wrong_pw, // Wrong password
         Some(&new_pw),
-        1000,
+        5,
     );
     
     assert!(result.is_err());
@@ -268,7 +268,7 @@ fn convert_to_v3_generated_passwords_are_unique() {
     let plaintext = b"test";
     
     let mut legacy = Vec::new();
-    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 5).unwrap();
     
     // Generate multiple passwords
     let mut passwords = Vec::new();
@@ -279,7 +279,7 @@ fn convert_to_v3_generated_passwords_are_unique() {
             writer,
             &old_pw,
             None, // Generate password
-            1000,
+            5,
         )
         .unwrap();
         
@@ -308,7 +308,7 @@ fn convert_to_v3_uses_one_iteration_for_generated_password() {
     let plaintext = b"test";
     
     let mut legacy = Vec::new();
-    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 5).unwrap();
     
     // Generate password - should use 1 iteration
     let writer1 = ThreadSafeVec::new();
@@ -317,7 +317,7 @@ fn convert_to_v3_uses_one_iteration_for_generated_password() {
         writer1.clone(),
         &old_pw,
         None, // Generate password
-        1000, // Requested iterations (should be ignored for generated passwords)
+        5, // Requested iterations (should be ignored for generated passwords)
     )
     .unwrap();
     
@@ -332,7 +332,7 @@ fn convert_to_v3_uses_one_iteration_for_generated_password() {
             writer2.clone(),
             &old_pw,
             Some(&new_pw),
-            1000, // Should use full iterations
+            5, // Should use full iterations
         )
     .unwrap();
     
@@ -361,7 +361,7 @@ fn convert_to_v3_handles_empty_input() {
     let new_pw = PasswordString::new("new".to_string());
     
     let mut legacy = Vec::new();
-    encrypt(Cursor::new(&[]), &mut legacy, &old_pw, 1000).unwrap();
+    encrypt(Cursor::new(&[]), &mut legacy, &old_pw, 5).unwrap();
     
     let writer = ThreadSafeVec::new();
     let generated = convert_to_v3(
@@ -369,7 +369,7 @@ fn convert_to_v3_handles_empty_input() {
         writer.clone(),
         &old_pw,
         Some(&new_pw),
-        1000,
+        5,
     )
     .unwrap();
     
@@ -391,7 +391,7 @@ fn convert_to_v3_handles_unicode_passwords() {
     let plaintext = b"unicode test";
     
     let mut legacy = Vec::new();
-    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 5).unwrap();
     
     let writer = ThreadSafeVec::new();
     let generated = convert_to_v3(
@@ -399,7 +399,7 @@ fn convert_to_v3_handles_unicode_passwords() {
         writer.clone(),
         &old_pw,
         Some(&new_pw),
-        1000,
+        5,
     )
     .unwrap();
     
@@ -421,10 +421,10 @@ fn convert_to_v3_various_iteration_counts() {
     let plaintext = b"test";
     
     let mut legacy = Vec::new();
-    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 5).unwrap();
     
     // Test with low iteration counts - performance testing is in benches/
-    let iterations = vec![1, 10, 100, 1000];
+    let iterations = vec![1, 5, 10];
     
     for &iter in &iterations {
         let writer = ThreadSafeVec::new();
@@ -456,7 +456,7 @@ fn convert_to_v3_boundary_iteration_values() {
     let plaintext = b"test";
     
     let mut legacy = Vec::new();
-    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 5).unwrap();
     
     // Test minimum boundary value (1)
     // Note: 5_000_000 is valid but too slow for regular tests
@@ -484,7 +484,7 @@ fn convert_to_v3_works_with_owned_vec_no_leak() {
     let plaintext = b"test data";
     
     let mut legacy = Vec::new();
-    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 5).unwrap();
     
     // Create owned Vec - no 'static needed!
     let owned_data: Vec<u8> = legacy; // Take ownership
@@ -495,7 +495,7 @@ fn convert_to_v3_works_with_owned_vec_no_leak() {
         writer.clone(),
         &old_pw,
         Some(&new_pw),
-        1000,
+        5,
     )
     .unwrap();
     
@@ -515,7 +515,7 @@ fn convert_to_v3_works_with_temporary_data() {
     let plaintext = b"temporary test";
     
     let mut legacy = Vec::new();
-    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 5).unwrap();
     
     // Create temporary Vec in a scope
     let writer = ThreadSafeVec::new();
@@ -526,7 +526,7 @@ fn convert_to_v3_works_with_temporary_data() {
             writer.clone(),
             &old_pw,
             Some(&new_pw),
-            1000,
+            5,
         )
         .unwrap();
         assert!(generated.is_none());
@@ -548,7 +548,7 @@ fn convert_to_v3_works_with_different_writer_types() {
     let plaintext = b"writer test";
     
     let mut legacy = Vec::new();
-    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 5).unwrap();
     
     // Test with Vec<u8> writer
     let mut vec_writer = Vec::new();
@@ -557,7 +557,7 @@ fn convert_to_v3_works_with_different_writer_types() {
         &mut vec_writer,
         &old_pw,
         Some(&new_pw),
-        1000,
+        5,
     )
     .unwrap();
     assert!(generated1.is_none());
@@ -573,7 +573,7 @@ fn convert_to_v3_works_with_different_writer_types() {
         writer.clone(),
         &old_pw,
         Some(&new_pw),
-        1000,
+        5,
     )
     .unwrap();
     assert!(generated2.is_none());
@@ -596,7 +596,7 @@ fn convert_to_v3_handles_large_files() {
     let plaintext = vec![0x42u8; 1_000_000];
     
     let mut legacy = Vec::new();
-    encrypt(Cursor::new(&plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    encrypt(Cursor::new(&plaintext), &mut legacy, &old_pw, 5).unwrap();
     
     let writer = ThreadSafeVec::new();
     let generated = convert_to_v3(
@@ -604,7 +604,7 @@ fn convert_to_v3_handles_large_files() {
         writer.clone(),
         &old_pw,
         Some(&new_pw),
-        1000,
+        5,
     )
     .unwrap();
     
@@ -627,7 +627,7 @@ fn convert_to_v3_multiple_conversions_sequential() {
     let plaintext = b"sequential test";
     
     let mut legacy = Vec::new();
-    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 5).unwrap();
     
     // First conversion
     let writer1 = ThreadSafeVec::new();
@@ -636,7 +636,7 @@ fn convert_to_v3_multiple_conversions_sequential() {
         writer1.clone(),
         &old_pw,
         Some(&new_pw1),
-        1000,
+        5,
     )
     .unwrap();
     assert!(generated1.is_none());
@@ -649,7 +649,7 @@ fn convert_to_v3_multiple_conversions_sequential() {
         writer2.clone(),
         &new_pw1,
         Some(&new_pw2),
-        1000,
+        5,
     )
     .unwrap();
     assert!(generated2.is_none());
@@ -674,7 +674,7 @@ fn convert_to_v3_v3_re_encryption() {
     
     // Create v3 file
     let mut v3_input = Vec::new();
-    encrypt(Cursor::new(plaintext), &mut v3_input, &old_pw, 1000).unwrap();
+    encrypt(Cursor::new(plaintext), &mut v3_input, &old_pw, 5).unwrap();
     
     // Re-encrypt with new password and higher iterations
     let writer = ThreadSafeVec::new();
@@ -750,7 +750,7 @@ fn convert_to_v3_thread_safety() {
     let plaintext = b"thread safety test";
     
     let mut legacy = Vec::new();
-    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 5).unwrap();
     
     // Test multiple threads converting simultaneously
     let mut handles = Vec::new();
@@ -766,7 +766,7 @@ fn convert_to_v3_thread_safety() {
                 writer.clone(),
                 &old_pw_clone,
                 Some(&new_pw_clone),
-                1000,
+                5,
             )
             .unwrap();
             
@@ -800,7 +800,7 @@ fn convert_to_v3_stress_many_conversions() {
     let plaintext = b"stress test";
     
     let mut legacy = Vec::new();
-    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 5).unwrap();
     
     // Perform 100 conversions
     for i in 0..100 {
@@ -810,7 +810,7 @@ fn convert_to_v3_stress_many_conversions() {
             writer.clone(),
             &old_pw,
             Some(&new_pw),
-            1000,
+            5,
         )
         .unwrap_or_else(|e| panic!("Conversion {i} failed: {e:?}"));
         
@@ -838,7 +838,7 @@ fn convert_to_v3_block_boundary_sizes() {
         let plaintext = vec![0xAAu8; size];
         
         let mut legacy = Vec::new();
-        encrypt(Cursor::new(&plaintext), &mut legacy, &old_pw, 1000).unwrap();
+        encrypt(Cursor::new(&plaintext), &mut legacy, &old_pw, 5).unwrap();
         
         let writer = ThreadSafeVec::new();
         let generated = convert_to_v3(
@@ -846,7 +846,7 @@ fn convert_to_v3_block_boundary_sizes() {
             writer.clone(),
             &old_pw,
             Some(&new_pw),
-            1000,
+            5,
         )
         .unwrap();
         
@@ -870,7 +870,7 @@ fn convert_to_v3_error_propagation() {
     let plaintext = b"error test";
     
     let mut legacy = Vec::new();
-    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 5).unwrap();
     
     // Wrong password should propagate error from decrypt thread
     let writer = ThreadSafeVec::new();
@@ -879,7 +879,7 @@ fn convert_to_v3_error_propagation() {
         writer,
         &wrong_pw, // Wrong password
         Some(&new_pw),
-        1000,
+        5,
     );
     
     assert!(result.is_err(), "Should propagate error from decrypt thread");
@@ -908,7 +908,7 @@ fn convert_to_v3_no_memory_leaks() {
     let plaintext = b"memory test";
     
     let mut legacy = Vec::new();
-    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 5).unwrap();
     
     // Create owned data that will be dropped after conversion
     let owned_data: Vec<u8> = legacy;
@@ -920,7 +920,7 @@ fn convert_to_v3_no_memory_leaks() {
             writer.clone(),
             &old_pw,
             Some(&new_pw),
-            1000,
+            5,
         )
         .unwrap();
         assert!(generated.is_none());
@@ -947,7 +947,7 @@ fn convert_to_v3_encrypted_file_vault_use_case() {
     let plaintext = b"vault test data";
     
     let mut legacy = Vec::new();
-    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
+    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 5).unwrap();
     
     // Simulate CypherText (secure-gate Dynamic<Vec<u8>>)
     let ciphertext: Dynamic<Vec<u8>> = Dynamic::new(legacy);
@@ -963,7 +963,7 @@ fn convert_to_v3_encrypted_file_vault_use_case() {
         writer.clone(),
         &old_pw,
         Some(&new_pw),
-        1000,
+        5,
     )
     .unwrap();
     

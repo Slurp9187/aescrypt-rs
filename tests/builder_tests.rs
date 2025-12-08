@@ -26,8 +26,8 @@ mod tests {
 
         // Test with low iteration counts - performance testing is in benches/
         let cases = [
-            (1000, [0xaau8; 16]),
-            (100, [0xbbu8; 16]),
+            (5, [0xaau8; 16]),
+            (5, [0xbbu8; 16]),
             (1, [0xc0u8; 16]),
         ];
 
@@ -107,7 +107,7 @@ mod tests {
     #[test]
     fn pbkdf2_builder_clone() {
         let builder1 = Pbkdf2Builder::new()
-            .with_iterations(10_000)
+            .with_iterations(5)
             .with_salt([0xBB; 16]);
         
         let builder2 = builder1.clone();
@@ -120,7 +120,7 @@ mod tests {
     fn pbkdf2_builder_determinism() {
         let password = PasswordString::new("deterministic".to_string());
         let salt = [0xCC; 16];
-        let iterations = 1_000;
+        let iterations = 5;
         
         let mut key1 = Aes256Key32::new([0u8; 32]);
         let mut key2 = Aes256Key32::new([0u8; 32]);
@@ -147,7 +147,7 @@ mod tests {
     #[test]
     fn pbkdf2_builder_salt_sensitivity() {
         let password = PasswordString::new("salt-test".to_string());
-        let iterations = 1_000;
+        let iterations = 5;
         
         let mut key1 = Aes256Key32::new([0u8; 32]);
         let mut key2 = Aes256Key32::new([0u8; 32]);
@@ -201,7 +201,7 @@ mod tests {
     #[test]
     fn pbkdf2_builder_password_sensitivity() {
         let salt = [0xEE; 16];
-        let iterations = 1_000;
+        let iterations = 5;
         
         let mut key1 = Aes256Key32::new([0u8; 32]);
         let mut key2 = Aes256Key32::new([0u8; 32]);
@@ -233,10 +233,10 @@ mod tests {
         let builder = Pbkdf2Builder::new()
             .with_iterations(5_000)
             .with_salt([0xFF; 16])
-            .with_iterations(10_000) // Override previous
+            .with_iterations(5) // Override previous
             .with_salt([0xAA; 16]); // Override previous
         
-        assert_eq!(builder.iterations(), 10_000);
+        assert_eq!(builder.iterations(), 5);
         assert_eq!(builder.salt(), &[0xAA; 16]);
         
         builder.derive_secure(&password, &mut key).unwrap();

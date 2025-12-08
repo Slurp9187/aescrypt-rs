@@ -26,7 +26,7 @@ Each JSON file contains an array of objects with:
 - `ciphertext_hex`: The encrypted data in hexadecimal format (string)
 
 These vectors are used by multiple test files:
-- `tests/vector/vector_tests.rs` - Vector-based encryption/decryption tests
+- `tests/vector_tests.rs` - Vector-based encryption/decryption tests
 - `tests/convert_tests.rs` - Legacy conversion tests
 - `tests/header_tests.rs` - Header parsing tests
 - `tests/file_ops_tests.rs` - File I/O tests
@@ -67,7 +67,7 @@ The `scripts/` directory contains Python scripts used to generate these test fil
 
 ### Vector Tests
 
-The JSON test vectors are loaded and used in `tests/vector/vector_tests.rs` to verify:
+The JSON test vectors are loaded and used in `tests/vector_tests.rs` to verify:
 - Encryption produces expected ciphertext
 - Decryption recovers original plaintext
 - Round-trip encryption/decryption works correctly

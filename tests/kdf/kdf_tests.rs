@@ -107,7 +107,7 @@ mod tests {
         let salt = Salt16::from([0x42; 16]);
 
         // Test with low iteration counts - performance testing is in benches/
-        let iteration_counts = vec![1, 10, 100, 1000, 8192];
+        let iteration_counts = vec![1, 5, 10];
 
         for &iterations in &iteration_counts {
             let mut key1 = Aes256Key32::new([0u8; 32]);

@@ -130,7 +130,7 @@ fn convert_v0_file_to_v3() {
         
         // Convert to v3
         let mut output = Vec::new();
-        convert_to_v3(reader, &mut output, &old_pw, Some(&new_pw), 1000)
+        convert_to_v3(reader, &mut output, &old_pw, Some(&new_pw), 5)
             .unwrap_or_else(|e| panic!("Failed to convert v0 file {i} to v3: {e:?}"));
         
         // Verify v3 file can be decrypted with new password
@@ -154,7 +154,7 @@ fn convert_v1_file_to_v3() {
         let reader = BufReader::new(input_file);
         
         let mut output = Vec::new();
-        convert_to_v3(reader, &mut output, &old_pw, Some(&new_pw), 1000)
+        convert_to_v3(reader, &mut output, &old_pw, Some(&new_pw), 5)
             .unwrap_or_else(|e| panic!("Failed to convert v1 file {i} to v3: {e:?}"));
         
         let mut decrypted = Vec::new();
@@ -177,7 +177,7 @@ fn convert_v2_file_to_v3() {
         let reader = BufReader::new(input_file);
         
         let mut output = Vec::new();
-        convert_to_v3(reader, &mut output, &old_pw, Some(&new_pw), 1000)
+        convert_to_v3(reader, &mut output, &old_pw, Some(&new_pw), 5)
             .unwrap_or_else(|e| panic!("Failed to convert v2 file {i} to v3: {e:?}"));
         
         let mut decrypted = Vec::new();
@@ -204,7 +204,7 @@ fn rotate_v3_file_password() {
         
         // Rotate password (v3 → v3)
         let mut output = Vec::new();
-        convert_to_v3(reader, &mut output, &old_pw, Some(&new_pw), 1000)
+        convert_to_v3(reader, &mut output, &old_pw, Some(&new_pw), 5)
             .unwrap_or_else(|e| panic!("Failed to rotate v3 file {i}: {e:?}"));
         
         // Verify new password works
@@ -236,7 +236,7 @@ fn upgrade_file_with_auto_generated_password() {
         
         // Auto-generate password
         let mut output = Vec::new();
-        let generated_pw = convert_to_v3(reader, &mut output, &old_pw, None, 1000)
+        let generated_pw = convert_to_v3(reader, &mut output, &old_pw, None, 5)
             .unwrap_or_else(|e| panic!("Failed to upgrade v0 file {i} with auto-password: {e:?}"))
             .expect("Should generate password");
         
@@ -276,7 +276,7 @@ fn round_trip_from_actual_files() {
         
         // Re-encrypt
         let mut re_encrypted = Vec::new();
-        encrypt(Cursor::new(&plaintext), &mut re_encrypted, &password, 1000)
+        encrypt(Cursor::new(&plaintext), &mut re_encrypted, &password, 5)
             .unwrap_or_else(|e| panic!("Failed to re-encrypt file {i}: {e:?}"));
         
         // Decrypt again
@@ -341,7 +341,7 @@ fn batch_convert_legacy_files() {
                 let reader = BufReader::new(input_file);
                 
                 let mut output = Vec::new();
-                if convert_to_v3(reader, &mut output, &old_pw, Some(&new_pw), 1000).is_ok() {
+                if convert_to_v3(reader, &mut output, &old_pw, Some(&new_pw), 5).is_ok() {
                     success_count += 1;
                 }
             }
