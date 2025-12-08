@@ -1,5 +1,5 @@
 //! src/core/encryptor/encrypt.rs
-//! Aescrypt encryption — secure-gate v0.5.5+ gold standard (2025)
+//! Aescrypt encryption — secure-gate gold standard
 //! Zero secret exposure, zero-cost, auto-zeroizing
 
 use crate::aliases::{Aes256Key32, EncryptedSessionBlock48, PasswordString};
@@ -15,7 +15,8 @@ use crate::error::AescryptError;
 use aes::cipher::KeyInit;
 use aes::Aes256Enc;
 use hmac::Mac;
-use secure_gate::SecureRandomExt;
+use secure_gate::Fixed;
+// use secure_gate::DynamicRng;
 use std::io::{Read, Write};
 
 /// Encrypt an Aescrypt file (v3+) — zero secret exposure, maximum security
@@ -44,9 +45,9 @@ where
     write_extensions(&mut output, AESCRYPT_LATEST_VERSION, None)?;
 
     // Generate secure random values — wrapped from birth
-    let public_iv = RandomIv16::new();
-    let session_iv = RandomIv16::new();
-    let session_key = RandomAes256Key32::new();
+    let public_iv = Fixed::from(*RandomIv16::generate().expose_secret());
+    let session_iv = Fixed::from(*RandomIv16::generate().expose_secret());
+    let session_key = Fixed::from(*RandomAes256Key32::generate().expose_secret());
 
     write_iterations(&mut output, kdf_iterations, AESCRYPT_LATEST_VERSION)?;
     write_public_iv(&mut output, &public_iv)?;

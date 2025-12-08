@@ -2,7 +2,6 @@
 // FILE: src/error.rs
 // ============================================================================
 
-//! Custom error type for the AES Crypt library.
 
 use thiserror::Error;
 

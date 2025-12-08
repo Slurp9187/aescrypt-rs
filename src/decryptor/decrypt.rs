@@ -1,7 +1,5 @@
 //! src/core/decryptor/decrypt.rs
-//! Aescrypt decryption — secure-gate v0.5.5+ perfection (2025)
-
-use secure_gate::secure;
+//! Aescrypt decryption — secure-gate perfection
 
 use crate::decryptor::read::{
     consume_all_extensions, read_exact_span, read_file_version, read_kdf_iterations,
@@ -17,7 +15,11 @@ use std::io::{Read, Write};
 
 /// Decrypt an Aescrypt file (v0–v3) — zero secret exposure, maximum security
 #[inline(always)]
-pub fn decrypt<R, W>(mut input: R, mut output: W, password: &PasswordString) -> Result<(), AescryptError>
+pub fn decrypt<R, W>(
+    mut input: R,
+    mut output: W,
+    password: &PasswordString,
+) -> Result<(), AescryptError>
 where
     R: Read,
     W: Write,
@@ -32,7 +34,7 @@ where
     let public_iv: Iv16 = Iv16::from(read_exact_span(&mut input)?);
 
     // Setup key — secure buffer from birth
-    let mut setup_key = secure!(Aes256Key32, [0u8; 32].into());
+    let mut setup_key = Aes256Key32::new([0u8; 32]);
 
     if file_version <= 2 {
         derive_secure_ackdf_key(password, &public_iv, &mut setup_key)?;

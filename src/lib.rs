@@ -1,6 +1,5 @@
 // src/lib.rs
 
-pub mod aliases;
 #[cfg(feature = "batch-ops")]
 pub mod batch_ops;
 pub mod builders;
@@ -12,6 +11,8 @@ pub mod encryptor;
 pub mod error;
 pub mod header;
 pub mod utils;
+
+pub mod aliases;
 
 // High-level API — this is what 99% of users import
 pub use decryptor::decrypt;

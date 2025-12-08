@@ -3,16 +3,17 @@
 //! All round-trip and deterministic tests pass
 //! No verify_hmac helper — we use the exact same pattern as encrypt_stream
 
+use crate::aliases::Trailer32;
 use crate::decryptor::stream::context::DecryptionContext;
 use crate::error::AescryptError;
 use std::io::Write;
 
 /// Extract 32-byte HMAC using simple wrap-around (used by v0 and v3)
 #[inline(always)]
-pub fn extract_hmac_simple(ctx: &DecryptionContext) -> [u8; 32] {
-    let mut expected = [0u8; 32];
+pub fn extract_hmac_simple(ctx: &DecryptionContext) -> Trailer32 {
+    let mut expected = Trailer32::new([0u8; 32]);
     let ring = ctx.ring_buffer.expose_secret();
-    for (i, byte) in expected.iter_mut().enumerate() {
+    for (i, byte) in expected.expose_secret_mut().iter_mut().enumerate() {
         *byte = ring[(ctx.tail_index + i) % 64];
     }
     expected
@@ -20,22 +21,22 @@ pub fn extract_hmac_simple(ctx: &DecryptionContext) -> [u8; 32] {
 
 /// Extract 32-byte HMAC + modulo byte using scattered layout (v1/v2 only)
 #[inline(always)]
-pub fn extract_hmac_scattered(ctx: &DecryptionContext) -> ([u8; 32], u8) {
+pub fn extract_hmac_scattered(ctx: &DecryptionContext) -> (Trailer32, u8) {
     let ring = ctx.ring_buffer.expose_secret();
     let modulo_byte = ring[ctx.tail_index];
 
-    let mut expected = [0u8; 32];
+    let mut expected = Trailer32::new([0u8; 32]);
 
     // First 15 bytes: tail+1 → tail+15
     let start1 = (ctx.tail_index + 1) % 64;
-    expected[..15].copy_from_slice(&ring[start1..start1 + 15]);
+    expected.expose_secret_mut()[..15].copy_from_slice(&ring[start1..start1 + 15]);
 
     // Next 16 bytes: tail+16 → tail+31
     let start2 = (ctx.tail_index + 16) % 64;
-    expected[15..31].copy_from_slice(&ring[start2..start2 + 16]);
+    expected.expose_secret_mut()[15..31].copy_from_slice(&ring[start2..start2 + 16]);
 
     // Final byte: tail+32
-    expected[31] = ring[(ctx.tail_index + 32) % 64];
+    expected.expose_secret_mut()[31] = ring[(ctx.tail_index + 32) % 64];
 
     (expected, modulo_byte)
 }

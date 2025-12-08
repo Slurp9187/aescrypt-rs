@@ -1,5 +1,5 @@
 //! src/encryptor/write.rs
-//! AES Crypt write helpers — FULL secure-gate v0.5.10+ protection
+//! AES Crypt write helpers — FULL secure-gate protection
 
 use crate::aliases::{HmacSha256, Iv16};
 use crate::consts::PBKDF2_MAX_ITER;
@@ -57,5 +57,5 @@ pub fn write_public_iv<W: Write>(writer: &mut W, iv: &Iv16) -> Result<(), Aescry
 
 #[inline]
 pub fn write_hmac<W: Write>(writer: &mut W, hmac: HmacSha256) -> Result<(), AescryptError> {
-    write_octets(writer, hmac.finalize().into_bytes().as_slice())
+    write_octets(writer, &*hmac.finalize().into_bytes())
 }

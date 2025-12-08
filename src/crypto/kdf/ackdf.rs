@@ -1,9 +1,10 @@
 //! src/crypto/kdf/ackdf.rs
-//! AES Crypt v0–v2 ACKDF — out-param, zero-exposure, secure-gate v0.5.10+
+//! AES Crypt v0–v2 ACKDF — out-param, zero-exposure, secure-gate
 
 use crate::aliases::{AckdfHashState32, Aes256Key32, PasswordString, Salt16};
 use crate::utils::utf8_to_utf16le;
 use crate::AescryptError;
+use secure_gate::Dynamic;
 use sha2::{Digest, Sha256};
 
 /// Fixed iteration count for ACKDF as defined by AES Crypt v0–v2 specification
@@ -22,7 +23,8 @@ pub fn derive_secure_ackdf_key(
     salt: &Salt16,
     out_key: &mut Aes256Key32,
 ) -> Result<(), AescryptError> {
-    let password_utf16le = utf8_to_utf16le(password.expose_secret().as_bytes())?;
+    let password_utf16le_raw = utf8_to_utf16le(password.expose_secret().as_bytes())?;
+    let password_utf16le: Dynamic<Vec<u8>> = Dynamic::new(password_utf16le_raw);
 
     let mut hasher = Sha256::new();
     let mut hash = AckdfHashState32::new([0u8; 32]); // ← semantic, zero-cost, auto-zeroized
@@ -32,7 +34,7 @@ pub fn derive_secure_ackdf_key(
 
     for _ in 0..ACKDF_ITERATIONS {
         hasher.update(hash.expose_secret());
-        hasher.update(&password_utf16le);
+        hasher.update(password_utf16le.expose_secret());
         hash = AckdfHashState32::new(hasher.finalize_reset().into());
     }
 

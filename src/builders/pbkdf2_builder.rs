@@ -1,12 +1,11 @@
 //! src/crypto/kdf/builder/pbkdf2.rs
-//! PBKDF2-HMAC-SHA512 builder — secure-gate v0.5.5+ best practices (2025)
+//! PBKDF2-HMAC-SHA512 builder — secure-gate best practices
 //! Zero-cost, zero-exposure, idiomatic, audit-ready
 
-use crate::aliases::{Aes256Key32, PasswordString, Salt16};
+use crate::aliases::{Aes256Key32, PasswordString, RandomSalt16, Salt16};
 use crate::consts::DEFAULT_PBKDF2_ITERATIONS;
 use crate::derive_secure_pbkdf2_key;
 use crate::error::AescryptError;
-use rand::{rngs::OsRng, TryRngCore};
 
 /// PBKDF2-HMAC-SHA512 key derivation builder
 ///
@@ -14,21 +13,17 @@ use rand::{rngs::OsRng, TryRngCore};
 #[derive(Debug, Clone)]
 pub struct Pbkdf2Builder {
     iterations: u32,
-    salt: [u8; 16], // Fixed size = no heap, no capacity leaks, zeroizable
+    salt: Salt16, // Secure from birth
 }
 
 impl Pbkdf2Builder {
     /// Create builder with strong defaults
     #[must_use]
     pub fn new() -> Self {
-        let mut salt = [0u8; 16];
-        OsRng
-            .try_fill_bytes(&mut salt)
-            .expect("OS RNG failed — system is critically broken");
         Self {
             // iterations: 600_000, // OWASP/NIST 2025+ recommendation
             iterations: DEFAULT_PBKDF2_ITERATIONS, // OWASP/NIST 2025+ recommendation
-            salt,
+            salt: Salt16::from(*RandomSalt16::generate().expose_secret()),
         }
     }
 
@@ -42,14 +37,14 @@ impl Pbkdf2Builder {
     /// Set custom salt — accepts [u8; 16], Salt16, etc.
     #[must_use]
     pub fn with_salt(mut self, salt: impl Into<[u8; 16]>) -> Self {
-        self.salt = salt.into();
+        self.salt = Salt16::from(salt.into());
         self
     }
 
     /// Current salt as raw 16-byte array (for serialization)
     #[must_use]
-    pub const fn salt(&self) -> &[u8; 16] {
-        &self.salt
+    pub fn salt(&self) -> &[u8; 16] {
+        self.salt.expose_secret()
     }
 
     /// Current iteration count
@@ -67,7 +62,7 @@ impl Pbkdf2Builder {
     ) -> Result<(), AescryptError> {
         derive_secure_pbkdf2_key(
             password,
-            &Salt16::from(self.salt), // zero-cost temporary borrow
+            &self.salt,
             self.iterations,
             out_key,
         )

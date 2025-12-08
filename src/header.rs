@@ -1,15 +1,7 @@
-//! src/header.rs
-//! Quick AES Crypt version detection — works with real v0–v3 files
 
 use crate::error::AescryptError;
 use std::io::Read;
 
-/// Reads just enough of the file to determine the AES Crypt version (0–3).
-///
-/// This function is deliberately lenient with v0 files (3-byte or 4-byte headers)
-/// because that's how the original AES Crypt tools behaved.
-///
-/// Returns `Ok(version)` or an appropriate error.
 pub fn read_version<R: Read>(mut reader: R) -> Result<u8, AescryptError> {
     let mut magic = [0u8; 3];
     reader.read_exact(&mut magic).map_err(AescryptError::Io)?;

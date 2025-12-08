@@ -58,14 +58,14 @@ impl DecryptionContext {
                 hmac.update(
                     &self.ring_buffer.expose_secret()[self.current_index..self.current_index + 16],
                 );
-                let mut block_bytes = [0u8; 16];
-                block_bytes.copy_from_slice(
+                let mut block_bytes = Block16::new([0u8; 16]);
+                block_bytes.expose_secret_mut().copy_from_slice(
                     &self.ring_buffer.expose_secret()[self.current_index..self.current_index + 16],
                 );
-                let mut aes_block = AesBlock::from(block_bytes);
+                let mut aes_block = AesBlock::from(*block_bytes.expose_secret());
                 cipher.decrypt_block(&mut aes_block);
                 xor_blocks(
-                    aes_block.as_slice(),
+                    aes_block.as_ref(),
                     &self.ring_buffer.expose_secret()[self.tail_index..self.tail_index + 16],
                     self.plaintext_block.expose_secret_mut(),
                 );
@@ -75,16 +75,16 @@ impl DecryptionContext {
                 if self.head_index == 64 {
                     self.head_index = 0;
                 }
-                let mut next_block = [0u8; 16];
-                let n = input.read(&mut next_block[..])?;
+                let mut next_block = Block16::new([0u8; 16]);
+                let n = input.read(next_block.expose_secret_mut())?;
                 if n < 16 {
                     self.ring_buffer.expose_secret_mut()[self.head_index..self.head_index + n]
-                        .copy_from_slice(&next_block[..n]);
+                        .copy_from_slice(&next_block.expose_secret()[..n]);
                     self.head_index += n;
                     break;
                 }
                 self.ring_buffer.expose_secret_mut()[self.head_index..self.head_index + 16]
-                    .copy_from_slice(&next_block[..]);
+                    .copy_from_slice(next_block.expose_secret());
                 self.head_index += 16;
             }
         }

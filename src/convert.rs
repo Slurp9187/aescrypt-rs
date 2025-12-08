@@ -1,27 +1,11 @@
-//! src/convert.rs
-//! Legacy → v3 conversion utilities
-//!
-//! Only **one** public function remains:
-//! - `convert_to_v3` – the modern, flexible API with separate old/new passwords and **256-bit random generation**
-//!
-//! The old `convert_to_v3` has been removed entirely (was soft-deprecated since 0.1.6).
+// src/convert.rs
 
 use crate::aliases::{PasswordString, RandomPassword32};
 use crate::{decrypt, encrypt, AescryptError};
 use pipe::pipe;
-use secure_gate::SecureRandomExt;
+// use secure_gate::SecureRandomExt;
 use std::io::{Read, Write};
 
-/// Convert any legacy v0–v2 file → modern v3
-///
-/// # Features
-/// - Supports **separate old & new passwords**  
-/// - `new_password = None` → generates a **256-bit (64 hex char) random password** and returns it  
-/// - Streaming, constant memory, fully parallel (decrypt + encrypt in separate threads)
-///
-/// # Returns
-/// - `Ok(Some(generated))` if a random password was created
-/// - `Ok(None)` if a password was supplied
 pub fn convert_to_v3<R, W>(
     input: R,
     output: W,
