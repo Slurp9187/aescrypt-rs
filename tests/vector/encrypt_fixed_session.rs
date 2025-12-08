@@ -1,4 +1,4 @@
-// tests/deterministic_encrypt/encrypt_fixed_session.rs
+// tests/vector/encrypt_fixed_session.rs
 // Deterministic v3 encryption – TEST ONLY
 // Exactly matches the official test vectors (including CREATED_BY extension + version byte in HMAC)
 
@@ -76,3 +76,4 @@ pub fn encrypt_with_fixed_session<R: Read, W: Write>(
 
     Ok(())
 }
+
