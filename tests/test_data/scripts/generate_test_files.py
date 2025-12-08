@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """
-Generate .aes test files for v0–v3 + deterministic
-Works correctly on Windows 11 from ANY directory
+Generate .aes test files from JSON test vectors for all AES Crypt versions.
+
+This script generates binary .aes test files from JSON test vectors for:
+- v0, v1, v2, v3 (from test_vectors_v*.json)
+- Deterministic v3 (from deterministic_test_vectors_v3.json)
+
+Works correctly on Windows 11 from ANY directory.
 """
 
 import json
@@ -32,7 +37,7 @@ def find_project_root() -> Path:
 
 
 PROJECT_ROOT = find_project_root()
-DATA_DIR = PROJECT_ROOT / "tests" / "vector" / "data"
+DATA_DIR = PROJECT_ROOT / "tests" / "test_data"
 OUTPUT_ROOT = DATA_DIR / "aes_test_files"
 
 print(f"Project root detected : {PROJECT_ROOT}")
@@ -131,4 +136,4 @@ if __name__ == "__main__":
     print("\nNext steps (PowerShell):")
     print('''    git add tests/test_data/aes_test_files
     git commit -m "Regenerate all v0-v3 + deterministic .aes test files"
-    git push origin secure''')
+    git push''')
