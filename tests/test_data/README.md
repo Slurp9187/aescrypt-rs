@@ -25,11 +25,17 @@ Each JSON file contains an array of objects with:
 - `plaintext`: The original unencrypted data (string)
 - `ciphertext_hex`: The encrypted data in hexadecimal format (string)
 
-These vectors are used by `tests/vector/vector_tests.rs` to verify that encryption and decryption produce the expected ciphertext and can correctly recover the plaintext.
+These vectors are used by multiple test files:
+- `tests/vector/vector_tests.rs` - Vector-based encryption/decryption tests
+- `tests/convert_tests.rs` - Legacy conversion tests
+- `tests/header_tests.rs` - Header parsing tests
+- `tests/file_ops_tests.rs` - File I/O tests
 
 ## Encrypted Test Files (.aes)
 
-The `aes_test_files/` directory contains actual encrypted files generated from the test vectors:
+The `aes_test_files/` directory contains actual encrypted files generated from the test vectors.
+
+**Location**: This directory is at `tests/test_data/` (top-level in tests) because it's shared across multiple test files, not just vector tests.
 
 ### Structure
 

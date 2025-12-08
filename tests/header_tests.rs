@@ -1,5 +1,5 @@
 //! tests/header_tests.rs
-//! Header validation using the *real* test vectors from tests/vector/data/
+//! Header validation using the *real* test vectors from tests/test_data/
 
 use aescrypt_rs::read_version;
 use hex::decode;
@@ -14,8 +14,7 @@ where
 {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
-        .join("vector")
-        .join("data")
+        .join("test_data")
         .join(filename);
 
     let content =

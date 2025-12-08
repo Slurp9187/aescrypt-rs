@@ -59,8 +59,7 @@ where
 {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
-        .join("vector")
-        .join("data")
+        .join("test_data")
         .join(filename);
 
     let content =

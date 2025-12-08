@@ -1014,8 +1014,7 @@ where
 {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
-        .join("vector")
-        .join("data")
+        .join("test_data")
         .join(filename);
 
     let content = std::fs::read_to_string(&path).expect("failed to read test vector file");

@@ -2,7 +2,7 @@
 //! Real-world file-based operations using actual .aes files
 //!
 //! Tests decryption, conversion, and rotation using actual AES Crypt files
-//! from tests/vector/data/aes_test_files/
+//! from tests/test_data/aes_test_files/
 
 use aescrypt_rs::aliases::PasswordString;
 use aescrypt_rs::{convert_to_v3, decrypt, encrypt};
@@ -16,8 +16,7 @@ fn get_aes_test_file_path(version: &str, index: usize) -> PathBuf {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     PathBuf::from(manifest_dir)
         .join("tests")
-        .join("vector")
-        .join("data")
+        .join("test_data")
         .join("aes_test_files")
         .join(version)
         .join(format!("{}_test_{:02}.txt.aes", version, index))
@@ -27,8 +26,7 @@ fn get_v3_deterministic_path(index: usize) -> PathBuf {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     PathBuf::from(manifest_dir)
         .join("tests")
-        .join("vector")
-        .join("data")
+        .join("test_data")
         .join("aes_test_files")
         .join("v3")
         .join(format!("v3_deterministic_{:02}.txt.aes", index))

@@ -129,6 +129,6 @@ if __name__ == "__main__":
 
     print("ALL DONE!")
     print("\nNext steps (PowerShell):")
-    print('''    git add tests/vector/data/aes_test_files
+    print('''    git add tests/test_data/aes_test_files
     git commit -m "Regenerate all v0-v3 + deterministic .aes test files"
     git push origin secure''')
