@@ -2,7 +2,7 @@
 //! AES Crypt write helpers — FULL secure-gate protection
 
 use crate::aliases::{HmacSha256, Iv16};
-use crate::consts::PBKDF2_MAX_ITER;
+use crate::consts::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
 use crate::error::AescryptError;
 use hmac::Mac;
 use std::io::Write;
@@ -42,7 +42,7 @@ pub fn write_iterations<W: Write>(
     if version < 3 {
         return Err(AescryptError::UnsupportedVersion(version));
     }
-    if iterations == 0 || iterations > PBKDF2_MAX_ITER {
+    if !(PBKDF2_MIN_ITER..=PBKDF2_MAX_ITER).contains(&iterations) {
         return Err(AescryptError::Header("invalid KDF iterations".into()));
     }
     write_octets(writer, &iterations.to_be_bytes())

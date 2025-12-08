@@ -14,7 +14,7 @@
 use crate::aliases::{
     Aes256Key32, Block16, EncryptedSessionBlock48, HmacSha256, Iv16, PasswordString,
 };
-use crate::consts::PBKDF2_MAX_ITER;
+use crate::consts::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
 use crate::kdf::pbkdf2::derive_secure_pbkdf2_key;
 use crate::error::AescryptError;
 use crate::utils::xor_blocks;
@@ -35,7 +35,7 @@ pub fn derive_setup_key(
     iterations: u32,
     out_key: &mut Aes256Key32,
 ) -> Result<(), AescryptError> {
-    if iterations == 0 || iterations > PBKDF2_MAX_ITER {
+    if !(PBKDF2_MIN_ITER..=PBKDF2_MAX_ITER).contains(&iterations) {
         return Err(AescryptError::Header("invalid KDF iterations".into()));
     }
     derive_secure_pbkdf2_key(password, public_iv, iterations, out_key)
