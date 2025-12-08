@@ -3,11 +3,9 @@ use crate::error::AescryptError;
 use crate::utils::xor_blocks; // Note: This is crate::utils (existing), not stream/utils
 use aes::cipher::BlockDecrypt;
 use aes::{Aes256Dec, Block as AesBlock};
-use hmac::{Hmac, Mac};
-use sha2::Sha256;
+use crate::aliases::HmacSha256;
+use hmac::Mac;
 use std::io::{Read, Write};
-
-type HmacSha256 = Hmac<Sha256>;
 
 pub struct DecryptionContext {
     pub ring_buffer: RingBuffer64,

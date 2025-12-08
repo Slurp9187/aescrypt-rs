@@ -4,9 +4,13 @@ use secure_gate::dynamic_alias;
 use secure_gate::{fixed_alias, fixed_alias_rng};
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Re-exported crypto primitives — available via `aliases::*`
+// HMAC primitives — available via `aliases::*`
 // ─────────────────────────────────────────────────────────────────────────────
-pub use crate::crypto::hmac::{HmacSha256, HmacSha512};
+use hmac::Hmac;
+use sha2::{Sha256, Sha512};
+
+pub type HmacSha256 = Hmac<Sha256>;
+pub type HmacSha512 = Hmac<Sha512>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SpanBuffer — generic secure stack buffer (direct alias to secure-gate's Fixed)

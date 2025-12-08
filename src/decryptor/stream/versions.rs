@@ -10,11 +10,9 @@ use crate::decryptor::stream::utils::{
 use crate::error::AescryptError;
 use aes::cipher::KeyInit;
 use aes::Aes256Dec;
-use hmac::{Hmac, Mac};
-use sha2::Sha256;
+use crate::aliases::HmacSha256;
+use hmac::Mac;
 use std::io::{Read, Write};
-
-type HmacSha256 = Hmac<Sha256>;
 
 #[derive(Clone, Copy)]
 pub enum StreamConfig {

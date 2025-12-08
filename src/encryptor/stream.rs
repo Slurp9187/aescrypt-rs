@@ -6,11 +6,9 @@ use crate::error::AescryptError;
 use crate::utils::xor_blocks;
 use aes::cipher::{BlockEncrypt, KeyInit};
 use aes::{Aes256Enc, Block as AesBlock};
-use hmac::{Hmac, Mac};
-use sha2::Sha256;
+use crate::aliases::HmacSha256;
+use hmac::Mac;
 use std::io::{Read, Write};
-
-type HmacSha256 = Hmac<Sha256>;
 
 #[inline(always)]
 pub fn encrypt_stream<R, W>(

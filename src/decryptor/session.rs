@@ -6,7 +6,7 @@
 
 use crate::aliases::{Aes256Key32, Block16, EncryptedSessionBlock48, Iv16, SessionHmacTag32};
 use crate::decryptor::read_exact_span;
-use crate::{crypto::hmac::HmacSha256, error::AescryptError, utils::xor_blocks};
+use crate::{aliases::HmacSha256, error::AescryptError, utils::xor_blocks};
 use aes::cipher::{BlockDecrypt, KeyInit};
 use aes::{Aes256Dec, Block as AesBlock};
 use hmac::Mac;
