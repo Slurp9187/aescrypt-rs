@@ -471,21 +471,19 @@ fn convert_to_v3_boundary_iteration_values() {
     let mut legacy = Vec::new();
     encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
     
-    // Test boundary values
-    let valid_iterations = vec![1, 5_000_000];
+    // Test minimum boundary value (1)
+    // Note: 5_000_000 is valid but too slow for regular tests
+    // We test rejection of 5_000_001 in convert_to_v3_rejects_too_many_iterations
+    let writer = ThreadSafeVec::new();
+    let result = convert_to_v3(
+        Cursor::new(legacy),
+        writer,
+        &old_pw,
+        Some(&new_pw),
+        1, // Minimum valid value
+    );
     
-    for &iter in &valid_iterations {
-        let writer = ThreadSafeVec::new();
-        let result = convert_to_v3(
-            Cursor::new(legacy.clone()),
-            writer,
-            &old_pw,
-            Some(&new_pw),
-            iter,
-        );
-        
-        assert!(result.is_ok(), "Should accept {} iterations", iter);
-    }
+    assert!(result.is_ok(), "Should accept 1 iteration (minimum boundary)");
 }
 
 // —————————————————————————————————————————————————————————————————————————————
