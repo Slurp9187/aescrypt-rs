@@ -1,5 +1,5 @@
-//! src/decryptor/stream/utils.rs
-//! Final version — minimal, correct, battle-tested
+//! src/decryptor/stream/trailer.rs
+//! Trailer processing — HMAC extraction and final block writing
 //! All round-trip and deterministic tests pass
 //! No verify_hmac helper — we use the exact same pattern as encrypt_stream
 
@@ -87,3 +87,4 @@ pub fn write_final_pkcs7<W: Write>(
     output.write_all(&block[..16 - padding as usize])?;
     Ok(())
 }
+

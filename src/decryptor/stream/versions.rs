@@ -4,7 +4,7 @@
 
 use crate::aliases::{Aes256Key32, Iv16};
 use crate::decryptor::stream::context::DecryptionContext;
-use crate::decryptor::stream::utils::{
+use crate::decryptor::stream::trailer::{
     extract_hmac_scattered, extract_hmac_simple, write_final_modulo, write_final_pkcs7,
 };
 use crate::error::AescryptError;
