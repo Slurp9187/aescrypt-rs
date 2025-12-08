@@ -110,6 +110,9 @@ where
 /// use std::io::Cursor;
 ///
 /// let password = PasswordString::new("secret".to_string());
+/// let encrypted_file1 = b"encrypted data 1";
+/// let encrypted_file2 = b"encrypted data 2";
+/// let encrypted_file3 = b"encrypted data 3";
 /// let mut batch = vec![
 ///     (Cursor::new(&encrypted_file1[..]), Vec::new()),
 ///     (Cursor::new(&encrypted_file2[..]), Vec::new()),

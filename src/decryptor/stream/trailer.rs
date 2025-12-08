@@ -6,6 +6,7 @@
 use crate::aliases::Trailer32;
 use crate::decryptor::stream::context::DecryptionContext;
 use crate::error::AescryptError;
+use secure_gate::conversions::SecureConversionsExt;
 use std::io::Write;
 
 /// Extract 32-byte HMAC using simple wrap-around (used by v0 and v3)
@@ -74,14 +75,19 @@ pub fn write_final_pkcs7<W: Write>(
     let block = ctx.plaintext_block.expose_secret();
     let padding = block[15];
 
+    // Validate padding value range (non-secret, can be early return)
     if padding == 0 || padding > 16 {
         return Err(AescryptError::Header("v3: invalid PKCS#7 padding".into()));
     }
 
-    for &b in &block[16 - padding as usize..] {
-        if b != padding {
-            return Err(AescryptError::Header("v3: corrupt PKCS#7 padding".into()));
-        }
+    // Constant-time validation: compare expected padding bytes with actual
+    let padding_start = 16 - padding as usize;
+    let expected_padding = [padding; 16];
+    let actual_padding_slice = &block[padding_start..];
+    let expected_padding_slice = &expected_padding[padding_start..];
+
+    if !actual_padding_slice.ct_eq(expected_padding_slice) {
+        return Err(AescryptError::Header("v3: corrupt PKCS#7 padding".into()));
     }
 
     output.write_all(&block[..16 - padding as usize])?;

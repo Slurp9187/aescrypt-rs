@@ -10,6 +10,7 @@ use crate::{aliases::HmacSha256, error::AescryptError, utils::xor_blocks};
 use aes::cipher::{BlockDecrypt, KeyInit};
 use aes::{Aes256Dec, Block as AesBlock};
 use hmac::Mac;
+use secure_gate::conversions::SecureConversionsExt;
 use std::convert::TryInto;
 use std::io::Read;
 
@@ -51,7 +52,9 @@ where
         mac.update(&[file_version]); // v3 spec: version byte included in session HMAC
     }
 
-    if &*mac.finalize().into_bytes() != expected_hmac.expose_secret().as_ref() {
+    let computed_hmac = mac.finalize().into_bytes();
+    let computed_hmac_slice: &[u8] = computed_hmac.as_ref();
+    if !computed_hmac_slice.ct_eq(expected_hmac.expose_secret()) {
         return Err(AescryptError::Header(
             "session data corrupted or tampered (HMAC mismatch)".into(),
         ));

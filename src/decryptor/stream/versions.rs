@@ -12,6 +12,7 @@ use aes::cipher::KeyInit;
 use aes::Aes256Dec;
 use crate::aliases::HmacSha256;
 use hmac::Mac;
+use secure_gate::conversions::SecureConversionsExt;
 use std::io::{Read, Write};
 
 /// Configuration for different AES Crypt stream formats.
@@ -105,7 +106,9 @@ where
 
             let expected_hmac = extract_hmac_simple(&ctx);
 
-            if &*hmac.finalize().into_bytes() != expected_hmac.expose_secret().as_ref() {
+            let computed_hmac = hmac.finalize().into_bytes();
+            let computed_hmac_slice: &[u8] = computed_hmac.as_ref();
+            if !computed_hmac_slice.ct_eq(expected_hmac.expose_secret()) {
                 return Err(AescryptError::Header("HMAC verification failed".into()));
             }
 
@@ -121,7 +124,9 @@ where
 
             let (expected_hmac, modulo_byte) = extract_hmac_scattered(&ctx);
 
-            if &*hmac.finalize().into_bytes() != expected_hmac.expose_secret().as_ref() {
+            let computed_hmac = hmac.finalize().into_bytes();
+            let computed_hmac_slice: &[u8] = computed_hmac.as_ref();
+            if !computed_hmac_slice.ct_eq(expected_hmac.expose_secret()) {
                 return Err(AescryptError::Header("HMAC verification failed".into()));
             }
 
@@ -137,7 +142,9 @@ where
 
             let expected_hmac = extract_hmac_simple(&ctx);
 
-            if &*hmac.finalize().into_bytes() != expected_hmac.expose_secret().as_ref() {
+            let computed_hmac = hmac.finalize().into_bytes();
+            let computed_hmac_slice: &[u8] = computed_hmac.as_ref();
+            if !computed_hmac_slice.ct_eq(expected_hmac.expose_secret()) {
                 return Err(AescryptError::Header("HMAC verification failed".into()));
             }
 
