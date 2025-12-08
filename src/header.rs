@@ -1,7 +1,56 @@
+//! # Header Parsing
+//!
+//! This module provides functions for parsing AES Crypt file headers.
+//! The header contains the magic bytes "AES", version information, and other metadata.
 
 use crate::error::AescryptError;
 use std::io::Read;
 
+/// Read and validate the AES Crypt file version from the header.
+///
+/// This function reads the minimal header information needed to determine the file version
+/// without performing a full decryption. It's optimized for fast version detection in batch
+/// operations or file management tools.
+///
+/// # Header Format
+///
+/// - **v0**: `"AES"` (3 bytes) or `"AES\x00"` (4 bytes) or `"AES\x00\x00"` (5 bytes)
+/// - **v1-v3**: `"AES"` + version byte (0x01-0x03) + reserved byte (0x00) = 5 bytes
+///
+/// # Arguments
+///
+/// * `reader` - A reader that implements `Read`, positioned at the start of the file
+///
+/// # Returns
+///
+/// Returns the version number (0-3) if the header is valid, or an error if:
+/// - The magic bytes are not "AES"
+/// - The version is greater than 3
+/// - The reserved byte is invalid (for v1-v3)
+/// - An I/O error occurs
+///
+/// # Errors
+///
+/// - [`AescryptError::Io`] - If an I/O error occurs while reading
+/// - [`AescryptError::Header`] - If the header is invalid or malformed
+///
+/// # Example
+///
+/// ```
+/// use aescrypt_rs::read_version;
+/// use std::io::Cursor;
+///
+/// // v3 file header
+/// let header = b"AES\x03\x00";
+/// let version = read_version(Cursor::new(header))?;
+/// assert_eq!(version, 3);
+///
+/// // v0 file header (3-byte)
+/// let header = b"AES";
+/// let version = read_version(Cursor::new(header))?;
+/// assert_eq!(version, 0);
+/// # Ok::<(), aescrypt_rs::AescryptError>(())
+/// ```
 pub fn read_version<R: Read>(mut reader: R) -> Result<u8, AescryptError> {
     let mut magic = [0u8; 3];
     reader.read_exact(&mut magic).map_err(AescryptError::Io)?;

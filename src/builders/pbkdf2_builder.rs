@@ -1,4 +1,4 @@
-//! src/crypto/kdf/builder/pbkdf2.rs
+//! src/builders/pbkdf2_builder.rs
 //! PBKDF2-HMAC-SHA512 builder — secure-gate best practices
 //! Zero-cost, zero-exposure, idiomatic, audit-ready
 

@@ -1,3 +1,9 @@
+//! # Decryption Context
+//!
+//! This module provides the decryption context for streaming decryption operations.
+//! The context manages a 64-byte ring buffer that enables constant-memory decryption
+//! of arbitrarily large files.
+
 use crate::aliases::{EncryptedSessionBlock48, Iv16, Block16, RingBuffer64};
 use crate::error::AescryptError;
 use crate::utils::xor_blocks; // Note: This is crate::utils (existing), not stream/utils
@@ -7,6 +13,25 @@ use crate::aliases::HmacSha256;
 use hmac::Mac;
 use std::io::{Read, Write};
 
+/// Decryption context for streaming CBC decryption.
+///
+/// This struct manages a 64-byte ring buffer that holds ciphertext blocks during
+/// the decryption process. The ring buffer allows for constant-memory decryption
+/// by reusing a fixed-size buffer regardless of file size.
+///
+/// ## Ring Buffer Layout
+///
+/// The 64-byte ring buffer is divided into four 16-byte blocks:
+/// - Block 0 (indices 0-15): Previous ciphertext block for CBC chaining
+/// - Block 1 (indices 16-31): Current ciphertext block being decrypted
+/// - Block 2 (indices 32-47): Next ciphertext block (if available)
+/// - Block 3 (indices 48-63): Future ciphertext block (if available)
+///
+/// ## Indices
+///
+/// - `tail_index`: Points to the start of the previous block (for CBC chaining)
+/// - `current_index`: Points to the start of the current block being decrypted
+/// - `head_index`: Points to where new data will be written
 pub struct DecryptionContext {
     pub ring_buffer: RingBuffer64,
     pub tail_index: usize,
@@ -17,6 +42,14 @@ pub struct DecryptionContext {
 }
 
 impl DecryptionContext {
+    /// Create a new decryption context initialized with the given IV.
+    ///
+    /// The IV is placed at the start of the ring buffer (indices 0-15) to serve
+    /// as the initial previous block for CBC chaining.
+    ///
+    /// # Arguments
+    ///
+    /// * `iv` - The initialization vector for CBC mode
     #[inline(always)]
     pub fn new_with_iv(iv: &Iv16) -> Self {
         let mut this = Self {
@@ -31,6 +64,27 @@ impl DecryptionContext {
         this
     }
 
+    /// Perform CBC decryption loop using the ring buffer.
+    ///
+    /// This method processes ciphertext blocks in a streaming fashion, decrypting
+    /// them one at a time and writing the plaintext to the output. The ring buffer
+    /// is used to maintain the previous ciphertext block for CBC chaining.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - Reader providing encrypted data
+    /// * `output` - Writer receiving decrypted plaintext
+    /// * `cipher` - AES-256 decryptor initialized with the session key
+    /// * `hmac` - HMAC instance that is updated with each ciphertext block
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if decryption completes successfully, or an error if
+    /// I/O fails or the stream is malformed.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AescryptError::Io`] if an I/O error occurs during reading or writing.
     #[inline(always)]
     pub fn decrypt_cbc_loop<R, W>(
         &mut self,
@@ -89,11 +143,24 @@ impl DecryptionContext {
         Ok(())
     }
 
+    /// Advance the tail index to the next block in the ring buffer.
+    ///
+    /// This is called after processing a block to move the tail pointer forward,
+    /// making room for new data and updating the previous block reference for
+    /// the next CBC operation.
     #[inline(always)]
     pub fn advance_tail(&mut self) {
         self.tail_index = (self.tail_index + 16) % 64;
     }
 
+    /// Calculate the number of bytes remaining in the ring buffer.
+    ///
+    /// This accounts for the circular nature of the ring buffer, returning
+    /// the number of bytes between the tail and head indices.
+    ///
+    /// # Returns
+    ///
+    /// The number of bytes remaining in the ring buffer (0-64).
     #[inline(always)]
     pub fn remaining(&self) -> usize {
         if self.head_index >= self.tail_index {

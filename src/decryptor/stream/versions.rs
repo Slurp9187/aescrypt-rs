@@ -14,11 +14,59 @@ use crate::aliases::HmacSha256;
 use hmac::Mac;
 use std::io::{Read, Write};
 
+/// Configuration for different AES Crypt stream formats.
+///
+/// This enum specifies the version-specific behavior for decryption, including
+/// padding schemes, HMAC trailer layouts, and other format-specific details.
+///
+/// # Variants
+///
+/// ## `V0 { reserved_modulo: u8 }`
+///
+/// AES Crypt v0 format configuration.
+///
+/// - Uses legacy modulo padding (not PKCS#7)
+/// - HMAC trailer is 32 bytes, stored contiguously
+/// - The `reserved_modulo` byte is used to determine the final block length
+/// - This is the original AES Crypt format from the early 2000s
+///
+/// ## `V1`
+///
+/// AES Crypt v1 format configuration.
+///
+/// - Uses legacy modulo padding (not PKCS#7)
+/// - HMAC trailer is 32 bytes, stored with a scattered layout
+/// - Includes a modulo byte for final block length determination
+/// - Improved over v0 but still uses legacy padding
+///
+/// ## `V2`
+///
+/// AES Crypt v2 format configuration.
+///
+/// - Uses legacy modulo padding (not PKCS#7)
+/// - HMAC trailer is 32 bytes, stored with a scattered layout
+/// - Similar to v1 but with improved HMAC handling
+///
+/// ## `V3`
+///
+/// AES Crypt v3 format configuration (recommended).
+///
+/// - Uses PKCS#7 padding (standard, secure)
+/// - HMAC trailer is 32 bytes, stored contiguously
+/// - This is the only format produced by this library
+/// - All encryption operations create v3 files
 #[derive(Clone, Copy)]
 pub enum StreamConfig {
-    V0 { reserved_modulo: u8 },
+    /// Version 0 configuration with reserved modulo byte.
+    V0 { 
+        /// Reserved modulo byte used for final block length determination.
+        reserved_modulo: u8 
+    },
+    /// Version 1 configuration.
     V1,
+    /// Version 2 configuration.
     V2,
+    /// Version 3 configuration (recommended, uses PKCS#7 padding).
     V3,
 }
 
