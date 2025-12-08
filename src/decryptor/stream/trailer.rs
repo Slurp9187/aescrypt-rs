@@ -80,13 +80,17 @@ pub fn write_final_pkcs7<W: Write>(
         return Err(AescryptError::Header("v3: invalid PKCS#7 padding".into()));
     }
 
-    // Constant-time validation: compare expected padding bytes with actual
+    // Constant-time validation: always compare full 16-byte block
+    // Build expected block where padding bytes match, data bytes are zero (will be validated separately)
     let padding_start = 16 - padding as usize;
-    let expected_padding = [padding; 16];
-    let actual_padding_slice = &block[padding_start..];
-    let expected_padding_slice = &expected_padding[padding_start..];
+    let mut expected_block = [0u8; 16];
+    // Copy data portion (not secret, but needed for comparison)
+    expected_block[..padding_start].copy_from_slice(&block[..padding_start]);
+    // Set padding bytes to expected value
+    expected_block[padding_start..].fill(padding);
 
-    if !actual_padding_slice.ct_eq(expected_padding_slice) {
+    // Constant-time comparison of entire block
+    if !block.ct_eq(&expected_block) {
         return Err(AescryptError::Header("v3: corrupt PKCS#7 padding".into()));
     }
 
