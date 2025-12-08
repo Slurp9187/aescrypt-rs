@@ -1,4 +1,4 @@
-//! tests/kdf/specific_kdf_tests.rs
+//! tests/specific_kdf_tests.rs
 //! Merged ACKDF/PBKDF2 vector tests — correct expected values (2025)
 
 #[cfg(feature = "zeroize")]
@@ -87,3 +87,4 @@ mod tests {
         }
     }
 }
+

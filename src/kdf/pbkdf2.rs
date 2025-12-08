@@ -20,6 +20,10 @@ pub fn derive_secure_pbkdf2_key(
     iterations: u32,
     out_key: &mut Aes256Key32,
 ) -> Result<(), AescryptError> {
+    if iterations == 0 {
+        return Err(AescryptError::Crypto("PBKDF2 iterations must be ≥1".into()));
+    }
+
     pbkdf2::<Hmac<Sha512>>(
         password.expose_secret().as_bytes(),
         salt.expose_secret(),

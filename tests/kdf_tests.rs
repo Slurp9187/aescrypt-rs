@@ -1,11 +1,11 @@
-//! tests/kdf/kdf_tests.rs
+//! tests/kdf_tests.rs
 //! General secure KDF tests — with merged edge cases, corrected PBKDF2 (2025)
 
 mod common;
 
 #[cfg(feature = "zeroize")]
 mod tests {
-    use super::common::{TEST_ITERATION_VALUES, TEST_ITERATIONS};
+    use super::common::TEST_ITERATION_VALUES;
 
     use aescrypt_rs::aliases::{Aes256Key32, PasswordString, Salt16};
     use aescrypt_rs::{derive_secure_ackdf_key, derive_secure_pbkdf2_key};
@@ -370,3 +370,4 @@ mod tests {
         );
     }
 }
+
