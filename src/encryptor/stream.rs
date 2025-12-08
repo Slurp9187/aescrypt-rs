@@ -8,6 +8,7 @@ use aes::cipher::{BlockEncrypt, KeyInit};
 use aes::{Aes256Enc, Block as AesBlock};
 use crate::aliases::HmacSha256;
 use hmac::Mac;
+use std::convert::TryFrom;
 use std::io::{Read, Write};
 
 #[inline(always)]
@@ -26,7 +27,7 @@ where
         .expect("session_key is 32 bytes");
 
     // previous ciphertext block — secure from birth
-    let mut prev_block = Block16::new(*session_iv.expose_secret());
+    let mut prev_block: Block16 = session_iv.clone().into();
 
     let mut plaintext_block = Block16::new([0u8; 16]);
 
@@ -51,21 +52,19 @@ where
         let mut aes_block = AesBlock::from(*xor_output.expose_secret());
         cipher.encrypt_block(&mut aes_block);
         let ct_slice = aes_block.as_ref(); // &[u8]
-        let mut ct_block = Block16::new([0u8; 16]);
-        ct_block.expose_secret_mut().copy_from_slice(ct_slice);
 
         // HMAC + write ciphertext
-        hmac.update(ct_block.expose_secret());
-        destination.write_all(ct_block.expose_secret())?;
+        hmac.update(ct_slice);
+        destination.write_all(ct_slice)?;
 
         // Update previous block for next iteration
-        prev_block = ct_block;
+        prev_block = Block16::new(*<&[u8; 16]>::try_from(ct_slice).expect("always 16 bytes"));
 
         if is_final {
             break;
         }
     }
 
-    destination.write_all(&*hmac.finalize().into_bytes())?;
+    destination.write_all(hmac.finalize().into_bytes().as_ref())?;
     Ok(())
 }

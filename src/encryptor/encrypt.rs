@@ -2,7 +2,7 @@
 //! Aescrypt encryption — secure-gate gold standard
 //! Zero secret exposure, zero-cost, auto-zeroizing
 
-use crate::aliases::{Aes256Key32, EncryptedSessionBlock48, PasswordString};
+use crate::aliases::{Aes256Key32, EncryptedSessionBlock48, Iv16, PasswordString};
 use crate::aliases::{HmacSha256, RandomAes256Key32, RandomIv16};
 use crate::consts::{AESCRYPT_LATEST_VERSION, PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
 use crate::encryptor::derive_setup_key;
@@ -15,8 +15,6 @@ use crate::error::AescryptError;
 use aes::cipher::KeyInit;
 use aes::Aes256Enc;
 use hmac::Mac;
-use secure_gate::Fixed;
-// use secure_gate::DynamicRng;
 use std::io::{Read, Write};
 
 /// Encrypt an Aescrypt file (v3+) — zero secret exposure, maximum security
@@ -45,9 +43,9 @@ where
     write_extensions(&mut output, AESCRYPT_LATEST_VERSION, None)?;
 
     // Generate secure random values — wrapped from birth
-    let public_iv = Fixed::from(*RandomIv16::generate().expose_secret());
-    let session_iv = Fixed::from(*RandomIv16::generate().expose_secret());
-    let session_key = Fixed::from(*RandomAes256Key32::generate().expose_secret());
+    let public_iv: Iv16 = RandomIv16::generate().into();
+    let session_iv: Iv16 = RandomIv16::generate().into();
+    let session_key: Aes256Key32 = RandomAes256Key32::generate().into();
 
     write_iterations(&mut output, kdf_iterations, AESCRYPT_LATEST_VERSION)?;
     write_public_iv(&mut output, &public_iv)?;

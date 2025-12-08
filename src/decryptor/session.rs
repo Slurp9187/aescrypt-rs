@@ -33,8 +33,8 @@ where
 {
     // v0: direct secure copy — no encryption, no HMAC
     if file_version == 0 {
-        *session_iv_out = Iv16::from(*public_iv.expose_secret());
-        *session_key_out = Aes256Key32::from(*setup_key.expose_secret());
+        *session_iv_out = public_iv.clone();
+        *session_key_out = setup_key.clone();
         return Ok(());
     }
 
@@ -51,7 +51,7 @@ where
         mac.update(&[file_version]); // v3 spec: version byte included in session HMAC
     }
 
-    if &*mac.finalize().into_bytes() != expected_hmac.expose_secret() {
+    if &*mac.finalize().into_bytes() != expected_hmac.expose_secret().as_ref() {
         return Err(AescryptError::Header(
             "session data corrupted or tampered (HMAC mismatch)".into(),
         ));
@@ -60,7 +60,7 @@ where
     // Decrypt directly into secure output buffers
     let cipher = Aes256Dec::new(setup_key.expose_secret().into());
 
-    let mut previous_block: Block16 = Block16::new(*public_iv.expose_secret());
+    let mut previous_block: Block16 = public_iv.clone().into();
 
     for (i, chunk) in encrypted_block.expose_secret().chunks_exact(16).enumerate() {
         let chunk_array: [u8; 16] = chunk.try_into().expect("chunk is exactly 16 bytes");

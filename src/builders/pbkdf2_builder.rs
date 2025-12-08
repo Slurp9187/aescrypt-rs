@@ -23,7 +23,7 @@ impl Pbkdf2Builder {
         Self {
             // iterations: 600_000, // OWASP/NIST 2025+ recommendation
             iterations: DEFAULT_PBKDF2_ITERATIONS, // OWASP/NIST 2025+ recommendation
-            salt: Salt16::from(*RandomSalt16::generate().expose_secret()),
+            salt: RandomSalt16::generate().into(),
         }
     }
 

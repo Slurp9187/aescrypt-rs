@@ -23,8 +23,7 @@ pub fn derive_secure_ackdf_key(
     salt: &Salt16,
     out_key: &mut Aes256Key32,
 ) -> Result<(), AescryptError> {
-    let password_utf16le_raw = utf8_to_utf16le(password.expose_secret().as_bytes())?;
-    let password_utf16le: Dynamic<Vec<u8>> = Dynamic::new(password_utf16le_raw);
+    let password_utf16le: Dynamic<Vec<u8>> = Dynamic::new(utf8_to_utf16le(password.expose_secret().as_bytes())?);
 
     let mut hasher = Sha256::new();
     let mut hash = AckdfHashState32::new([0u8; 32]); // ← semantic, zero-cost, auto-zeroized

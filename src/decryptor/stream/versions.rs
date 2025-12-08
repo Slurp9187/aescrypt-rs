@@ -57,7 +57,7 @@ where
 
             let expected_hmac = extract_hmac_simple(&ctx);
 
-            if &*hmac.finalize().into_bytes() != expected_hmac.expose_secret() {
+            if &*hmac.finalize().into_bytes() != expected_hmac.expose_secret().as_ref() {
                 return Err(AescryptError::Header("HMAC verification failed".into()));
             }
 
@@ -73,7 +73,7 @@ where
 
             let (expected_hmac, modulo_byte) = extract_hmac_scattered(&ctx);
 
-            if &*hmac.finalize().into_bytes() != expected_hmac.expose_secret() {
+            if &*hmac.finalize().into_bytes() != expected_hmac.expose_secret().as_ref() {
                 return Err(AescryptError::Header("HMAC verification failed".into()));
             }
 
@@ -89,7 +89,7 @@ where
 
             let expected_hmac = extract_hmac_simple(&ctx);
 
-            if &*hmac.finalize().into_bytes() != expected_hmac.expose_secret() {
+            if &*hmac.finalize().into_bytes() != expected_hmac.expose_secret().as_ref() {
                 return Err(AescryptError::Header("HMAC verification failed".into()));
             }
 

@@ -21,6 +21,7 @@ use crate::utils::xor_blocks;
 use aes::cipher::BlockEncrypt;
 use aes::{Aes256Enc, Block as AesBlock};
 use hmac::Mac;
+use std::convert::TryFrom;
 
 /// Derive the AES-256 setup key from password + public IV using PBKDF2-HMAC-SHA512.
 /// Used to encrypt the session key/IV block.
@@ -72,33 +73,33 @@ pub fn encrypt_session_block(
     enc_block: &mut EncryptedSessionBlock48,
     hmac: &mut HmacSha256,
 ) -> Result<(), AescryptError> {
-    let mut prev = *public_iv.expose_secret();
+    let mut prev_block: Block16 = public_iv.clone().into();
     let mut block = Block16::new([0u8; 16]);
 
     // === Block 1: session IV (16 bytes) ===
-    xor_blocks(session_iv.expose_secret(), &prev, block.expose_secret_mut());
+    xor_blocks(session_iv.expose_secret(), prev_block.expose_secret(), block.expose_secret_mut());
     let mut aes_block = AesBlock::from(*block.expose_secret());
     cipher.encrypt_block(&mut aes_block);
     enc_block.expose_secret_mut()[0..16].copy_from_slice(aes_block.as_ref());
     hmac.update(&enc_block.expose_secret()[0..16]);
-    prev.copy_from_slice(&enc_block.expose_secret()[0..16]);
+    prev_block = Block16::new(*<&[u8; 16]>::try_from(&enc_block.expose_secret()[0..16]).expect("always 16 bytes"));
 
     // === Block 2: first half of session key (16 bytes) ===
     xor_blocks(
         &session_key.expose_secret()[0..16],
-        &prev,
+        prev_block.expose_secret(),
         block.expose_secret_mut(),
     );
     aes_block = AesBlock::from(*block.expose_secret());
     cipher.encrypt_block(&mut aes_block);
     enc_block.expose_secret_mut()[16..32].copy_from_slice(aes_block.as_ref());
     hmac.update(&enc_block.expose_secret()[16..32]);
-    prev.copy_from_slice(&enc_block.expose_secret()[16..32]);
+    prev_block = Block16::new(*<&[u8; 16]>::try_from(&enc_block.expose_secret()[16..32]).expect("always 16 bytes"));
 
     // === Block 3: second half of session key (16 bytes) ===
     xor_blocks(
         &session_key.expose_secret()[16..32],
-        &prev,
+        prev_block.expose_secret(),
         block.expose_secret_mut(),
     );
     aes_block = AesBlock::from(*block.expose_secret());
