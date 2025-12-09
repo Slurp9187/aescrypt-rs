@@ -353,8 +353,16 @@ fn roundtrip_v3_huge_input() {
 }
 
 #[test]
-#[ignore = "1 GiB round-trip is intentionally heavy"]
+#[ignore = "Stress test for streaming correctness at extreme scale - run manually when needed"]
 fn roundtrip_extreme_1gib() {
+    // This test verifies streaming correctness at 1 GiB scale, ensuring the implementation
+    // handles very large files without memory issues. It's ignored by default because:
+    // 1. It's slow (takes minutes to run)
+    // 2. Performance testing is covered by benches/ (which test up to 10MB)
+    // 3. If 10MB works correctly, 1GB should work (same algorithm)
+    // 
+    // Run manually with: cargo test -- --ignored roundtrip_extreme_1gib
+    // This is a correctness/stress test, not a performance benchmark.
     const ONE_GIB: usize = 1024 * 1024 * 1024;
     let password = PasswordString::new("test-1gib-streaming".to_string());
 
