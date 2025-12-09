@@ -7,7 +7,7 @@ use aescrypt_rs::encrypt;
 
 // Deterministic v3 encryption helper – TEST ONLY
 // Exactly matches the official test vectors (including CREATED_BY extension + version byte in HMAC)
-use aescrypt_rs::encryptor::{
+use aescrypt_rs::encryption::{
     derive_setup_key, encrypt_session_block, encrypt_stream, write_header, write_hmac,
     write_iterations, write_public_iv,
 };

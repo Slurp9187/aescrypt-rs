@@ -1,4 +1,4 @@
-//! src/encryptor/stream.rs
+//! src/encryption/stream.rs
 //! AES Crypt v3 streaming encryption — secure-gate protection, all tests pass
 
 use crate::aliases::{Aes256Key32, Block16, Iv16};

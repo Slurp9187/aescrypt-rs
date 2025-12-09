@@ -1,7 +1,7 @@
-//! src/encryptor/session.rs
+//! src/encryption/session.rs
 //! Session key + IV encryption for AES Crypt v3 format
 //!
-//! This module is the **exact mirror** of `decryptor/session.rs`.
+//! This module is the **exact mirror** of `decryption/session.rs`.
 //! It contains the logic for encrypting the 48-byte session block
 //! (session IV + session key) using the setup/master key derived from
 //! the user password and public IV.

@@ -1,4 +1,4 @@
-// src/core/decryptor/mod.rs
+// src/core/decryption/mod.rs
 
 //! High-level decryption facade.
 //!

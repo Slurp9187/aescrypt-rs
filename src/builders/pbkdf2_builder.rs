@@ -9,7 +9,7 @@ use crate::error::AescryptError;
 
 /// PBKDF2-HMAC-SHA512 key derivation builder
 ///
-/// Strong defaults: 16-byte random salt + 600,000 iterations (2025 recommended)
+/// Strong defaults: 16-byte random salt + 300,000 iterations (uses [`DEFAULT_PBKDF2_ITERATIONS`])
 #[derive(Debug, Clone)]
 pub struct Pbkdf2Builder {
     iterations: u32,
@@ -18,11 +18,12 @@ pub struct Pbkdf2Builder {
 
 impl Pbkdf2Builder {
     /// Create builder with strong defaults
+    ///
+    /// Uses [`DEFAULT_PBKDF2_ITERATIONS`] (300,000) as the default iteration count.
     #[must_use]
     pub fn new() -> Self {
         Self {
-            // iterations: 600_000, // OWASP/NIST 2025+ recommendation
-            iterations: DEFAULT_PBKDF2_ITERATIONS, // OWASP/NIST 2025+ recommendation
+            iterations: DEFAULT_PBKDF2_ITERATIONS,
             salt: RandomSalt16::generate().into(),
         }
     }

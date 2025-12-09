@@ -1,14 +1,14 @@
-//! src/core/encryptor/encrypt.rs
+//! src/core/encryption/encrypt.rs
 //! Aescrypt encryption — secure-gate gold standard
 //! Zero secret exposure, zero-cost, auto-zeroizing
 
 use crate::aliases::{Aes256Key32, EncryptedSessionBlock48, Iv16, PasswordString};
 use crate::aliases::{HmacSha256, RandomAes256Key32, RandomIv16};
 use crate::consts::{AESCRYPT_LATEST_VERSION, PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
-use crate::encryptor::derive_setup_key;
-use crate::encryptor::encrypt_session_block;
-use crate::encryptor::stream::encrypt_stream;
-use crate::encryptor::write::{
+use crate::encryption::derive_setup_key;
+use crate::encryption::encrypt_session_block;
+use crate::encryption::stream::encrypt_stream;
+use crate::encryption::write::{
     write_extensions, write_header, write_hmac, write_iterations, write_octets, write_public_iv,
 };
 use crate::error::AescryptError;

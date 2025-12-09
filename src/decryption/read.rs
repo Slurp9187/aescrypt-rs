@@ -1,4 +1,4 @@
-//! src/decryptor/read.rs
+//! src/decryption/read.rs
 //! Safe, zero-copy, stack-first Aescrypt header parsing
 //! Fully optimized for 2025 Rust + secure-gate v0.5.10+ ecosystem
 

@@ -1,12 +1,12 @@
-//! src/core/decryptor/decrypt.rs
+//! src/core/decryption/decrypt.rs
 //! Aescrypt decryption — secure-gate perfection
 
-use crate::decryptor::read::{
+use crate::decryption::read::{
     consume_all_extensions, read_exact_span, read_file_version, read_kdf_iterations,
     read_reserved_modulo_byte,
 };
-use crate::decryptor::session::extract_session_data;
-use crate::decryptor::stream::{decrypt_ciphertext_stream, StreamConfig};
+use crate::decryption::session::extract_session_data;
+use crate::decryption::stream::{decrypt_ciphertext_stream, StreamConfig};
 
 use crate::aliases::{Aes256Key32, Iv16, PasswordString};
 use crate::error::AescryptError;

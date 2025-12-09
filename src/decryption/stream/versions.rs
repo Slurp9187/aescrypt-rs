@@ -1,10 +1,10 @@
-//! src/decryptor/stream/versions.rs
+//! src/decryption/stream/versions.rs
 //! Final version — matches original working code exactly
 //! All tests pass, zero warnings, secure-gate everywhere
 
 use crate::aliases::{Aes256Key32, Iv16};
-use crate::decryptor::stream::context::DecryptionContext;
-use crate::decryptor::stream::trailer::{
+use crate::decryption::stream::context::DecryptionContext;
+use crate::decryption::stream::trailer::{
     extract_hmac_scattered, extract_hmac_simple, write_final_modulo, write_final_pkcs7,
 };
 use crate::error::AescryptError;

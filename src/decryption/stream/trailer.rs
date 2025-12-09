@@ -1,10 +1,10 @@
-//! src/decryptor/stream/trailer.rs
+//! src/decryption/stream/trailer.rs
 //! Trailer processing — HMAC extraction and final block writing
 //! All round-trip and deterministic tests pass
 //! No verify_hmac helper — we use the exact same pattern as encrypt_stream
 
 use crate::aliases::Trailer32;
-use crate::decryptor::stream::context::DecryptionContext;
+use crate::decryption::stream::context::DecryptionContext;
 use crate::error::AescryptError;
 use secure_gate::conversions::SecureConversionsExt;
 use std::io::Write;

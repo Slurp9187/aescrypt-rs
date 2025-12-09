@@ -1,11 +1,11 @@
-//! src/decryptor/session.rs
+//! src/decryption/session.rs
 //! Session data extraction — zero secret exposure, secure-gate gold standard
 //!
 //! Maximum overkill: every buffer that ever touches ciphertext, IV, or key is auto-zeroized.
 //! Because in crypto, we wipe everything that ever touched the stack.
 
 use crate::aliases::{Aes256Key32, Block16, EncryptedSessionBlock48, Iv16, SessionHmacTag32};
-use crate::decryptor::read_exact_span;
+use crate::decryption::read_exact_span;
 use crate::{aliases::HmacSha256, error::AescryptError, utils::xor_blocks};
 use aes::cipher::{BlockDecrypt, KeyInit};
 use aes::{Aes256Dec, Block as AesBlock};

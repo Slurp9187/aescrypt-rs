@@ -1,4 +1,4 @@
-// src/core/encryptor/mod.rs
+// src/core/encryption/mod.rs
 
 //! High-level encryption facade.
 //!

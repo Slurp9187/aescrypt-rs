@@ -1,19 +1,18 @@
 #![doc = include_str!("../README.md")]
 
+pub mod aliases;
 pub mod builders;
 pub mod consts;
-pub mod kdf;
-pub mod decryptor;
-pub mod encryptor;
+pub mod decryption;
+pub mod encryption;
 pub mod error;
 pub mod header;
+pub mod kdf;
 pub mod utils;
 
-pub mod aliases;
-
 // High-level API — this is what 99% of users import
-pub use decryptor::decrypt;
-pub use encryptor::encrypt;
+pub use decryption::decrypt;
+pub use encryption::encrypt;
 pub use error::AescryptError;
 
 // Low-level KDFs — intentionally public at the root because:

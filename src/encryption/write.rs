@@ -1,4 +1,4 @@
-//! src/encryptor/write.rs
+//! src/encryption/write.rs
 //! AES Crypt write helpers — FULL secure-gate protection
 
 use crate::aliases::{HmacSha256, Iv16};
