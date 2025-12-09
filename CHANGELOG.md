@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Clean slate release**: Complete API redesign focused on core encryption/decryption functionality. All non-essential features have been removed for a minimal, focused library.
 
+**Thread Safety**: All public functions are thread-safe (`Send + Sync`). The library has no shared mutable state, making all operations safe for concurrent use from multiple threads, async runtimes, and custom cancellation implementations.
+
 ### Breaking Changes
 
 - **Complete removal of conversion functionality**: Deleted `convert_to_v3()` function and entire `convert` module. No migration path provided - this is a clean break.
@@ -32,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Strongly-typed sub-types of `SpanBuffer` for semantic clarity: `Block16`, `Trailer32`, `Trailer33`, `InitialRead48`, `Pbkdf2HashState32`, `Pbkdf2DerivedKey32`, `AckdfHashState32`.
 - **`Pbkdf2Builder`**: Fluent builder API for PBKDF2 key derivation with sensible defaults (300k iterations, random salt).
 - Comprehensive rust-doc documentation for all public modules and functions.
+- **Thread safety documentation**: All public functions documented as thread-safe with examples for threaded usage, async runtimes, and cancellation patterns.
 - `PBKDF2_MIN_ITER`, `PBKDF2_MAX_ITER`, `DEFAULT_PBKDF2_ITERATIONS`, and `AESCRYPT_LATEST_VERSION` constants for consistent validation and configuration.
 - Advanced API access via module paths: `decryption::extract_session_data()`, `decryption::StreamConfig`, `encryption::derive_setup_key()`, and other low-level functions for custom flows.
 - Utility functions: `utils::utf8_to_utf16le()` for legacy password encoding, `utils::xor_blocks()` for block operations.

@@ -17,6 +17,11 @@ use sha2::Sha512;
 /// pseudorandom function. The derived key is written directly into the provided output
 /// buffer, avoiding unnecessary allocations and copies.
 ///
+/// # Thread Safety
+///
+/// This function is **thread-safe** and can be called concurrently from multiple threads.
+/// All operations are pure (no shared mutable state).
+///
 /// # Arguments
 ///
 /// * `password` - The password to derive the key from (wrapped in `PasswordString` for security)

@@ -17,6 +17,11 @@ pub const ACKDF_ITERATIONS: u32 = 8192;
 /// - Salt must be exactly 16 bytes
 ///
 /// Writes result into `out_key` — no return value, fastest possible
+///
+/// # Thread Safety
+///
+/// This function is **thread-safe** and can be called concurrently from multiple threads.
+/// All operations are pure (no shared mutable state).
 #[inline(always)]
 pub fn derive_ackdf_key(
     password: &PasswordString,

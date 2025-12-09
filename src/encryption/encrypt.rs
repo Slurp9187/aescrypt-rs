@@ -18,6 +18,48 @@ use hmac::Mac;
 use std::io::{Read, Write};
 
 /// Encrypt an Aescrypt file (v3+) — zero secret exposure, maximum security
+///
+/// # Thread Safety
+///
+/// This function is **thread-safe** and can be called concurrently from multiple threads.
+/// All operations are pure (no shared mutable state), making it safe to:
+/// - Spawn in threads for parallel processing
+/// - Use with async runtimes (spawn_blocking)
+/// - Implement cancellation by wrapping in a thread and joining/detaching as needed
+///
+/// # Performance
+///
+/// For large files, this operation may take significant time. In release mode, expect:
+/// - ~150 MiB/s throughput for encryption
+/// - Processing time scales linearly with file size
+///
+/// Users requiring cancellation should spawn this function in a thread and implement
+/// their own cancellation mechanism (e.g., using channels or thread handles).
+///
+/// # Example: Threaded Usage
+///
+/// ```no_run
+/// use aescrypt_rs::{encrypt, PasswordString};
+/// use std::io::Cursor;
+/// use std::thread;
+///
+/// let password = PasswordString::new("secret".to_string());
+/// let data = b"large file data...";
+///
+/// // Spawn encryption in a thread
+/// let handle = thread::spawn(move || {
+///     let mut encrypted = Vec::new();
+///     encrypt(
+///         Cursor::new(data),
+///         &mut encrypted,
+///         &password,
+///         300_000,
+///     )
+/// });
+///
+/// // Can wait for completion or implement cancellation
+/// let result = handle.join().unwrap();
+/// ```
 #[inline(always)]
 pub fn encrypt<R, W>(
     mut input: R,

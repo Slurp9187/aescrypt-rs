@@ -31,6 +31,8 @@ thiserror = "2.0"
 
 [features]
 default = ["zeroize"]
+# Note: secure-gate always has zeroize enabled (required by conversions feature)
+# This feature only controls aes/zeroize
 zeroize = ["aes/zeroize"]
 
 # ----------------------------------------------------------------------

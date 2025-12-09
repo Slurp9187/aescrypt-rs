@@ -12,6 +12,11 @@ use std::io::Read;
 /// without performing a full decryption. It's optimized for fast version detection in batch
 /// operations or file management tools.
 ///
+/// # Thread Safety
+///
+/// This function is **thread-safe** and can be called concurrently from multiple threads.
+/// All operations are pure (no shared mutable state), making it ideal for parallel batch processing.
+///
 /// # Header Format
 ///
 /// - **v0**: `"AES"` (3 bytes) or `"AES\x00"` (4 bytes) or `"AES\x00\x00"` (5 bytes)

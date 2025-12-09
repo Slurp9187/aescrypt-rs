@@ -51,6 +51,42 @@ If you find AES Crypt (or this Rust port) useful, please consider supporting Pau
 - **Secure memory management**: All sensitive data (keys, passwords, IVs) wrapped in `secure-gate` types with automatic zeroization
 - **Streaming architecture**: Constant-memory decryption using 64-byte ring buffer (no full-file buffering)
 
+## Thread Safety
+
+All public functions are **thread-safe** (`Send + Sync`). The library has no shared mutable state, making all operations safe for:
+
+- **Concurrent execution**: Call functions from multiple threads simultaneously
+- **Async runtimes**: Use with `tokio::task::spawn_blocking` or similar
+- **Custom cancellation**: Spawn operations in threads and implement your own cancellation via channels or thread handles
+
+### Example: Threaded Usage
+
+```rust
+use aescrypt_rs::{encrypt, decrypt, PasswordString};
+use std::io::Cursor;
+use std::thread;
+
+let password = PasswordString::new("secret".to_string());
+let data = b"large file data...";
+
+// Spawn encryption in a thread
+let handle = thread::spawn(move || {
+    let mut encrypted = Vec::new();
+    encrypt(
+        Cursor::new(data),
+        &mut encrypted,
+        &password,
+        300_000,
+    )
+});
+
+// Wait for completion or implement cancellation
+let result = handle.join().unwrap()?;
+# Ok::<(), aescrypt_rs::AescryptError>(())
+```
+
+For large files, operations may take significant time. Users requiring cancellation should spawn functions in threads and implement their own cancellation mechanism.
+
 ## Core API
 
 The library provides a minimal, focused API at the root level:
@@ -208,13 +244,19 @@ encrypt(input, &mut output, &password, DEFAULT_PBKDF2_ITERATIONS)?;
 
 All benchmarks include full 300,000 PBKDF2 iterations when applicable.
 
+**Note**: For very large files (GB+), operations may take minutes. All functions are thread-safe and can be spawned in threads for parallel processing or custom cancellation implementations.
+
 ## Features
 
-| Feature             | Description                            |
-| ------------------- | -------------------------------------- |
-| `zeroize` (default) | Automatic secure memory wiping on drop |
+| Feature             | Description                                                                                                                                                                               |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `zeroize` (default) | Enables automatic secure memory wiping on drop for `aes` crate. Note: `secure-gate` always has zeroize enabled (required by the `conversions` feature used for constant-time operations). |
 
-No optional features - the library is focused and minimal. All functionality is always available.
+**Feature Details:**
+
+- `zeroize` is enabled by default for maximum security
+- When disabled (`--no-default-features`), only `aes` zeroization is disabled; `secure-gate` types still auto-zeroize (required for constant-time comparisons)
+- All functionality is always available regardless of feature flags
 
 ## Installation
 

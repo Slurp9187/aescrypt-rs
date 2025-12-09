@@ -10,6 +10,11 @@ use crate::error::AescryptError;
 /// PBKDF2-HMAC-SHA512 key derivation builder
 ///
 /// Strong defaults: 16-byte random salt + 300,000 iterations (uses [`DEFAULT_PBKDF2_ITERATIONS`])
+///
+/// # Thread Safety
+///
+/// This type is **thread-safe** (`Send + Sync`). Builders can be created and used
+/// concurrently from multiple threads. All operations are pure (no shared mutable state).
 #[derive(Debug, Clone)]
 pub struct Pbkdf2Builder {
     iterations: u32,
