@@ -1,10 +1,10 @@
 //! benches/iterations.rs
-//! Benchmark various iteration counts for encryption/decryption/convert operations
+//! Benchmark various iteration counts for encryption/decryption operations
 //!
 //! Tests performance impact of different PBKDF2 iteration counts
 
 use aescrypt_rs::aliases::PasswordString;
-use aescrypt_rs::{convert_to_v3, decrypt, encrypt};
+use aescrypt_rs::{decrypt, encrypt};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::hint::black_box;
 use std::io::Cursor;
@@ -31,41 +31,6 @@ fn bench_encrypt_iterations(c: &mut Criterion) {
                 )
                 .unwrap();
                 black_box(encrypted);
-            });
-        });
-    }
-    
-    group.finish();
-}
-
-fn bench_convert_iterations(c: &mut Criterion) {
-    let mut group = c.benchmark_group("convert_iterations");
-    group.sample_size(10); // Fewer samples for slow iterations
-    
-    let old_pw = PasswordString::new("old-password".to_string());
-    let new_pw = PasswordString::new("new-password".to_string());
-    let plaintext = b"test data for conversion benchmarking";
-    
-    // Create legacy file once
-    let mut legacy = Vec::new();
-    encrypt(Cursor::new(plaintext), &mut legacy, &old_pw, 1000).unwrap();
-    
-    let iterations = vec![1, 10, 100, 1_000, 10_000, 100_000, 300_000];
-    
-    for &iters in &iterations {
-        let id = BenchmarkId::new("iterations", iters);
-        group.bench_with_input(id, &iters, |b, &iters| {
-            b.iter(|| {
-                let mut output = Vec::new();
-                convert_to_v3(
-                    Cursor::new(black_box(&legacy)),
-                    &mut output,
-                    black_box(&old_pw),
-                    Some(black_box(&new_pw)),
-                    iters,
-                )
-                .unwrap();
-                black_box(output);
             });
         });
     }
@@ -116,7 +81,6 @@ fn bench_roundtrip_iterations(c: &mut Criterion) {
 criterion_group!(
     benches,
     bench_encrypt_iterations,
-    bench_convert_iterations,
     bench_roundtrip_iterations
 );
 criterion_main!(benches);

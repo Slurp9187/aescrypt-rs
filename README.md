@@ -4,7 +4,6 @@
 
 - **Read**: Full compatibility with **all versions** — v0, v1, v2, and v3
 - **Write**: Modern **v3 only** (PBKDF2-HMAC-SHA512, PKCS#7 padding, proper session-key encryption)
-- **Convert**: `convert_to_v3()` — the single, final API for bit-perfect migration with optional **256-bit random password upgrade**
 - **Detect**: `read_version()` — header-only version check in <1 μs (ideal for batch tools)
 - AES-256-CBC with **HMAC-SHA256** (payload) + **HMAC-SHA512** (session) authentication
 - Constant-memory streaming (64-byte ring buffer)
@@ -13,7 +12,6 @@
 - No `unsafe` in the core decryption path when `zeroize` is enabled
 - Pure Rust, `#![no_std]`-compatible core
 - **100% bit-perfect round-trip verified** against all 63 official v0–v3 test vectors
-- **Legacy to v3 conversion mathematically proven perfect** across 20+ years of AES Crypt history
 
 [![Crates.io](https://img.shields.io/crates/v/aescrypt-rs.svg)](https://crates.io/crates/aescrypt-rs)
 [![Docs.rs](https://docs.rs/aescrypt-rs/badge.svg)](https://docs.rs/aescrypt-rs)
@@ -34,7 +32,6 @@ If you find AES Crypt (or this Rust port) useful, please consider supporting Pau
 | ------------------ | --- | --- | --- | --- |
 | Decrypt            | Yes | Yes | Yes | Yes |
 | Encrypt            | –   | –   | –   | Yes |
-| **Convert to v3**  | Yes | Yes | Yes | —   |
 | **Detect version** | Yes | Yes | Yes | Yes |
 
 > **Why v3-only on write?**  
@@ -52,7 +49,6 @@ If you find AES Crypt (or this Rust port) useful, please consider supporting Pau
 
 - **Constant-time operations**: All HMAC verifications and PKCS#7 padding validation use constant-time comparisons to prevent timing attacks
 - **Secure memory management**: All sensitive data (keys, passwords, IVs) wrapped in `secure-gate` types with automatic zeroization
-- **No memory leaks**: Removed `'static` lifetime requirement from `convert_to_v3()`, eliminating need for `Box::leak()` workarounds
 - **Streaming architecture**: Constant-memory decryption using 64-byte ring buffer (no full-file buffering)
 
 ## API Highlights
@@ -75,62 +71,6 @@ assert_eq!(version, 0);
 # Ok::<(), aescrypt_rs::AescryptError>(())
 ```
 
-### Convert legacy → modern v3
-
-```rust
-use aescrypt_rs::{encrypt, convert_to_v3, aliases::PasswordString};
-use std::io::{Cursor, BufReader, BufWriter};
-
-let old_pw = PasswordString::new("old123".to_string());
-
-// First, create a legacy v0 file (in-memory)
-let mut legacy_data = Vec::new();
-encrypt(Cursor::new(b"Hello, world!"), &mut legacy_data, &old_pw, 10_000)?;
-
-// Now convert it to v3 with a random password
-let mut modern_data = Vec::new();
-let generated = convert_to_v3(
-    Cursor::new(&legacy_data),
-    BufWriter::new(&mut modern_data),
-    &old_pw,
-    None,
-    300_000
-)?;
-
-if let Some(new_pw) = generated {
-    // new_pw is a 256-bit random password
-    assert_eq!(new_pw.expose_secret().len(), 64); // 32 bytes = 64 hex chars
-}
-# Ok::<(), aescrypt_rs::AescryptError>(())
-```
-
-Passing `Some(&PasswordString::new("".to_string()))` also triggers random generation — convenient shortcut.
-
-### Explicit new password
-
-```rust
-use aescrypt_rs::{encrypt, convert_to_v3, aliases::PasswordString};
-use std::io::{Cursor, BufWriter};
-
-let old_pw = PasswordString::new("old123".to_string());
-let new_pw = PasswordString::new("much-stronger-2025!".to_string());
-
-// First, create a legacy v0 file (in-memory)
-let mut legacy_data = Vec::new();
-encrypt(Cursor::new(b"Hello, world!"), &mut legacy_data, &old_pw, 10_000)?;
-
-// Convert to v3 with explicit new password
-let mut modern_data = Vec::new();
-convert_to_v3(
-    Cursor::new(&legacy_data),
-    BufWriter::new(&mut modern_data),
-    &old_pw,
-    Some(&new_pw),
-    500_000
-)?;
-# Ok::<(), aescrypt_rs::AescryptError>(())
-```
-
 ### Standard encrypt / decrypt
 
 ```rust
@@ -149,49 +89,13 @@ assert_eq!(data, &plaintext[..]);
 # Ok::<(), aescrypt_rs::AescryptError>(())
 ```
 
-### Batch operations (optional feature)
-
-Requires the `batch-ops` feature to be enabled:
-
-```toml
-aescrypt_rs = { version = "0.2.0", features = ["batch-ops"] }
-```
-
-```rust,ignore
-use aescrypt_rs::{encrypt_batch, decrypt_batch, aliases::PasswordString};
-use std::io::Cursor;
-
-let password = PasswordString::new("secret".to_string());
-
-// Encrypt multiple files in parallel
-let mut batch = vec![
-    (Cursor::new(b"file1"), Vec::new()),
-    (Cursor::new(b"file2"), Vec::new()),
-    (Cursor::new(b"file3"), Vec::new()),
-];
-
-encrypt_batch(&mut batch, &password, 300_000)?;
-// All files are now encrypted in parallel
-
-// Decrypt multiple files in parallel
-let mut encrypted_batch = vec![
-    (Cursor::new(&batch[0].1[..]), Vec::new()),
-    (Cursor::new(&batch[1].1[..]), Vec::new()),
-    (Cursor::new(&batch[2].1[..]), Vec::new()),
-];
-
-decrypt_batch(&mut encrypted_batch, &password)?;
-// All files are now decrypted in parallel
-```
-
 ## Performance (release mode, modern laptop)
 
-| Workload                   | Throughput       |
-| -------------------------- | ---------------- |
-| Decrypt 10 MiB             | ~158 MiB/s       |
-| Encrypt 10 MiB (with KDF)  | ~149 MiB/s       |
-| Round-trip 10 MiB          | ~75 MiB/s        |
-| Batch 16×10 MiB (parallel) | ~200 MiB/s total |
+| Workload                  | Throughput      |
+| ------------------------- | --------------- |
+| Decrypt 10 MiB            | ~158 MiB/s      |
+| Encrypt 10 MiB (with KDF) | ~149 MiB/s      |
+| Round-trip 10 MiB         | ~75 MiB/s       |
 
 All benchmarks include full 300,000 PBKDF2 iterations when applicable.
 
@@ -200,19 +104,12 @@ All benchmarks include full 300,000 PBKDF2 iterations when applicable.
 | Feature             | Description                            |
 | ------------------- | -------------------------------------- |
 | `zeroize` (default) | Automatic secure memory wiping on drop |
-| `batch-ops`         | Parallel batch processing via Rayon    |
 
 ## Installation
 
 ```toml
 [dependencies]
 aescrypt-rs = "0.2.0"
-```
-
-With optional features:
-
-```toml
-aescrypt_rs = { version = "0.2.0", features = ["batch-ops"] }
 ```
 
 ## License

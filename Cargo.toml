@@ -22,9 +22,7 @@ generic-array = "0.14.9"
 hex = "0.4"
 hmac = "0.12"
 pbkdf2 = "0.12"
-pipe = "0.4.0"
 rand = "0.9"
-rayon = { version = "1.11", optional = true }
 secure-gate = { version = "0.6", features = ["zeroize", "rand", "conversions"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -34,7 +32,6 @@ thiserror = "2.0"
 [features]
 default = ["zeroize"]
 zeroize = ["aes/zeroize"]
-batch-ops = ["dep:rayon"]
 
 # ----------------------------------------------------------------------
 # Dev / test / bench dependencies
@@ -60,11 +57,6 @@ harness = false
 [[bench]]
 name = "roundtrip"
 harness = false
-
-[[bench]]
-name = "batch"
-harness = false
-required-features = ["batch-ops"]
 
 [[bench]]
 name = "iterations"

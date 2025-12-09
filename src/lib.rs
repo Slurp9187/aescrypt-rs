@@ -1,10 +1,7 @@
 #![doc = include_str!("../README.md")]
 
-#[cfg(feature = "batch-ops")]
-pub mod batch_ops;
 pub mod builders;
 pub mod consts;
-pub mod convert;
 pub mod kdf;
 pub mod decryptor;
 pub mod encryptor;
@@ -27,11 +24,5 @@ pub use builders::pbkdf2_builder::Pbkdf2Builder;
 
 pub use kdf::ackdf::derive_secure_ackdf_key;
 pub use kdf::pbkdf2::derive_secure_pbkdf2_key;
-
-#[cfg(feature = "batch-ops")]
-pub use batch_ops::{decrypt_batch, encrypt_batch};
-
-#[allow(deprecated)]
-pub use convert::convert_to_v3;
 
 pub use header::read_version; // New: Quick version check
