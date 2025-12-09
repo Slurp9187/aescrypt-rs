@@ -73,7 +73,7 @@ pub fn encrypt_session_block(
     enc_block: &mut EncryptedSessionBlock48,
     hmac: &mut HmacSha256,
 ) -> Result<(), AescryptError> {
-    let mut prev_block: Block16 = public_iv.clone().into();
+    let mut prev_block: Block16 = Block16::new(*public_iv.expose_secret());
     let mut block = Block16::new([0u8; 16]);
 
     // === Block 1: session IV (16 bytes) ===

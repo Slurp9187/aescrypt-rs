@@ -63,7 +63,7 @@ where
     // Decrypt directly into secure output buffers
     let cipher = Aes256Dec::new(setup_key.expose_secret().into());
 
-    let mut previous_block: Block16 = public_iv.clone().into();
+    let mut previous_block: Block16 = Block16::new(*public_iv.expose_secret());
 
     for (i, chunk) in encrypted_block.expose_secret().chunks_exact(16).enumerate() {
         let chunk_array: [u8; 16] = chunk.try_into().expect("chunk is exactly 16 bytes");

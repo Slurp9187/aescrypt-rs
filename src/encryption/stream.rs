@@ -27,7 +27,7 @@ where
         .expect("session_key is 32 bytes");
 
     // previous ciphertext block — secure from birth
-    let mut prev_block: Block16 = session_iv.clone().into();
+    let mut prev_block: Block16 = Block16::new(*session_iv.expose_secret());
 
     let mut plaintext_block = Block16::new([0u8; 16]);
 
