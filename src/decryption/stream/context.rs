@@ -74,7 +74,7 @@ impl DecryptionContext {
     ///
     /// * `input` - Reader providing encrypted data
     /// * `output` - Writer receiving decrypted plaintext
-    /// * `cipher` - AES-256 decryptor initialized with the session key
+    /// * `cipher` - AES-256 decryption initialized with the session key
     /// * `hmac` - HMAC instance that is updated with each ciphertext block
     ///
     /// # Returns

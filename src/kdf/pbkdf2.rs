@@ -44,19 +44,19 @@ use sha2::Sha512;
 /// # Example
 ///
 /// ```
-/// use aescrypt_rs::kdf::pbkdf2::derive_secure_pbkdf2_key;
+/// use aescrypt_rs::kdf::pbkdf2::derive_pbkdf2_key;
 /// use aescrypt_rs::aliases::{PasswordString, Salt16, Aes256Key32, RandomSalt16};
 ///
 /// let password = PasswordString::new("my-secret-password".to_string());
 /// let salt: Salt16 = RandomSalt16::generate().into();
 /// let mut key = Aes256Key32::new([0u8; 32]);
 ///
-/// derive_secure_pbkdf2_key(&password, &salt, 300_000, &mut key)?;
+/// derive_pbkdf2_key(&password, &salt, 300_000, &mut key)?;
 /// // Key is now derived and stored securely in `key`
 /// # Ok::<(), aescrypt_rs::AescryptError>(())
 /// ```
 #[inline(always)]
-pub fn derive_secure_pbkdf2_key(
+pub fn derive_pbkdf2_key(
     password: &PasswordString,
     salt: &Salt16,
     iterations: u32,
@@ -75,4 +75,3 @@ pub fn derive_secure_pbkdf2_key(
     .map_err(|e| AescryptError::Crypto(format!("PBKDF2 failed: {e}")))?;
     Ok(())
 }
-

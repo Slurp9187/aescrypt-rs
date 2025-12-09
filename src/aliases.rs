@@ -72,7 +72,7 @@ dynamic_alias!(pub PasswordString, String);
 fixed_alias!(pub Aes256Key32, 32); // session key, HMAC key
 fixed_alias!(pub EncryptedSessionBlock48, 48); // encrypted session IV + key
 fixed_alias!(pub Iv16, 16); // public IV, session IV
-fixed_alias!(pub RingBuffer64, 64); // streaming decryptor ring buffer
+fixed_alias!(pub RingBuffer64, 64); // streaming decryption ring buffer
 fixed_alias!(pub Salt16, 16); // PBKDF2/ACKDF salt
 fixed_alias!(pub SessionHmacTag32, 32); // session block HMAC
 

@@ -7,13 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0] - 2025-12-04
 
+**Clean slate release**: Complete API redesign focused on core encryption/decryption functionality. All non-essential features have been removed for a minimal, focused library.
+
 ### Breaking Changes
 
-- Renamed `convert_to_v3_ext` to `convert_to_v3` (now the only conversion API).
-- Removed the old `convert_to_v3` entirely (soft-deprecated since 0.1.6).
+- **Complete removal of conversion functionality**: Deleted `convert_to_v3()` function and entire `convert` module. No migration path provided - this is a clean break.
+- **Complete removal of batch operations**: Deleted `batch_ops` module, `encrypt_batch()`, `decrypt_batch()` functions, and `batch-ops` feature. Removed `rayon` dependency.
+- **Module reorganization**: Renamed `decryptor` → `decryption`, `encryptor` → `encryption` (aligns with Rust naming conventions for process/domain modules).
 - Replaced all short aliases with explicit, size-tagged CamelCase names (e.g., `Aes256Key` → `Aes256Key32`, `Iv16` remains, `EncryptedSessionBlock48` unchanged).
 - Random aliases now size-tagged (e.g., `RandomAes256Key32`).
-- Public API in `lib.rs` minimized and re-exported with new names.
+- Public API in `lib.rs` completely redesigned with minimal, focused exports.
 
 ### Security
 
@@ -27,36 +30,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Generic `SpanBuffer<const N: usize>` as secure stack buffer (alias to `secure-gate::Fixed<[u8; N]>`).
 - Strongly-typed sub-types of `SpanBuffer` for semantic clarity: `Block16`, `Trailer32`, `Trailer33`, `InitialRead48`, `Pbkdf2HashState32`, `Pbkdf2DerivedKey32`, `AckdfHashState32`.
-- Empty string (`Some("")`) now triggers random 256-bit password generation (same as `None`).
-- Generated random passwords use 1 PBKDF2 iteration; supplied passwords use full count.
+- **`Pbkdf2Builder`**: Fluent builder API for PBKDF2 key derivation with sensible defaults (300k iterations, random salt).
 - Comprehensive rust-doc documentation for all public modules and functions.
-- `PBKDF2_MIN_ITER` constant for consistent iteration validation across the codebase.
+- `PBKDF2_MIN_ITER`, `PBKDF2_MAX_ITER`, `DEFAULT_PBKDF2_ITERATIONS`, and `AESCRYPT_LATEST_VERSION` constants for consistent validation and configuration.
+- Advanced API access via module paths: `decryption::extract_session_data()`, `decryption::StreamConfig`, `encryption::derive_setup_key()`, and other low-level functions for custom flows.
+- Utility functions: `utils::utf8_to_utf16le()` for legacy password encoding, `utils::xor_blocks()` for block operations.
 
 ### Changed
 
-- **Removed `'static` lifetime requirement from `convert_to_v3()`**: Now uses `std::thread::scope` instead of requiring `'static` lifetimes, allowing owned data (like `Vec<u8>`) wrapped in `Cursor` without `Box::leak()` workarounds. This greatly improves ergonomics for downstream crates.
-- Moved `derive_setup_key` from `encryptor/write.rs` to `encryptor/session.rs` for better cohesion.
+- **Module reorganization**: Renamed `src/decryptor/` to `src/decryption/` and `src/encryptor/` to `src/encryption/` for better alignment with Rust naming conventions.
+- Moved `derive_setup_key` from `encryption/write.rs` to `encryption/session.rs` for better cohesion.
 - Hardened ACKDF temporary hash buffer with `AckdfHashState32`.
 - Updated all internal code, tests, and benchmarks to use new alias names.
-- Consolidated conversion tests into single file (`tests/convert_tests.rs`).
-- Renamed `src/decryptor/stream/utils.rs` to `src/decryptor/stream/trailer.rs` for better clarity.
-- Consolidated test file generation scripts into a single unified script (`tests/test_data/scripts/generate_test_files.py`).
+- Renamed `src/decryption/stream/utils.rs` to `src/decryption/stream/trailer.rs` for better clarity.
 - Enhanced KDF iteration validation with consistent bounds checking using `PBKDF2_MIN_ITER` constant.
+- `Pbkdf2Builder` now uses `DEFAULT_PBKDF2_ITERATIONS` (300,000) as the default iteration count.
+- Removed all references to deprecated/removed functionality from documentation and examples.
 
 ### Removed
 
-- Deprecated `convert_to_v3` and related wrappers.
+- **`convert` module**: Completely deleted. All file conversion functionality removed (`convert_to_v3()` and all related code).
+- **`batch_ops` module**: Completely deleted. All parallel batch processing functionality removed (`encrypt_batch()`, `decrypt_batch()`, and all related code).
+- **Dependencies**: Removed `pipe` and `rayon` dependencies (no longer needed).
+- **Features**: Removed `batch-ops` feature flag entirely.
 - Unused or redundant aliases (e.g., `PrevCiphertextBlock16` replaced by `Block16`).
-- Legacy test file generation scripts (replaced by unified script).
 - `encrypt_with_fixed_session` function and associated deterministic encryption test file.
+- All test files and benchmarks related to removed functionality.
 
 ### Fixed
 
 - Resolved HMAC constructor ambiguity in session extraction.
-- Fixed doctest in `batch_ops.rs` by defining missing variables in example code.
 - Cleaned up `.gitignore` by removing redundant patterns.
 
-All tests (including 63 vectors) pass with and without `zeroize`. Benchmarks unchanged (>165 MiB/s decrypt, >160 MiB/s encrypt).
+**Result**: Clean, minimal API focused solely on core encryption/decryption operations.
+
+**API Structure**:
+
+- **Root level**: `encrypt()`, `decrypt()`, `read_version()`, `AescryptError`, `Pbkdf2Builder`, and KDF functions (`derive_ackdf_key()`, `derive_pbkdf2_key()`)
+- **Module access**: Advanced users can access lower-level functions via `decryption::*` and `encryption::*` module paths
+- **Utilities**: `utils::utf8_to_utf16le()`, `utils::xor_blocks()` for custom implementations
+- **Constants**: All configuration constants available via `consts::*` module
+
+All tests (including 63 vectors) pass with and without `zeroize`. The library is now streamlined with no legacy baggage - a fresh start for v0.2.0.
 
 ## [0.1.6] - 2025-12-03
 

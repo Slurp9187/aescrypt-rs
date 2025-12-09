@@ -15,7 +15,7 @@ use crate::aliases::{
     Aes256Key32, Block16, EncryptedSessionBlock48, HmacSha256, Iv16, PasswordString,
 };
 use crate::consts::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
-use crate::kdf::pbkdf2::derive_secure_pbkdf2_key;
+use crate::kdf::pbkdf2::derive_pbkdf2_key;
 use crate::error::AescryptError;
 use crate::utils::xor_blocks;
 use aes::cipher::BlockEncrypt;
@@ -38,7 +38,7 @@ pub fn derive_setup_key(
     if !(PBKDF2_MIN_ITER..=PBKDF2_MAX_ITER).contains(&iterations) {
         return Err(AescryptError::Header("invalid KDF iterations".into()));
     }
-    derive_secure_pbkdf2_key(password, public_iv, iterations, out_key)
+    derive_pbkdf2_key(password, public_iv, iterations, out_key)
 }
 
 /// Encrypts the 48-byte session block (session IV + session key) using
@@ -53,7 +53,7 @@ pub fn derive_setup_key(
 ///
 /// # Arguments
 ///
-/// * `cipher`        – AES-256 encryptor initialized with the master key
+/// * `cipher`        – AES-256 encryption initialized with the master key
 /// * `session_iv`    – Randomly generated 16-byte session IV
 /// * `session_key`   – Randomly generated 32-byte session key
 /// * `public_iv`     – 16-byte public IV from the file header

@@ -18,12 +18,13 @@ pub const ACKDF_ITERATIONS: u32 = 8192;
 ///
 /// Writes result into `out_key` — no return value, fastest possible
 #[inline(always)]
-pub fn derive_secure_ackdf_key(
+pub fn derive_ackdf_key(
     password: &PasswordString,
     salt: &Salt16,
     out_key: &mut Aes256Key32,
 ) -> Result<(), AescryptError> {
-    let password_utf16le: Dynamic<Vec<u8>> = Dynamic::new(utf8_to_utf16le(password.expose_secret().as_bytes())?);
+    let password_utf16le: Dynamic<Vec<u8>> =
+        Dynamic::new(utf8_to_utf16le(password.expose_secret().as_bytes())?);
 
     let mut hasher = Sha256::new();
     let mut hash = AckdfHashState32::new([0u8; 32]); // ← semantic, zero-cost, auto-zeroized
@@ -44,4 +45,3 @@ pub fn derive_secure_ackdf_key(
 
     Ok(())
 }
-

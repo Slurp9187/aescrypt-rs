@@ -51,7 +51,31 @@ If you find AES Crypt (or this Rust port) useful, please consider supporting Pau
 - **Secure memory management**: All sensitive data (keys, passwords, IVs) wrapped in `secure-gate` types with automatic zeroization
 - **Streaming architecture**: Constant-memory decryption using 64-byte ring buffer (no full-file buffering)
 
-## API Highlights
+## Core API
+
+The library provides a minimal, focused API at the root level:
+
+**High-level functions** (99% of use cases):
+
+- `encrypt()` - Encrypt data to AES Crypt v3 format
+- `decrypt()` - Decrypt AES Crypt files (v0-v3)
+- `read_version()` - Quick version detection without full decryption
+
+**Key derivation**:
+
+- `Pbkdf2Builder` - Fluent builder for PBKDF2 key derivation
+- `derive_ackdf_key()` - Low-level ACKDF for v0-v2 files
+- `derive_pbkdf2_key()` - Low-level PBKDF2 for v3 files
+
+**Types and constants**:
+
+- `AescryptError` - Comprehensive error type
+- `PasswordString` and other secure types via `aliases::*`
+- Configuration constants via `consts::*`
+
+**Advanced access**: Lower-level functions available via `decryption::*` and `encryption::*` module paths for custom flows.
+
+## API Examples
 
 ### Detect file version (header only)
 
@@ -74,14 +98,14 @@ assert_eq!(version, 0);
 ### Standard encrypt / decrypt
 
 ```rust
-use aescrypt_rs::{encrypt, decrypt, aliases::PasswordString};
+use aescrypt_rs::{encrypt, decrypt, PasswordString, consts::DEFAULT_PBKDF2_ITERATIONS};
 use std::io::Cursor;
 
 let pw = PasswordString::new("correct horse battery staple".to_string());
 let data = b"top secret";
 
 let mut ciphertext = Vec::new();
-encrypt(Cursor::new(data), &mut ciphertext, &pw, 600_000)?;
+encrypt(Cursor::new(data), &mut ciphertext, &pw, DEFAULT_PBKDF2_ITERATIONS)?;
 
 let mut plaintext = Vec::new();
 decrypt(Cursor::new(&ciphertext), &mut plaintext, &pw)?;
@@ -89,13 +113,88 @@ assert_eq!(data, &plaintext[..]);
 # Ok::<(), aescrypt_rs::AescryptError>(())
 ```
 
+### PBKDF2 Key Derivation Builder
+
+For custom key derivation with a fluent API:
+
+```rust
+use aescrypt_rs::{Pbkdf2Builder, PasswordString, aliases::Aes256Key32};
+
+let password = PasswordString::new("my-secret-password".to_string());
+
+// Use defaults (300k iterations, random salt)
+let mut key = Aes256Key32::new([0u8; 32]);
+Pbkdf2Builder::new()
+    .derive_secure(&password, &mut key)?;
+
+// Or customize
+let mut custom_key = Aes256Key32::new([0u8; 32]);
+Pbkdf2Builder::new()
+    .with_iterations(500_000)
+    .with_salt([0x42; 16])
+    .derive_secure(&password, &mut custom_key)?;
+
+// Or get a new key directly
+let derived_key = Pbkdf2Builder::new()
+    .derive_secure_new(&password)?;
+# Ok::<(), aescrypt_rs::AescryptError>(())
+```
+
+### Advanced API Access
+
+For custom decryption/encryption flows, access lower-level functions via module paths:
+
+```rust
+use aescrypt_rs::{
+    decryption::{extract_session_data, StreamConfig, read_file_version},
+    encryption::{derive_setup_key, encrypt_session_block},
+    aliases::{Aes256Key32, Iv16, PasswordString},
+    consts::DEFAULT_PBKDF2_ITERATIONS,
+};
+use std::io::Cursor;
+
+// Custom decryption flow example
+let mut reader = Cursor::new(b"encrypted data...");
+let version = read_file_version(&mut reader)?;
+let password = PasswordString::new("password".to_string());
+
+// Extract session data manually
+let public_iv = /* ... */;
+let mut setup_key = Aes256Key32::new([0u8; 32]);
+// ... derive setup key ...
+let mut session_iv = Iv16::new([0u8; 16]);
+let mut session_key = Aes256Key32::new([0u8; 32]);
+extract_session_data(&mut reader, version, &public_iv, &setup_key, &mut session_iv, &mut session_key)?;
+
+// Use StreamConfig for version-specific decryption
+let config = StreamConfig::V3;
+// ... continue custom decryption ...
+# Ok::<(), aescrypt_rs::AescryptError>(())
+```
+
+## Constants
+
+Configuration constants are available via the `consts` module:
+
+```rust
+use aescrypt_rs::consts::{
+    DEFAULT_PBKDF2_ITERATIONS,  // 300,000 (recommended default)
+    PBKDF2_MIN_ITER,            // 1
+    PBKDF2_MAX_ITER,            // 5,000,000
+    AESCRYPT_LATEST_VERSION,    // 3
+};
+
+// Use in encryption
+encrypt(input, output, &password, DEFAULT_PBKDF2_ITERATIONS)?;
+```
+
 ## Performance (release mode, modern laptop)
 
-| Workload                  | Throughput      |
-| ------------------------- | --------------- |
-| Decrypt 10 MiB            | ~158 MiB/s      |
-| Encrypt 10 MiB (with KDF) | ~149 MiB/s      |
-| Round-trip 10 MiB         | ~75 MiB/s       |
+| Workload                  | Throughput |
+| ------------------------- | ---------- |
+| Decrypt 10 MiB            | ~158 MiB/s |
+| Encrypt 10 MiB (with KDF) | ~149 MiB/s |
+| Round-trip 10 MiB         | ~75 MiB/s  |
 
 All benchmarks include full 300,000 PBKDF2 iterations when applicable.
 
@@ -104,6 +203,8 @@ All benchmarks include full 300,000 PBKDF2 iterations when applicable.
 | Feature             | Description                            |
 | ------------------- | -------------------------------------- |
 | `zeroize` (default) | Automatic secure memory wiping on drop |
+
+No optional features - the library is focused and minimal. All functionality is always available.
 
 ## Installation
 

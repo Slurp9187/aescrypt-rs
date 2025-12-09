@@ -4,7 +4,7 @@
 #[cfg(feature = "zeroize")]
 mod tests {
     use aescrypt_rs::aliases::{Aes256Key32, PasswordString, Salt16};
-    use aescrypt_rs::{derive_secure_ackdf_key, derive_secure_pbkdf2_key};
+    use aescrypt_rs::{derive_ackdf_key, derive_pbkdf2_key};
 
     #[derive(Debug, Copy, Clone)]
     enum KdfType {
@@ -38,8 +38,8 @@ mod tests {
 
             let mut key = Aes256Key32::new([0u8; 32]);
             match kdf {
-                KdfType::Ackdf => derive_secure_ackdf_key(&password, &salt, &mut key).unwrap(),
-                KdfType::Pbkdf2 => derive_secure_pbkdf2_key(&password, &salt, 1, &mut key).unwrap(),
+                KdfType::Ackdf => derive_ackdf_key(&password, &salt, &mut key).unwrap(),
+                KdfType::Pbkdf2 => derive_pbkdf2_key(&password, &salt, 1, &mut key).unwrap(),
             };
 
             assert_eq!(key.expose_secret(), &expected, "{kdf:?} zero salt mismatch");
@@ -75,8 +75,8 @@ mod tests {
 
             let mut key = Aes256Key32::new([0u8; 32]);
             match kdf {
-                KdfType::Ackdf => derive_secure_ackdf_key(&password, &salt, &mut key).unwrap(),
-                KdfType::Pbkdf2 => derive_secure_pbkdf2_key(&password, &salt, 1, &mut key).unwrap(),
+                KdfType::Ackdf => derive_ackdf_key(&password, &salt, &mut key).unwrap(),
+                KdfType::Pbkdf2 => derive_pbkdf2_key(&password, &salt, 1, &mut key).unwrap(),
             };
 
             assert_eq!(

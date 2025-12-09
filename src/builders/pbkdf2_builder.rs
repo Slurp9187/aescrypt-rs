@@ -4,7 +4,7 @@
 
 use crate::aliases::{Aes256Key32, PasswordString, RandomSalt16, Salt16};
 use crate::consts::DEFAULT_PBKDF2_ITERATIONS;
-use crate::derive_secure_pbkdf2_key;
+use crate::derive_pbkdf2_key;
 use crate::error::AescryptError;
 
 /// PBKDF2-HMAC-SHA512 key derivation builder
@@ -61,7 +61,7 @@ impl Pbkdf2Builder {
         password: &PasswordString,
         out_key: &mut Aes256Key32,
     ) -> Result<(), AescryptError> {
-        derive_secure_pbkdf2_key(
+        derive_pbkdf2_key(
             password,
             &self.salt,
             self.iterations,
