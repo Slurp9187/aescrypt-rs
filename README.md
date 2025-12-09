@@ -154,22 +154,26 @@ use aescrypt_rs::{
 use std::io::Cursor;
 
 // Custom decryption flow example
+# fn example() -> Result<(), aescrypt_rs::AescryptError> {
 let mut reader = Cursor::new(b"encrypted data...");
 let version = read_file_version(&mut reader)?;
 let password = PasswordString::new("password".to_string());
 
 // Extract session data manually
-let public_iv = /* ... */;
+// Read public IV from file header (example placeholder)
+let public_iv = Iv16::new([0u8; 16]); // In real code, read from file
 let mut setup_key = Aes256Key32::new([0u8; 32]);
-// ... derive setup key ...
+// Derive setup key using appropriate KDF for version
+// derive_setup_key(&password, &public_iv, version, &mut setup_key)?;
 let mut session_iv = Iv16::new([0u8; 16]);
 let mut session_key = Aes256Key32::new([0u8; 32]);
 extract_session_data(&mut reader, version, &public_iv, &setup_key, &mut session_iv, &mut session_key)?;
 
 // Use StreamConfig for version-specific decryption
 let config = StreamConfig::V3;
-// ... continue custom decryption ...
-# Ok::<(), aescrypt_rs::AescryptError>(())
+// Continue custom decryption with config...
+# Ok(())
+# }
 ```
 
 ## Constants
@@ -185,7 +189,13 @@ use aescrypt_rs::consts::{
 };
 
 // Use in encryption
-encrypt(input, output, &password, DEFAULT_PBKDF2_ITERATIONS)?;
+# use aescrypt_rs::{encrypt, PasswordString};
+# use std::io::Cursor;
+# let input = Cursor::new(b"data");
+# let mut output = Vec::new();
+# let password = PasswordString::new("password".to_string());
+encrypt(input, &mut output, &password, DEFAULT_PBKDF2_ITERATIONS)?;
+# Ok::<(), aescrypt_rs::AescryptError>(())
 ```
 
 ## Performance (release mode, modern laptop)
