@@ -48,6 +48,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "rand")]
     fn pbkdf2_builder_default_salt_is_random() {
         let password = PasswordString::new("test".to_string());
 

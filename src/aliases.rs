@@ -40,7 +40,9 @@
 //! the underlying data, ensuring no accidental secret exposure.
 
 use secure_gate::dynamic_alias;
-use secure_gate::{fixed_alias, fixed_alias_rng};
+use secure_gate::fixed_alias;
+#[cfg(feature = "rand")]
+use secure_gate::fixed_alias_rng;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HMAC primitives — available via `aliases::*`
@@ -79,7 +81,11 @@ fixed_alias!(pub SessionHmacTag32, 32); // session block HMAC
 // ─────────────────────────────────────────────────────────────────────────────
 // Random secrets — cryptographically fresh
 // ─────────────────────────────────────────────────────────────────────────────
+#[cfg(feature = "rand")]
 fixed_alias_rng!(pub RandomAes256Key32, 32);
+#[cfg(feature = "rand")]
 fixed_alias_rng!(pub RandomIv16, 16);
+#[cfg(feature = "rand")]
 fixed_alias_rng!(pub RandomPassword32, 32);
+#[cfg(feature = "rand")]
 fixed_alias_rng!(pub RandomSalt16, 16);

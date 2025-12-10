@@ -12,6 +12,7 @@ use aes::cipher::KeyInit;
 use aes::Aes256Dec;
 use crate::aliases::HmacSha256;
 use hmac::Mac;
+#[cfg(feature = "zeroize")]
 use secure_gate::conversions::SecureConversionsExt;
 use std::io::{Read, Write};
 
@@ -108,7 +109,11 @@ where
 
             let computed_hmac = hmac.finalize().into_bytes();
             let computed_hmac_slice: &[u8] = computed_hmac.as_ref();
-            if !computed_hmac_slice.ct_eq(expected_hmac.expose_secret()) {
+            #[cfg(feature = "zeroize")]
+            let hmac_valid = computed_hmac_slice.ct_eq(expected_hmac.expose_secret());
+            #[cfg(not(feature = "zeroize"))]
+            let hmac_valid = computed_hmac_slice == expected_hmac.expose_secret();
+            if !hmac_valid {
                 return Err(AescryptError::Header("HMAC verification failed".into()));
             }
 
@@ -126,7 +131,11 @@ where
 
             let computed_hmac = hmac.finalize().into_bytes();
             let computed_hmac_slice: &[u8] = computed_hmac.as_ref();
-            if !computed_hmac_slice.ct_eq(expected_hmac.expose_secret()) {
+            #[cfg(feature = "zeroize")]
+            let hmac_valid = computed_hmac_slice.ct_eq(expected_hmac.expose_secret());
+            #[cfg(not(feature = "zeroize"))]
+            let hmac_valid = computed_hmac_slice == expected_hmac.expose_secret();
+            if !hmac_valid {
                 return Err(AescryptError::Header("HMAC verification failed".into()));
             }
 
@@ -144,7 +153,11 @@ where
 
             let computed_hmac = hmac.finalize().into_bytes();
             let computed_hmac_slice: &[u8] = computed_hmac.as_ref();
-            if !computed_hmac_slice.ct_eq(expected_hmac.expose_secret()) {
+            #[cfg(feature = "zeroize")]
+            let hmac_valid = computed_hmac_slice.ct_eq(expected_hmac.expose_secret());
+            #[cfg(not(feature = "zeroize"))]
+            let hmac_valid = computed_hmac_slice == expected_hmac.expose_secret();
+            if !hmac_valid {
                 return Err(AescryptError::Header("HMAC verification failed".into()));
             }
 

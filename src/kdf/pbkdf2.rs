@@ -50,10 +50,10 @@ use sha2::Sha512;
 ///
 /// ```
 /// use aescrypt_rs::kdf::pbkdf2::derive_pbkdf2_key;
-/// use aescrypt_rs::aliases::{PasswordString, Salt16, Aes256Key32, RandomSalt16};
+/// use aescrypt_rs::aliases::{PasswordString, Salt16, Aes256Key32};
 ///
 /// let password = PasswordString::new("my-secret-password".to_string());
-/// let salt: Salt16 = RandomSalt16::generate().into();
+/// let salt = Salt16::new([0x42; 16]); // In production, use RandomSalt16::generate() when rand feature is enabled
 /// let mut key = Aes256Key32::new([0u8; 32]);
 ///
 /// derive_pbkdf2_key(&password, &salt, 300_000, &mut key)?;

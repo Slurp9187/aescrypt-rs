@@ -61,7 +61,7 @@ All public functions are **thread-safe** (`Send + Sync`). The library has no sha
 
 ### Example: Threaded Usage
 
-```rust
+```rust,no_run
 use aescrypt_rs::{encrypt, decrypt, PasswordString};
 use std::io::Cursor;
 use std::thread;
@@ -133,7 +133,7 @@ assert_eq!(version, 0);
 
 ### Standard encrypt / decrypt
 
-```rust
+```rust,no_run
 use aescrypt_rs::{encrypt, decrypt, PasswordString, consts::DEFAULT_PBKDF2_ITERATIONS};
 use std::io::Cursor;
 
@@ -153,7 +153,7 @@ assert_eq!(data, &plaintext[..]);
 
 For custom key derivation with a fluent API:
 
-```rust
+```rust,no_run
 use aescrypt_rs::{Pbkdf2Builder, PasswordString, aliases::Aes256Key32};
 
 let password = PasswordString::new("my-secret-password".to_string());
@@ -216,7 +216,7 @@ let config = StreamConfig::V3;
 
 Configuration constants are available via the `consts` module:
 
-```rust
+```rust,no_run
 use aescrypt_rs::consts::{
     DEFAULT_PBKDF2_ITERATIONS,  // 300,000 (recommended default)
     PBKDF2_MIN_ITER,            // 1
@@ -225,11 +225,11 @@ use aescrypt_rs::consts::{
 };
 
 // Use in encryption
-# use aescrypt_rs::{encrypt, PasswordString};
-# use std::io::Cursor;
-# let input = Cursor::new(b"data");
-# let mut output = Vec::new();
-# let password = PasswordString::new("password".to_string());
+use aescrypt_rs::{encrypt, PasswordString};
+use std::io::Cursor;
+let input = Cursor::new(b"data");
+let mut output = Vec::new();
+let password = PasswordString::new("password".to_string());
 encrypt(input, &mut output, &password, DEFAULT_PBKDF2_ITERATIONS)?;
 # Ok::<(), aescrypt_rs::AescryptError>(())
 ```
@@ -250,13 +250,17 @@ All benchmarks include full 300,000 PBKDF2 iterations when applicable.
 
 | Feature             | Description                                                                                                                                                                               |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `zeroize` (default) | Enables automatic secure memory wiping on drop for `aes` crate. Note: `secure-gate` always has zeroize enabled (required by the `conversions` feature used for constant-time operations). |
+| `zeroize` (default) | Enables automatic secure memory wiping on drop for `aes` crate and constant-time operations (`ct_eq()`) via `secure-gate/ct-eq`.                                                                 |
+| `rand` (default)    | Enables cryptographically secure random generation (required for encryption convenience methods).                                                                                          |
 
 **Feature Details:**
 
-- `zeroize` is enabled by default for maximum security
-- When disabled (`--no-default-features`), only `aes` zeroization is disabled; `secure-gate` types still auto-zeroize (required for constant-time comparisons)
-- All functionality is always available regardless of feature flags
+- `zeroize` (default): Enables automatic secure memory wiping and constant-time operations (`ct_eq()`) via `secure-gate/ct-eq`
+- `rand` (default): Enables cryptographically secure random generation (required for encryption convenience methods)
+- When `zeroize` is disabled, regular equality comparisons (`==`) are used (not constant-time, vulnerable to timing attacks)
+- When `rand` is disabled, encryption convenience methods are unavailable (decryption still works; encryption possible with custom RNG)
+- All features are optional - library can run with `--no-default-features`
+- `.into()` conversions work without any features (standard Rust trait)
 
 ## Installation
 

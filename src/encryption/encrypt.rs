@@ -2,18 +2,28 @@
 //! Aescrypt encryption — secure-gate gold standard
 //! Zero secret exposure, zero-cost, auto-zeroizing
 
-use crate::aliases::{Aes256Key32, EncryptedSessionBlock48, Iv16, PasswordString};
-use crate::aliases::{HmacSha256, RandomAes256Key32, RandomIv16};
-use crate::consts::{AESCRYPT_LATEST_VERSION, PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
+use crate::aliases::PasswordString;
+#[cfg(feature = "rand")]
+use crate::aliases::{Aes256Key32, EncryptedSessionBlock48, HmacSha256, Iv16, RandomAes256Key32, RandomIv16};
+use crate::consts::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
+#[cfg(feature = "rand")]
+use crate::consts::AESCRYPT_LATEST_VERSION;
+#[cfg(feature = "rand")]
 use crate::encryption::derive_setup_key;
+#[cfg(feature = "rand")]
 use crate::encryption::encrypt_session_block;
+#[cfg(feature = "rand")]
 use crate::encryption::stream::encrypt_stream;
+#[cfg(feature = "rand")]
 use crate::encryption::write::{
     write_extensions, write_header, write_hmac, write_iterations, write_octets, write_public_iv,
 };
 use crate::error::AescryptError;
+#[cfg(feature = "rand")]
 use aes::cipher::KeyInit;
+#[cfg(feature = "rand")]
 use aes::Aes256Enc;
+#[cfg(feature = "rand")]
 use hmac::Mac;
 use std::io::{Read, Write};
 
@@ -61,6 +71,7 @@ use std::io::{Read, Write};
 /// let result = handle.join().unwrap();
 /// ```
 #[inline(always)]
+#[allow(unused_mut)] // mut needed when rand feature is enabled
 pub fn encrypt<R, W>(
     mut input: R,
     mut output: W,
@@ -81,47 +92,57 @@ where
         return Err(AescryptError::Header("invalid KDF iterations".into()));
     }
 
-    write_header(&mut output, AESCRYPT_LATEST_VERSION)?;
-    write_extensions(&mut output, AESCRYPT_LATEST_VERSION, None)?;
+    #[cfg(not(feature = "rand"))]
+    {
+        #[allow(unused_mut, unused_variables)]
+        let _ = (input, output); // Suppress unused variable warnings
+        Err(AescryptError::Crypto("encryption requires 'rand' feature for random IV/key generation".into()))
+    }
 
-    // Generate secure random values — wrapped from birth
-    let public_iv: Iv16 = RandomIv16::generate().into();
-    let session_iv: Iv16 = RandomIv16::generate().into();
-    let session_key: Aes256Key32 = RandomAes256Key32::generate().into();
+    #[cfg(feature = "rand")]
+    {
+        write_header(&mut output, AESCRYPT_LATEST_VERSION)?;
+        write_extensions(&mut output, AESCRYPT_LATEST_VERSION, None)?;
 
-    write_iterations(&mut output, kdf_iterations, AESCRYPT_LATEST_VERSION)?;
-    write_public_iv(&mut output, &public_iv)?;
+        // Generate secure random values — wrapped from birth
+        let public_iv: Iv16 = RandomIv16::generate().into();
+        let session_iv: Iv16 = RandomIv16::generate().into();
+        let session_key: Aes256Key32 = RandomAes256Key32::generate().into();
 
-    // Derive setup key directly into secure buffer — zero exposure
-    let mut setup_key = Aes256Key32::new([0u8; 32]);
-    derive_setup_key(password, &public_iv, kdf_iterations, &mut setup_key)?;
+        write_iterations(&mut output, kdf_iterations, AESCRYPT_LATEST_VERSION)?;
+        write_public_iv(&mut output, &public_iv)?;
 
-    // Create cipher and HMAC from secure key
-    let cipher = Aes256Enc::new(setup_key.expose_secret().into());
+        // Derive setup key directly into secure buffer — zero exposure
+        let mut setup_key = Aes256Key32::new([0u8; 32]);
+        derive_setup_key(password, &public_iv, kdf_iterations, &mut setup_key)?;
 
-    // Fixed: unambiguous HMAC init
-    let mut hmac = <HmacSha256 as Mac>::new_from_slice(setup_key.expose_secret())
-        .expect("setup_key is 32 bytes — valid HMAC key");
+        // Create cipher and HMAC from secure key
+        let cipher = Aes256Enc::new(setup_key.expose_secret().into());
 
-    // Encrypt session block
-    let mut enc_block = EncryptedSessionBlock48::new([0u8; 48]);
-    encrypt_session_block(
-        &cipher,
-        &session_iv,
-        &session_key,
-        &public_iv,
-        &mut enc_block,
-        &mut hmac,
-    )?;
+        // Fixed: unambiguous HMAC init
+        let mut hmac = <HmacSha256 as Mac>::new_from_slice(setup_key.expose_secret())
+            .expect("setup_key is 32 bytes — valid HMAC key");
 
-    // Include version byte in HMAC (v3+)
-    hmac.update(&[AESCRYPT_LATEST_VERSION]);
+        // Encrypt session block
+        let mut enc_block = EncryptedSessionBlock48::new([0u8; 48]);
+        encrypt_session_block(
+            &cipher,
+            &session_iv,
+            &session_key,
+            &public_iv,
+            &mut enc_block,
+            &mut hmac,
+        )?;
 
-    write_octets(&mut output, enc_block.expose_secret())?;
-    write_hmac(&mut output, hmac)?; // hmac moved here — correct
+        // Include version byte in HMAC (v3+)
+        hmac.update(&[AESCRYPT_LATEST_VERSION]);
 
-    // Final stream encryption
-    encrypt_stream(&mut input, &mut output, &session_iv, &session_key)?;
+        write_octets(&mut output, enc_block.expose_secret())?;
+        write_hmac(&mut output, hmac)?; // hmac moved here — correct
 
-    Ok(())
+        // Final stream encryption
+        encrypt_stream(&mut input, &mut output, &session_iv, &session_key)?;
+
+        Ok(())
+    }
 }

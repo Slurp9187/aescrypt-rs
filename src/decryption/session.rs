@@ -10,6 +10,7 @@ use crate::{aliases::HmacSha256, error::AescryptError, utils::xor_blocks};
 use aes::cipher::{BlockDecrypt, KeyInit};
 use aes::{Aes256Dec, Block as AesBlock};
 use hmac::Mac;
+#[cfg(feature = "zeroize")]
 use secure_gate::conversions::SecureConversionsExt;
 use std::convert::TryInto;
 use std::io::Read;
@@ -54,7 +55,11 @@ where
 
     let computed_hmac = mac.finalize().into_bytes();
     let computed_hmac_slice: &[u8] = computed_hmac.as_ref();
-    if !computed_hmac_slice.ct_eq(expected_hmac.expose_secret()) {
+    #[cfg(feature = "zeroize")]
+    let hmac_valid = computed_hmac_slice.ct_eq(expected_hmac.expose_secret());
+    #[cfg(not(feature = "zeroize"))]
+    let hmac_valid = computed_hmac_slice == expected_hmac.expose_secret();
+    if !hmac_valid {
         return Err(AescryptError::Header(
             "session data corrupted or tampered (HMAC mismatch)".into(),
         ));
