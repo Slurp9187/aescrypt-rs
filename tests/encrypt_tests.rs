@@ -4,10 +4,15 @@
 //! This minimal test suite focuses on validating production settings (300k iterations).
 //! Comprehensive encryption testing is covered by vector_tests.rs.
 
+#[cfg(feature = "rand")]
 use aescrypt_rs::aliases::PasswordString;
+#[cfg(feature = "rand")]
 use aescrypt_rs::consts::DEFAULT_PBKDF2_ITERATIONS;
+#[cfg(feature = "rand")]
 use aescrypt_rs::decrypt;
+#[cfg(feature = "rand")]
 use aescrypt_rs::encrypt;
+#[cfg(feature = "rand")]
 use std::io::Cursor;
 
 #[test]

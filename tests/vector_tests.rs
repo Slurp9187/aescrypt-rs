@@ -1,28 +1,39 @@
 //! tests/vector_tests.rs
 //! Final merged vector test suite – fully compatible with v0–v3 JSON formats (2025)
 
-use aescrypt_rs::aliases::{Aes256Key32, EncryptedSessionBlock48, Iv16, PasswordString};
+use aescrypt_rs::aliases::PasswordString;
+#[cfg(feature = "rand")]
+use aescrypt_rs::aliases::{Aes256Key32, EncryptedSessionBlock48, Iv16};
 use aescrypt_rs::decrypt;
+#[cfg(feature = "rand")]
 use aescrypt_rs::encrypt;
 
 // Deterministic v3 encryption helper – TEST ONLY
 // Exactly matches the official test vectors (including CREATED_BY extension + version byte in HMAC)
+#[cfg(feature = "rand")]
 use aescrypt_rs::encryption::{
     derive_setup_key, encrypt_session_block, encrypt_stream, write_header, write_hmac,
     write_iterations, write_public_iv,
 };
+#[cfg(feature = "rand")]
 use aes::cipher::KeyInit;
+#[cfg(feature = "rand")]
 use aes::Aes256Enc;
+#[cfg(feature = "rand")]
 use hmac::{Hmac, Mac};
+#[cfg(feature = "rand")]
 use sha2::Sha256;
+#[cfg(feature = "rand")]
 use std::io::{Read, Write};
 
 // Exact extension blob used in the official deterministic test vectors
+#[cfg(feature = "rand")]
 const V3_CREATED_BY_EXTENSION: [u8; 29] = [
     0x00, 0x1B, b'C', b'R', b'E', b'A', b'T', b'E', b'D', b'_', b'B', b'Y', 0x00, b'a', b'e', b's',
     b'c', b'r', b'y', b'p', b't', b' ', b'4', b'.', b'0', b'.', b'0', b'.', b'0',
 ];
 
+#[cfg(feature = "rand")]
 fn encrypt_with_fixed_session<R: Read, W: Write>(
     mut source: R,
     mut destination: W,
@@ -82,7 +93,9 @@ use serde::Deserialize;
 use std::io::Cursor;
 
 mod common;
-use common::{TEST_DATA, TEST_DATA_SHORT, TEST_ITERATION_VALUES, TEST_ITERATIONS, TEST_PASSWORD};
+use common::TEST_PASSWORD;
+#[cfg(feature = "rand")]
+use common::{TEST_DATA, TEST_DATA_SHORT, TEST_ITERATION_VALUES, TEST_ITERATIONS};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AescryptVersion {
@@ -111,6 +124,7 @@ impl AescryptVersion {
         }
     }
 
+    #[cfg(feature = "rand")]
     const fn deterministic_json() -> &'static str {
         "deterministic_test_vectors_v3.json"
     }
@@ -174,8 +188,10 @@ fn run_decrypt_for_version(version: AescryptVersion) {
 }
 
 // === Round-trip vectors (same schema as decrypt) ===
+#[cfg(feature = "rand")]
 type RoundTripVector = DecryptVector;
 
+#[cfg(feature = "rand")]
 fn run_roundtrip_for_version(version: AescryptVersion) {
     eprintln!(
         "RUNNING: Round-trip test for AES Crypt {}",
@@ -213,13 +229,20 @@ fn run_roundtrip_for_version(version: AescryptVersion) {
 }
 
 // === Deterministic v3 ===
+#[cfg(feature = "rand")]
 #[derive(Debug, Deserialize)]
 struct DeterministicVector {
+    #[allow(dead_code)]
     plaintext: String,
+    #[allow(dead_code)]
     ciphertext_hex: String,
+    #[allow(dead_code)]
     kdf_iterations: u32,
+    #[allow(dead_code)]
     public_iv: String,
+    #[allow(dead_code)]
     session_iv: String,
+    #[allow(dead_code)]
     session_key: String,
 }
 
@@ -752,7 +775,6 @@ fn roundtrip_small_inputs() {
     }
 }
 
-#[test]
 #[test]
 #[cfg(feature = "rand")]
 fn decrypt_corrupted_ciphertext() {

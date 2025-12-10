@@ -5,13 +5,20 @@
 //! from tests/test_data/aes_test_files/
 
 mod common;
-use common::{TEST_ITERATIONS, TEST_PASSWORD};
+use common::TEST_PASSWORD;
+#[cfg(feature = "rand")]
+use common::TEST_ITERATIONS;
 
 use aescrypt_rs::aliases::PasswordString;
-use aescrypt_rs::{decrypt, encrypt};
+use aescrypt_rs::decrypt;
+#[cfg(feature = "rand")]
+use aescrypt_rs::encrypt;
+#[cfg(feature = "rand")]
 use serde::Deserialize;
 use std::fs::File;
-use std::io::{BufReader, Cursor};
+use std::io::BufReader;
+#[cfg(feature = "rand")]
+use std::io::Cursor;
 use std::path::PathBuf;
 
 fn get_aes_test_file_path(version: &str, index: usize) -> PathBuf {
@@ -35,8 +42,10 @@ fn get_v3_deterministic_path(index: usize) -> PathBuf {
 }
 
 // JSON vector loader for migration tests
+#[cfg(feature = "rand")]
 #[derive(Debug, Deserialize)]
 struct TestVector {
+    #[allow(dead_code)]
     plaintext: String,
     #[serde(alias = "encrypted_hex")] // v0–v2
     #[serde(alias = "ciphertext_hex")] // v3
@@ -44,6 +53,7 @@ struct TestVector {
     ciphertext_hex: String,
 }
 
+#[cfg(feature = "rand")]
 fn load_json_vectors(filename: &str) -> Vec<TestVector> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
