@@ -2,7 +2,7 @@
 
 pub mod aliases;
 pub mod builders;
-pub mod consts;
+pub mod constants;
 pub mod decryption;
 pub mod encryption;
 pub mod error;
@@ -11,10 +11,10 @@ pub mod kdf;
 pub mod utils;
 
 // High-level API — this is what 99% of users import
+pub use aliases::PasswordString;
 pub use decryption::decrypt;
 pub use encryption::encrypt;
-pub use error::AescryptError;
-pub use aliases::PasswordString; // Core type used in every encrypt/decrypt call
+pub use error::AescryptError; // Core type used in every encrypt/decrypt call
 
 // Low-level KDFs — intentionally public at the root because:
 // • They are needed for custom decryption flows (e (e.g. reading v0–v2 files without the high-level API)

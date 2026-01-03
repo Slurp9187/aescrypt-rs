@@ -15,7 +15,7 @@
 use crate::aliases::{
     Aes256Key32, Block16, EncryptedSessionBlock48, HmacSha256, Iv16, PasswordString,
 };
-use crate::consts::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
+use crate::constants::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
 use crate::error::AescryptError;
 use crate::kdf::pbkdf2::derive_pbkdf2_key;
 use crate::utils::xor_blocks;

@@ -107,7 +107,7 @@ The library provides a minimal, focused API at the root level:
 
 - `AescryptError` - Comprehensive error type
 - `PasswordString` and other secure types via `aliases::*`
-- Configuration constants via `consts::*`
+- Configuration constants via `constants::*`
 
 **Advanced access**: Lower-level functions available via `decryption::*` and `encryption::*` module paths for custom flows.
 
@@ -134,7 +134,7 @@ assert_eq!(version, 0);
 ### Standard encrypt / decrypt
 
 ```rust,no_run
-use aescrypt_rs::{encrypt, decrypt, PasswordString, consts::DEFAULT_PBKDF2_ITERATIONS};
+use aescrypt_rs::{encrypt, decrypt, PasswordString, constants::DEFAULT_PBKDF2_ITERATIONS};
 use std::io::Cursor;
 
 let pw = PasswordString::new("correct horse battery staple".to_string());
@@ -185,7 +185,7 @@ use aescrypt_rs::{
     decryption::{extract_session_data, StreamConfig, read_file_version},
     encryption::{derive_setup_key, encrypt_session_block},
     aliases::{Aes256Key32, Iv16, PasswordString},
-    consts::DEFAULT_PBKDF2_ITERATIONS,
+    constants::DEFAULT_PBKDF2_ITERATIONS,
 };
 use std::io::Cursor;
 
@@ -214,10 +214,10 @@ let config = StreamConfig::V3;
 
 ## Constants
 
-Configuration constants are available via the `consts` module:
+Configuration constants are available via the `constants` module:
 
 ```rust,no_run
-use aescrypt_rs::consts::{
+use aescrypt_rs::constants::{
     DEFAULT_PBKDF2_ITERATIONS,  // 300,000 (recommended default)
     PBKDF2_MIN_ITER,            // 1
     PBKDF2_MAX_ITER,            // 5,000,000

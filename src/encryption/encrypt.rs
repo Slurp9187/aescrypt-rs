@@ -9,8 +9,8 @@ use crate::aliases::{
     Aes256Key32, EncryptedSessionBlock48, HmacSha256, Iv16, RandomAes256Key32, RandomIv16,
 };
 #[cfg(feature = "rand")]
-use crate::consts::AESCRYPT_LATEST_VERSION;
-use crate::consts::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
+use crate::constants::AESCRYPT_LATEST_VERSION;
+use crate::constants::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
 #[cfg(feature = "rand")]
 use crate::encryption::derive_setup_key;
 #[cfg(feature = "rand")]

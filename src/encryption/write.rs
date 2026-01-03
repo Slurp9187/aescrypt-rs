@@ -3,7 +3,7 @@
 //! AES Crypt write helpers — FULL secure-gate protection
 
 use crate::aliases::{HmacSha256, Iv16};
-use crate::consts::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
+use crate::constants::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
 use crate::error::AescryptError;
 use hmac::Mac;
 use std::io::Write;

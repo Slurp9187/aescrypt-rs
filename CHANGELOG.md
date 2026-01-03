@@ -72,7 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Root level**: `encrypt()`, `decrypt()`, `read_version()`, `AescryptError`, `Pbkdf2Builder`, and KDF functions (`derive_ackdf_key()`, `derive_pbkdf2_key()`)
 - **Module access**: Advanced users can access lower-level functions via `decryption::*` and `encryption::*` module paths
 - **Utilities**: `utils::utf8_to_utf16le()`, `utils::xor_blocks()` for custom implementations
-- **Constants**: All configuration constants available via `consts::*` module
+- **Constants**: All configuration constants available via `constants::*` module
 
 All tests (including 63 vectors) pass with and without `zeroize`. The library is now streamlined with no legacy baggage - a fresh start for v0.2.0.
 

@@ -2,10 +2,10 @@
 //! PBKDF2-HMAC-SHA512 builder — secure-gate best practices
 //! Zero-cost, zero-exposure, idiomatic, audit-ready
 
-use crate::aliases::{Aes256Key32, PasswordString, Salt16};
 #[cfg(feature = "rand")]
 use crate::aliases::RandomSalt16;
-use crate::consts::DEFAULT_PBKDF2_ITERATIONS;
+use crate::aliases::{Aes256Key32, PasswordString, Salt16};
+use crate::constants::DEFAULT_PBKDF2_ITERATIONS;
 use crate::derive_pbkdf2_key;
 use crate::error::AescryptError;
 
@@ -71,12 +71,7 @@ impl Pbkdf2Builder {
         password: &PasswordString,
         out_key: &mut Aes256Key32,
     ) -> Result<(), AescryptError> {
-        derive_pbkdf2_key(
-            password,
-            &self.salt,
-            self.iterations,
-            out_key,
-        )
+        derive_pbkdf2_key(password, &self.salt, self.iterations, out_key)
     }
 
     /// Convenience: derive and return a fresh secure key

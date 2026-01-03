@@ -7,7 +7,7 @@
 #[cfg(feature = "rand")]
 use aescrypt_rs::aliases::PasswordString;
 #[cfg(feature = "rand")]
-use aescrypt_rs::consts::DEFAULT_PBKDF2_ITERATIONS;
+use aescrypt_rs::constants::DEFAULT_PBKDF2_ITERATIONS;
 #[cfg(feature = "rand")]
 use aescrypt_rs::decrypt;
 #[cfg(feature = "rand")]
@@ -21,7 +21,7 @@ fn encrypt_with_real_world_iterations() {
     // Test with real-world DEFAULT_PBKDF2_ITERATIONS (300,000) to verify production settings work
     let password = PasswordString::new("real-world-test".to_string());
     let plaintext = b"test data for real-world iteration count";
-    
+
     let mut encrypted = Vec::new();
     encrypt(
         Cursor::new(plaintext),
@@ -30,9 +30,9 @@ fn encrypt_with_real_world_iterations() {
         DEFAULT_PBKDF2_ITERATIONS,
     )
     .unwrap();
-    
+
     let mut decrypted = Vec::new();
     decrypt(Cursor::new(&encrypted), &mut decrypted, &password).unwrap();
-    
+
     assert_eq!(decrypted, plaintext);
 }
