@@ -7,7 +7,7 @@ use crate::aliases::Trailer32;
 use crate::decryption::stream::context::DecryptionContext;
 use crate::error::AescryptError;
 #[cfg(feature = "zeroize")]
-use secure_gate::conversions::SecureConversionsExt;
+use secure_gate::eq::ConstantTimeEq;
 use std::io::Write;
 
 /// Extract 32-byte HMAC using simple wrap-around (used by v0 and v3)
@@ -102,4 +102,3 @@ pub fn write_final_pkcs7<W: Write>(
     output.write_all(&block[..16 - padding as usize])?;
     Ok(())
 }
-

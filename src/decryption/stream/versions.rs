@@ -13,7 +13,7 @@ use aes::Aes256Dec;
 use crate::aliases::HmacSha256;
 use hmac::Mac;
 #[cfg(feature = "zeroize")]
-use secure_gate::conversions::SecureConversionsExt;
+use secure_gate::eq::ConstantTimeEq;
 use std::io::{Read, Write};
 
 /// Configuration for different AES Crypt stream formats.
@@ -60,9 +60,9 @@ use std::io::{Read, Write};
 #[derive(Clone, Copy)]
 pub enum StreamConfig {
     /// Version 0 configuration with reserved modulo byte.
-    V0 { 
+    V0 {
         /// Reserved modulo byte used for final block length determination.
-        reserved_modulo: u8 
+        reserved_modulo: u8
     },
     /// Version 1 configuration.
     V1,
