@@ -1,12 +1,13 @@
-//! src/encryption/stream.rs
+// src/encryption/stream.rs
+
 //! AES Crypt v3 streaming encryption — secure-gate protection, all tests pass
 
+use crate::aliases::HmacSha256;
 use crate::aliases::{Aes256Key32, Block16, Iv16};
 use crate::error::AescryptError;
 use crate::utils::xor_blocks;
 use aes::cipher::{BlockEncrypt, KeyInit};
 use aes::{Aes256Enc, Block as AesBlock};
-use crate::aliases::HmacSha256;
 use hmac::Mac;
 use std::convert::TryFrom;
 use std::io::{Read, Write};

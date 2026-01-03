@@ -1,4 +1,5 @@
-//! src/encryption/session.rs
+// src/encryption/session.rs
+
 //! Session key + IV encryption for AES Crypt v3 format
 //!
 //! This module is the **exact mirror** of `decryption/session.rs`.
@@ -15,8 +16,8 @@ use crate::aliases::{
     Aes256Key32, Block16, EncryptedSessionBlock48, HmacSha256, Iv16, PasswordString,
 };
 use crate::consts::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
-use crate::kdf::pbkdf2::derive_pbkdf2_key;
 use crate::error::AescryptError;
+use crate::kdf::pbkdf2::derive_pbkdf2_key;
 use crate::utils::xor_blocks;
 use aes::cipher::BlockEncrypt;
 use aes::{Aes256Enc, Block as AesBlock};
@@ -77,12 +78,18 @@ pub fn encrypt_session_block(
     let mut block = Block16::new([0u8; 16]);
 
     // === Block 1: session IV (16 bytes) ===
-    xor_blocks(session_iv.expose_secret(), prev_block.expose_secret(), block.expose_secret_mut());
+    xor_blocks(
+        session_iv.expose_secret(),
+        prev_block.expose_secret(),
+        block.expose_secret_mut(),
+    );
     let mut aes_block = AesBlock::from(*block.expose_secret());
     cipher.encrypt_block(&mut aes_block);
     enc_block.expose_secret_mut()[0..16].copy_from_slice(aes_block.as_ref());
     hmac.update(&enc_block.expose_secret()[0..16]);
-    prev_block = Block16::new(*<&[u8; 16]>::try_from(&enc_block.expose_secret()[0..16]).expect("always 16 bytes"));
+    prev_block = Block16::new(
+        *<&[u8; 16]>::try_from(&enc_block.expose_secret()[0..16]).expect("always 16 bytes"),
+    );
 
     // === Block 2: first half of session key (16 bytes) ===
     xor_blocks(
@@ -94,7 +101,9 @@ pub fn encrypt_session_block(
     cipher.encrypt_block(&mut aes_block);
     enc_block.expose_secret_mut()[16..32].copy_from_slice(aes_block.as_ref());
     hmac.update(&enc_block.expose_secret()[16..32]);
-    prev_block = Block16::new(*<&[u8; 16]>::try_from(&enc_block.expose_secret()[16..32]).expect("always 16 bytes"));
+    prev_block = Block16::new(
+        *<&[u8; 16]>::try_from(&enc_block.expose_secret()[16..32]).expect("always 16 bytes"),
+    );
 
     // === Block 3: second half of session key (16 bytes) ===
     xor_blocks(

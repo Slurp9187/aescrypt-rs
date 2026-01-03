@@ -1,13 +1,16 @@
-//! src/core/encryption/encrypt.rs
+// src/encryption/encrypt.rs
+
 //! Aescrypt encryption — secure-gate gold standard
 //! Zero secret exposure, zero-cost, auto-zeroizing
 
 use crate::aliases::PasswordString;
 #[cfg(feature = "rand")]
-use crate::aliases::{Aes256Key32, EncryptedSessionBlock48, HmacSha256, Iv16, RandomAes256Key32, RandomIv16};
-use crate::consts::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
+use crate::aliases::{
+    Aes256Key32, EncryptedSessionBlock48, HmacSha256, Iv16, RandomAes256Key32, RandomIv16,
+};
 #[cfg(feature = "rand")]
 use crate::consts::AESCRYPT_LATEST_VERSION;
+use crate::consts::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
 #[cfg(feature = "rand")]
 use crate::encryption::derive_setup_key;
 #[cfg(feature = "rand")]
@@ -96,7 +99,9 @@ where
     {
         #[allow(unused_mut, unused_variables)]
         let _ = (input, output); // Suppress unused variable warnings
-        Err(AescryptError::Crypto("encryption requires 'rand' feature for random IV/key generation".into()))
+        Err(AescryptError::Crypto(
+            "encryption requires 'rand' feature for random IV/key generation".into(),
+        ))
     }
 
     #[cfg(feature = "rand")]
