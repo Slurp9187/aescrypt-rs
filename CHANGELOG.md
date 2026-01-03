@@ -37,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Thread safety documentation**: All public functions documented as thread-safe with examples for threaded usage, async runtimes, and cancellation patterns.
 - `PBKDF2_MIN_ITER`, `PBKDF2_MAX_ITER`, `DEFAULT_PBKDF2_ITERATIONS`, and `AESCRYPT_LATEST_VERSION` constants for consistent validation and configuration.
 - Advanced API access via module paths: `decryption::extract_session_data()`, `decryption::StreamConfig`, `encryption::derive_setup_key()`, and other low-level functions for custom flows.
-- Utility functions: `utils::utf8_to_utf16le()` for legacy password encoding, `utils::xor_blocks()` for block operations.
+- Utility functions: `utilities::utf8_to_utf16le()` for legacy password encoding, `utilities::xor_blocks()` for block operations.
 
 ### Changed
 
@@ -45,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Moved `derive_setup_key` from `encryption/write.rs` to `encryption/session.rs` for better cohesion.
 - Hardened ACKDF temporary hash buffer with `AckdfHashState32`.
 - Updated all internal code, tests, and benchmarks to use new alias names.
-- Renamed `src/decryption/stream/utils.rs` to `src/decryption/stream/trailer.rs` for better clarity.
+- Renamed `src/decryption/stream/utilities.rs` to `src/decryption/stream/trailer.rs` for better clarity.
 - Enhanced KDF iteration validation with consistent bounds checking using `PBKDF2_MIN_ITER` constant.
 - `Pbkdf2Builder` now uses `DEFAULT_PBKDF2_ITERATIONS` (300,000) as the default iteration count.
 - Removed all references to deprecated/removed functionality from documentation and examples.
@@ -71,7 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Root level**: `encrypt()`, `decrypt()`, `read_version()`, `AescryptError`, `Pbkdf2Builder`, and KDF functions (`derive_ackdf_key()`, `derive_pbkdf2_key()`)
 - **Module access**: Advanced users can access lower-level functions via `decryption::*` and `encryption::*` module paths
-- **Utilities**: `utils::utf8_to_utf16le()`, `utils::xor_blocks()` for custom implementations
+- **Utilities**: `utilities::utf8_to_utf16le()`, `utilities::xor_blocks()` for custom implementations
 - **Constants**: All configuration constants available via `constants::*` module
 
 All tests (including 63 vectors) pass with and without `zeroize`. The library is now streamlined with no legacy baggage - a fresh start for v0.2.0.

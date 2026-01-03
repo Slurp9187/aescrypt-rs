@@ -18,7 +18,7 @@ use crate::aliases::{
 use crate::constants::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
 use crate::error::AescryptError;
 use crate::kdf::pbkdf2::derive_pbkdf2_key;
-use crate::utils::xor_blocks;
+use crate::utilities::xor_blocks;
 use aes::cipher::BlockEncrypt;
 use aes::{Aes256Enc, Block as AesBlock};
 use hmac::Mac;

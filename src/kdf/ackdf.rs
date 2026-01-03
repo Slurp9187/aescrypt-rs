@@ -2,7 +2,7 @@
 //! AES Crypt v0–v2 ACKDF — out-param, zero-exposure, secure-gate
 
 use crate::aliases::{AckdfHashState32, Aes256Key32, PasswordString, Salt16};
-use crate::utils::utf8_to_utf16le;
+use crate::utilities::utf8_to_utf16le;
 use crate::AescryptError;
 use secure_gate::Dynamic;
 use sha2::{Digest, Sha256};

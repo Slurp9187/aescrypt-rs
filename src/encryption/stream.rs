@@ -5,7 +5,7 @@
 use crate::aliases::HmacSha256;
 use crate::aliases::{Aes256Key32, Block16, Iv16};
 use crate::error::AescryptError;
-use crate::utils::xor_blocks;
+use crate::utilities::xor_blocks;
 use aes::cipher::{BlockEncrypt, KeyInit};
 use aes::{Aes256Enc, Block as AesBlock};
 use hmac::Mac;

@@ -8,7 +8,7 @@ pub mod encryption;
 pub mod error;
 pub mod header;
 pub mod kdf;
-pub mod utils;
+pub mod utilities;
 
 // High-level API — this is what 99% of users import
 pub use aliases::PasswordString;

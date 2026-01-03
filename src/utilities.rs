@@ -26,7 +26,7 @@ use crate::error::AescryptError;
 /// # Example
 ///
 /// ```
-/// use aescrypt_rs::utils::utf8_to_utf16le;
+/// use aescrypt_rs::utilities::utf8_to_utf16le;
 ///
 /// let utf8_bytes = b"Hello";
 /// let utf16le = utf8_to_utf16le(utf8_bytes)?;
@@ -65,7 +65,7 @@ pub fn utf8_to_utf16le(input_utf8: &[u8]) -> Result<Vec<u8>, AescryptError> {
 /// # Example
 ///
 /// ```
-/// use aescrypt_rs::utils::xor_blocks;
+/// use aescrypt_rs::utilities::xor_blocks;
 ///
 /// let block_a = [0xFF; 16];
 /// let block_b = [0xAA; 16];

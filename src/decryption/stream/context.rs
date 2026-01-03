@@ -4,12 +4,12 @@
 //! The context manages a 64-byte ring buffer that enables constant-memory decryption
 //! of arbitrarily large files.
 
-use crate::aliases::{EncryptedSessionBlock48, Iv16, Block16, RingBuffer64};
+use crate::aliases::HmacSha256;
+use crate::aliases::{Block16, EncryptedSessionBlock48, Iv16, RingBuffer64};
 use crate::error::AescryptError;
-use crate::utils::xor_blocks; // Note: This is crate::utils (existing), not stream/utils
+use crate::utilities::xor_blocks; // Note: This is crate::utilities (existing), not stream/utilities
 use aes::cipher::BlockDecrypt;
 use aes::{Aes256Dec, Block as AesBlock};
-use crate::aliases::HmacSha256;
 use hmac::Mac;
 use std::io::{Read, Write};
 
