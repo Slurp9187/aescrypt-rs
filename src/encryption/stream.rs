@@ -9,7 +9,6 @@ use crate::utilities::xor_blocks;
 use aes::cipher::{BlockEncrypt, KeyInit};
 use aes::{Aes256Enc, Block as AesBlock};
 use hmac::Mac;
-use std::convert::TryFrom;
 use std::io::{Read, Write};
 
 #[inline(always)]
@@ -59,7 +58,7 @@ where
         destination.write_all(ct_slice)?;
 
         // Update previous block for next iteration
-        prev_block = Block16::new(*<&[u8; 16]>::try_from(ct_slice).expect("always 16 bytes"));
+        prev_block = Block16::new(ct_slice.try_into().unwrap());
 
         if is_final {
             break;
