@@ -266,7 +266,7 @@ All benchmarks include full 300,000 PBKDF2 iterations when applicable.
 
 ```toml
 [dependencies]
-aescrypt-rs = "0.2.0"
+aescrypt-rs = "0.2.0-rc.1"
 ```
 
 ## License

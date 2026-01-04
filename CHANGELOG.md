@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - 2025-12-04
+## [0.2.0] - 2026-01-04
 
 **Clean slate release**: Complete API redesign focused on core encryption/decryption functionality. All non-essential features have been removed for a minimal, focused library.
 
@@ -42,12 +42,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Module reorganization**: Renamed `src/decryptor/` to `src/decryption/` and `src/encryptor/` to `src/encryption/` for better alignment with Rust naming conventions.
+- Renamed `utils.rs` to `utilities.rs` and `consts.rs` to `constants.rs` for module naming consistency.
 - Moved `derive_setup_key` from `encryption/write.rs` to `encryption/session.rs` for better cohesion.
 - Hardened ACKDF temporary hash buffer with `AckdfHashState32`.
 - Updated all internal code, tests, and benchmarks to use new alias names.
 - Renamed `src/decryption/stream/utilities.rs` to `src/decryption/stream/trailer.rs` for better clarity.
 - Enhanced KDF iteration validation with consistent bounds checking using `PBKDF2_MIN_ITER` constant.
 - `Pbkdf2Builder` now uses `DEFAULT_PBKDF2_ITERATIONS` (300,000) as the default iteration count.
+- Updated `secure-gate` dependency to v0.7.0-rc.1 and adjusted imports for `ConstantTimeEq`.
+- Gated `ct_eq` operations behind the `zeroize` feature and made `rand` feature optional.
+- Moved test-only dependencies to `[dev-dependencies]`.
+- Code formatting and improved readability in encryption modules.
 - Removed all references to deprecated/removed functionality from documentation and examples.
 
 ### Removed
@@ -63,6 +68,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Resolved HMAC constructor ambiguity in session extraction.
+- Fixed compiler warnings and disabled `ai_assumptions_tests`.
+- Removed useless conversions (clippy warnings).
 - Cleaned up `.gitignore` by removing redundant patterns.
 
 **Result**: Clean, minimal API focused solely on core encryption/decryption operations.
