@@ -32,6 +32,9 @@ use std::io::{Read, Write};
 
 /// Encrypt an Aescrypt file (v3+) — zero secret exposure, maximum security
 ///
+/// Encrypted files use the v3 format only, ensuring the highest level of security. The password must not be empty.
+/// The `kdf_iterations` must be between [`constants::PBKDF2_MIN_ITER`] and [`constants::PBKDF2_MAX_ITER`].
+///
 /// # Thread Safety
 ///
 /// This function is **thread-safe** and can be called concurrently from multiple threads.

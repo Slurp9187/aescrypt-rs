@@ -11,12 +11,32 @@ use crate::error::AescryptError;
 
 /// PBKDF2-HMAC-SHA512 key derivation builder
 ///
-/// Strong defaults: 16-byte random salt + 300,000 iterations (uses [`DEFAULT_PBKDF2_ITERATIONS`])
+/// Strong defaults: 16-byte random salt + 300,000 iterations (uses [`constants::DEFAULT_PBKDF2_ITERATIONS`])
 ///
 /// # Thread Safety
 ///
 /// This type is **thread-safe** (`Send + Sync`). Builders can be created and used
 /// concurrently from multiple threads. All operations are pure (no shared mutable state).
+///
+/// # Example
+///
+/// ```
+/// use aescrypt_rs::{Pbkdf2Builder, PasswordString, aliases::Aes256Key32};
+///
+/// let password = PasswordString::new("my-secret-password".to_string());
+///
+/// // Use defaults (300k iterations, random salt when 'rand' feature is enabled)
+/// let mut key = Aes256Key32::new([0u8; 32]);
+/// Pbkdf2Builder::new()
+///     .with_salt([0x42; 16]) // Fixed salt for reproducible doctest
+///     .derive_secure(&password, &mut key)?;
+///
+/// // Or get a new key directly
+/// let derived_key = Pbkdf2Builder::new()
+///     .with_salt([0x42; 16])
+///     .derive_secure_new(&password)?;
+/// # Ok::<(), aescrypt_rs::AescryptError>(())
+/// ```
 #[derive(Debug, Clone)]
 pub struct Pbkdf2Builder {
     iterations: u32,
@@ -26,7 +46,7 @@ pub struct Pbkdf2Builder {
 impl Pbkdf2Builder {
     /// Create builder with strong defaults
     ///
-    /// Uses [`DEFAULT_PBKDF2_ITERATIONS`] (300,000) as the default iteration count.
+    /// Uses [`constants::DEFAULT_PBKDF2_ITERATIONS`] (300,000) as the default iteration count.
     #[must_use]
     pub fn new() -> Self {
         Self {

@@ -61,8 +61,12 @@ All public functions are **thread-safe** (`Send + Sync`). The library has no sha
 
 ### Example: Threaded Usage
 
-```rust,no_run
-use aescrypt_rs::{encrypt, decrypt, PasswordString};
+#[doc(cfg(feature = "rand"))]
+
+```rust
+#[cfg(feature = "rand")]
+fn threaded_example() -> Result<(), aescrypt_rs::AescryptError> {
+use aescrypt_rs::{encrypt, PasswordString};
 use std::io::Cursor;
 use std::thread;
 
@@ -82,7 +86,8 @@ let handle = thread::spawn(move || {
 
 // Wait for completion or implement cancellation
 let result = handle.join().unwrap()?;
-# Ok::<(), aescrypt_rs::AescryptError>(())
+Ok(())
+}
 ```
 
 For large files, operations may take significant time. Users requiring cancellation should spawn functions in threads and implement their own cancellation mechanism.
@@ -133,7 +138,11 @@ assert_eq!(version, 0);
 
 ### Standard encrypt / decrypt
 
-```rust,no_run
+#[doc(cfg(feature = "rand"))]
+
+```rust
+#[cfg(feature = "rand")]
+fn encrypt_decrypt_example() -> Result<(), aescrypt_rs::AescryptError> {
 use aescrypt_rs::{encrypt, decrypt, PasswordString, constants::DEFAULT_PBKDF2_ITERATIONS};
 use std::io::Cursor;
 
@@ -146,7 +155,8 @@ encrypt(Cursor::new(data), &mut ciphertext, &pw, DEFAULT_PBKDF2_ITERATIONS)?;
 let mut plaintext = Vec::new();
 decrypt(Cursor::new(&ciphertext), &mut plaintext, &pw)?;
 assert_eq!(data, &plaintext[..]);
-# Ok::<(), aescrypt_rs::AescryptError>(())
+Ok(())
+}
 ```
 
 ### PBKDF2 Key Derivation Builder
