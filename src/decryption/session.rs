@@ -71,8 +71,8 @@ where
     let mut previous_block: Block16 = Block16::new(*public_iv.expose_secret());
 
     for (i, chunk) in encrypted_block.expose_secret().chunks_exact(16).enumerate() {
-        let chunk_array: [u8; 16] = chunk.try_into().expect("chunk is exactly 16 bytes");
-        let mut block = AesBlock::from(chunk_array);
+        let chunk_block = Block16::new(chunk.try_into().expect("chunk is exactly 16 bytes"));
+        let mut block = AesBlock::from(*chunk_block.expose_secret());
         cipher.decrypt_block(&mut block);
 
         let target = match i {
@@ -85,7 +85,7 @@ where
         xor_blocks(block.as_ref(), previous_block.expose_secret(), target);
 
         // Update previous ciphertext block for next iteration
-        previous_block = Block16::new(chunk.try_into().expect("chunk is exactly 16 bytes"));
+        previous_block = chunk_block;
     }
 
     Ok(())
