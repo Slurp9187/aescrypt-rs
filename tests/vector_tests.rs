@@ -11,14 +11,14 @@ use aescrypt_rs::encrypt;
 // Deterministic v3 encryption helper – TEST ONLY
 // Exactly matches the official test vectors (including CREATED_BY extension + version byte in HMAC)
 #[cfg(feature = "rand")]
+use aes::cipher::KeyInit;
+#[cfg(feature = "rand")]
+use aes::Aes256Enc;
+#[cfg(feature = "rand")]
 use aescrypt_rs::encryption::{
     derive_setup_key, encrypt_session_block, encrypt_stream, write_header, write_hmac,
     write_iterations, write_public_iv,
 };
-#[cfg(feature = "rand")]
-use aes::cipher::KeyInit;
-#[cfg(feature = "rand")]
-use aes::Aes256Enc;
 #[cfg(feature = "rand")]
 use hmac::{Hmac, Mac};
 #[cfg(feature = "rand")]
@@ -95,7 +95,7 @@ use std::io::Cursor;
 mod common;
 use common::TEST_PASSWORD;
 #[cfg(feature = "rand")]
-use common::{TEST_DATA, TEST_DATA_SHORT, TEST_ITERATION_VALUES, TEST_ITERATIONS};
+use common::{TEST_DATA, TEST_DATA_SHORT, TEST_ITERATIONS, TEST_ITERATION_VALUES};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AescryptVersion {
@@ -260,24 +260,27 @@ fn roundtrip_v3_deterministic() {
 
         let public_iv_bytes = decode(&v.public_iv)
             .unwrap_or_else(|e| panic!("Vector {i}: invalid public_iv hex: {e}"));
-        let public_iv_arr: [u8; 16] = public_iv_bytes
-            .try_into()
-            .unwrap_or_else(|_| panic!("Vector {i}: public_iv must be 16 bytes"));
-        let public_iv = Iv16::from(public_iv_arr);
+        let public_iv = Iv16::new(
+            public_iv_bytes
+                .try_into()
+                .unwrap_or_else(|_| panic!("Vector {i}: public_iv must be 16 bytes")),
+        );
 
         let session_iv_bytes = decode(&v.session_iv)
             .unwrap_or_else(|e| panic!("Vector {i}: invalid session_iv hex: {e}"));
-        let session_iv_arr: [u8; 16] = session_iv_bytes
-            .try_into()
-            .unwrap_or_else(|_| panic!("Vector {i}: session_iv must be 16 bytes"));
-        let session_iv = Iv16::from(session_iv_arr);
+        let session_iv = Iv16::new(
+            session_iv_bytes
+                .try_into()
+                .unwrap_or_else(|_| panic!("Vector {i}: session_iv must be 16 bytes")),
+        );
 
         let session_key_bytes = decode(&v.session_key)
             .unwrap_or_else(|e| panic!("Vector {i}: invalid session_key hex: {e}"));
-        let session_key_arr: [u8; 32] = session_key_bytes
-            .try_into()
-            .unwrap_or_else(|_| panic!("Vector {i}: session_key must be 32 bytes"));
-        let session_key = Aes256Key32::from(session_key_arr);
+        let session_key = Aes256Key32::new(
+            session_key_bytes
+                .try_into()
+                .unwrap_or_else(|_| panic!("Vector {i}: session_key must be 32 bytes")),
+        );
 
         let mut encrypted = Vec::new();
         encrypt_with_fixed_session(
@@ -332,13 +335,7 @@ fn roundtrip_all_versions() {
 fn roundtrip_v3_empty_input() {
     let password = PasswordString::new("test-empty".to_string());
     let mut encrypted = Vec::new();
-    encrypt(
-        Cursor::new(b""),
-        &mut encrypted,
-        &password,
-        TEST_ITERATIONS,
-    )
-    .unwrap();
+    encrypt(Cursor::new(b""), &mut encrypted, &password, TEST_ITERATIONS).unwrap();
     let mut decrypted = Vec::new();
     decrypt(Cursor::new(&encrypted), &mut decrypted, &password).unwrap();
     assert!(decrypted.is_empty());
@@ -389,7 +386,7 @@ fn roundtrip_extreme_1gib() {
     // 1. It's slow (takes minutes to run)
     // 2. Performance testing is covered by benches/ (which test up to 10MB)
     // 3. If 10MB works correctly, 1GB should work (same algorithm)
-    // 
+    //
     // Run manually with: cargo test -- --ignored roundtrip_extreme_1gib
     // This is a correctness/stress test, not a performance benchmark.
     const ONE_GIB: usize = 1024 * 1024 * 1024;
@@ -437,7 +434,10 @@ fn decrypt_wrong_password() {
     let mut decrypted = Vec::new();
     let result = decrypt(Cursor::new(&encrypted), &mut decrypted, &wrong_password);
 
-    assert!(result.is_err(), "Decryption with wrong password should fail");
+    assert!(
+        result.is_err(),
+        "Decryption with wrong password should fail"
+    );
     if let Err(e) = result {
         assert!(
             e.to_string().contains("HMAC") || e.to_string().contains("session"),
@@ -467,7 +467,10 @@ fn decrypt_corrupted_hmac() {
     let mut decrypted = Vec::new();
     let result = decrypt(Cursor::new(&encrypted), &mut decrypted, &password);
 
-    assert!(result.is_err(), "Decryption with corrupted HMAC should fail");
+    assert!(
+        result.is_err(),
+        "Decryption with corrupted HMAC should fail"
+    );
     if let Err(e) = result {
         assert!(
             e.to_string().contains("HMAC"),
@@ -501,7 +504,10 @@ fn decrypt_corrupted_session_hmac() {
     let mut decrypted = Vec::new();
     let result = decrypt(Cursor::new(&encrypted), &mut decrypted, &password);
 
-    assert!(result.is_err(), "Decryption with corrupted session HMAC should fail");
+    assert!(
+        result.is_err(),
+        "Decryption with corrupted session HMAC should fail"
+    );
     if let Err(e) = result {
         assert!(
             e.to_string().contains("session") || e.to_string().contains("HMAC"),
@@ -542,7 +548,10 @@ fn decrypt_unsupported_version() {
     let mut decrypted = Vec::new();
     let result = decrypt(Cursor::new(&invalid_data), &mut decrypted, &password);
 
-    assert!(result.is_err(), "Decryption with unsupported version should fail");
+    assert!(
+        result.is_err(),
+        "Decryption with unsupported version should fail"
+    );
     if let Err(e) = result {
         assert!(
             e.to_string().contains("Unsupported version") || e.to_string().contains("version"),
@@ -587,7 +596,10 @@ fn encrypt_empty_password() {
         TEST_ITERATIONS,
     );
 
-    assert!(result.is_err(), "Encryption with empty password should fail");
+    assert!(
+        result.is_err(),
+        "Encryption with empty password should fail"
+    );
     if let Err(e) = result {
         assert!(
             e.to_string().contains("empty password"),
@@ -603,12 +615,7 @@ fn encrypt_invalid_iterations() {
     let plaintext = TEST_DATA_SHORT;
 
     // Zero iterations
-    let result = encrypt(
-        Cursor::new(plaintext),
-        &mut Vec::new(),
-        &password,
-        0,
-    );
+    let result = encrypt(Cursor::new(plaintext), &mut Vec::new(), &password, 0);
     assert!(result.is_err(), "Encryption with 0 iterations should fail");
 
     // Too many iterations
@@ -618,7 +625,10 @@ fn encrypt_invalid_iterations() {
         &password,
         5_000_001,
     );
-    assert!(result.is_err(), "Encryption with >5M iterations should fail");
+    assert!(
+        result.is_err(),
+        "Encryption with >5M iterations should fail"
+    );
 }
 
 // === Edge Case Tests ===
@@ -627,16 +637,16 @@ fn encrypt_invalid_iterations() {
 fn roundtrip_block_boundary_sizes() {
     let password = PasswordString::new("boundary-test".to_string());
     let sizes = vec![
-        1,   // 1 byte
-        15,  // Just before block boundary
-        16,  // Exactly one block
-        17,  // Just after block boundary
-        31,  // Just before two blocks
-        32,  // Exactly two blocks
-        33,  // Just after two blocks
-        47,  // Just before three blocks
-        48,  // Exactly three blocks
-        49,  // Just after three blocks
+        1,  // 1 byte
+        15, // Just before block boundary
+        16, // Exactly one block
+        17, // Just after block boundary
+        31, // Just before two blocks
+        32, // Exactly two blocks
+        33, // Just after two blocks
+        47, // Just before three blocks
+        48, // Exactly three blocks
+        49, // Just after three blocks
     ];
 
     for size in sizes {
@@ -668,7 +678,9 @@ fn roundtrip_various_passwords() {
         PasswordString::new("simple".to_string()),
         PasswordString::new("complex!@#$%^&*()".to_string()),
         PasswordString::new("unicode-パスワード-中文".to_string()),
-        PasswordString::new("very-long-password-that-exceeds-normal-length-expectations".to_string()),
+        PasswordString::new(
+            "very-long-password-that-exceeds-normal-length-expectations".to_string(),
+        ),
         PasswordString::new("with\nnewlines\tand\ttabs".to_string()),
         PasswordString::new("with spaces and special chars !@#$%".to_string()),
     ];
@@ -700,13 +712,7 @@ fn roundtrip_various_kdf_iterations() {
 
     for &iter in &iterations {
         let mut encrypted = Vec::new();
-        encrypt(
-            Cursor::new(plaintext),
-            &mut encrypted,
-            &password,
-            iter,
-        )
-        .unwrap();
+        encrypt(Cursor::new(plaintext), &mut encrypted, &password, iter).unwrap();
 
         let mut decrypted = Vec::new();
         decrypt(Cursor::new(&encrypted), &mut decrypted, &password).unwrap();
@@ -723,12 +729,12 @@ fn roundtrip_various_kdf_iterations() {
 fn roundtrip_various_input_patterns() {
     let password = PasswordString::new("pattern-test".to_string());
     let patterns = vec![
-        vec![0x00u8; 16],           // All zeros
-        vec![0xFFu8; 16],           // All ones
-        (0..16).collect::<Vec<u8>>(), // Sequential
+        vec![0x00u8; 16],                   // All zeros
+        vec![0xFFu8; 16],                   // All ones
+        (0..16).collect::<Vec<u8>>(),       // Sequential
         (0..32).rev().collect::<Vec<u8>>(), // Reverse sequential
-        vec![0xAAu8; 16],           // Alternating pattern
-        vec![0x55u8; 16],           // Alternating pattern (inverse)
+        vec![0xAAu8; 16],                   // Alternating pattern
+        vec![0x55u8; 16],                   // Alternating pattern (inverse)
     ];
 
     for pattern in patterns {
@@ -799,7 +805,10 @@ fn decrypt_corrupted_ciphertext() {
     let mut decrypted = Vec::new();
     let result = decrypt(Cursor::new(&encrypted), &mut decrypted, &password);
 
-    assert!(result.is_err(), "Decryption with corrupted ciphertext should fail");
+    assert!(
+        result.is_err(),
+        "Decryption with corrupted ciphertext should fail"
+    );
     if let Err(e) = result {
         assert!(
             e.to_string().contains("HMAC"),
@@ -820,21 +829,9 @@ fn roundtrip_deterministic_with_different_iterations() {
         let mut encrypted1 = Vec::new();
         let mut encrypted2 = Vec::new();
 
-        encrypt(
-            Cursor::new(plaintext),
-            &mut encrypted1,
-            &password,
-            iter,
-        )
-        .unwrap();
+        encrypt(Cursor::new(plaintext), &mut encrypted1, &password, iter).unwrap();
 
-        encrypt(
-            Cursor::new(plaintext),
-            &mut encrypted2,
-            &password,
-            iter,
-        )
-        .unwrap();
+        encrypt(Cursor::new(plaintext), &mut encrypted2, &password, iter).unwrap();
 
         // Encryptions should be different (random IVs and session keys)
         // But both should decrypt to the same plaintext
