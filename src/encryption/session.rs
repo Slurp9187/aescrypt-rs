@@ -22,7 +22,6 @@ use crate::utilities::xor_blocks;
 use aes::cipher::BlockEncrypt;
 use aes::{Aes256Enc, Block as AesBlock};
 use hmac::Mac;
-use std::convert::TryFrom;
 
 /// Derive the AES-256 setup key from password + public IV using PBKDF2-HMAC-SHA512.
 /// Used to encrypt the session key/IV block.
@@ -87,9 +86,8 @@ pub fn encrypt_session_block(
     cipher.encrypt_block(&mut aes_block);
     enc_block.expose_secret_mut()[0..16].copy_from_slice(aes_block.as_ref());
     hmac.update(&enc_block.expose_secret()[0..16]);
-    prev_block = Block16::new(
-        *<&[u8; 16]>::try_from(&enc_block.expose_secret()[0..16]).expect("always 16 bytes"),
-    );
+    let temp_block = Block16::new(enc_block.expose_secret()[0..16].try_into().unwrap());
+    prev_block = temp_block;
 
     // === Block 2: first half of session key (16 bytes) ===
     xor_blocks(
@@ -101,9 +99,8 @@ pub fn encrypt_session_block(
     cipher.encrypt_block(&mut aes_block);
     enc_block.expose_secret_mut()[16..32].copy_from_slice(aes_block.as_ref());
     hmac.update(&enc_block.expose_secret()[16..32]);
-    prev_block = Block16::new(
-        *<&[u8; 16]>::try_from(&enc_block.expose_secret()[16..32]).expect("always 16 bytes"),
-    );
+    let temp_block = Block16::new(enc_block.expose_secret()[16..32].try_into().unwrap());
+    prev_block = temp_block;
 
     // === Block 3: second half of session key (16 bytes) ===
     xor_blocks(
