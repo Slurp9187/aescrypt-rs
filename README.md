@@ -199,7 +199,7 @@ aescrypt-rs = "0.2.0-rc.1"
 
 ## Changelog
 
-See [CHANGELOG.md](https://github.com/Slurp9187/aescrypt-rs/blob/v020rc1/CHANGELOG.md) for a list of changes.
+See [CHANGELOG.md](https://github.com/Slurp9187/aescrypt-rs/blob/v020rc/CHANGELOG.md) for a list of changes.
 
 ## License
 Licensed under MIT or Apache-2.0 at your option.
