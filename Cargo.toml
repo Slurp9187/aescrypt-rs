@@ -17,7 +17,7 @@ categories = ["cryptography"]
 # docs.rs metadata
 # ----------------------------------------------------------------------
 [package.metadata.docs.rs]
-branch = "v020rc1"
+branch = "v020rc"
 
 # ----------------------------------------------------------------------
 # Runtime dependencies
@@ -27,7 +27,7 @@ aes = "0.8"
 hmac = "0.12"
 pbkdf2 = "0.12"
 rand = "0.9"
-secure-gate = "0.7.0-rc.1"
+secure-gate = "0.7.0-rc.2"
 sha2 = "0.10"
 thiserror = "2.0"
 
