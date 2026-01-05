@@ -1,13 +1,13 @@
 #![doc = include_str!("../README.md")]
 
 pub mod aliases;
-pub mod builders;
 pub mod constants;
 pub mod decryption;
 pub mod encryption;
 pub mod error;
 pub mod header;
 pub mod kdf;
+pub mod pbkdf2_builder;
 pub mod utilities;
 
 // High-level API — this is what 99% of users import
@@ -20,7 +20,7 @@ pub use error::AescryptError; // Core type used in every encrypt/decrypt call
 // • They are needed for custom decryption flows (e (e.g. reading v0–v2 files without the high-level API)
 // • They are the only non-wrapper crypto functions users ever need directly
 // • Keeping them at the root is the established pattern in the ecosystem (see `ring`, `password-hash`, etc.)
-pub use builders::pbkdf2_builder::Pbkdf2Builder;
+pub use pbkdf2_builder::Pbkdf2Builder;
 
 pub use kdf::ackdf::derive_ackdf_key;
 pub use kdf::pbkdf2::derive_pbkdf2_key;
