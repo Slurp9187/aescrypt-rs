@@ -10,6 +10,7 @@
 - No `unsafe` in the core decryption path when `zeroize` is enabled
 - Pure Rust, `#![no_std]`-compatible core
 - **100% bit-perfect round-trip verified** against all 63 official v0–v3 test vectors
+
 [![Crates.io](https://img.shields.io/crates/v/aescrypt-rs.svg)](https://crates.io/crates/aescrypt-rs)
 [![Docs.rs](https://docs.rs/aescrypt-rs/badge.svg)](https://docs.rs/aescrypt-rs)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
@@ -72,15 +73,19 @@ The library provides a minimal, focused API at the root level:
 - `encrypt()` - Encrypt data to AES Crypt v3 format
 - `decrypt()` - Decrypt AES Crypt files (v0-v3)
 - `read_version()` - Quick version detection without full decryption
+
 **Key derivation**:
 - `Pbkdf2Builder` - Fluent builder for PBKDF2 key derivation
 - `derive_ackdf_key()` - Low-level ACKDF for v0-v2 files
 - `derive_pbkdf2_key()` - Low-level PBKDF2 for v3 files
+
 **Types and constants**:
 - `AescryptError` - Comprehensive error type
 - `PasswordString` and other secure types via `aliases::*`
 - Configuration constants via `constants::*`
+
 **Advanced access**: Lower-level functions available via `decryption::*` and `encryption::*` module paths for custom flows.
+
 ## API Examples
 ### Detect file version (header only)
 ```rust

@@ -140,24 +140,7 @@ fn xor_blocks_basic() {
 
     xor_blocks(&block_a, &block_b, &mut output);
 
-    let expected = [
-        0x00 ^ 0xF0,
-        0x01 ^ 0xF1,
-        0x02 ^ 0xF2,
-        0x03 ^ 0xF3,
-        0x04 ^ 0xF4,
-        0x05 ^ 0xF5,
-        0x06 ^ 0xF6,
-        0x07 ^ 0xF7,
-        0x08 ^ 0xF8,
-        0x09 ^ 0xF9,
-        0x0A ^ 0xFA,
-        0x0B ^ 0xFB,
-        0x0C ^ 0xFC,
-        0x0D ^ 0xFD,
-        0x0E ^ 0xFE,
-        0x0F ^ 0xFF,
-    ];
+    let expected = [0xF0; 16];
     assert_eq!(output, expected);
 }
 
@@ -232,15 +215,15 @@ fn xor_blocks_incremental() {
     let mut output = [0u8; 16];
 
     // Initialize block_a with incrementing values
-    for i in 0..16 {
-        block_a[i] = i as u8;
+    for (i, val) in block_a.iter_mut().enumerate() {
+        *val = i as u8;
     }
 
     xor_blocks(&block_a, &block_b, &mut output);
 
     // Each byte should be XORed with 1
-    for i in 0..16 {
-        assert_eq!(output[i], (i as u8) ^ 1);
+    for (i, &val) in output.iter().enumerate() {
+        assert_eq!(val, i as u8 ^ 1);
     }
 }
 
