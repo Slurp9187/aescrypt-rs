@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - 2026-01-04
+## [0.2.0] - 2026-01-06
 
 **Clean slate release**: Complete API redesign focused on core encryption/decryption functionality. All non-essential features have been removed for a minimal, focused library.
 
@@ -49,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed `src/decryption/stream/utilities.rs` to `src/decryption/stream/trailer.rs` for better clarity.
 - Enhanced KDF iteration validation with consistent bounds checking using `PBKDF2_MIN_ITER` constant.
 - `Pbkdf2Builder` now uses `DEFAULT_PBKDF2_ITERATIONS` (300,000) as the default iteration count.
-- Updated `secure-gate` dependency to v0.7.0-rc.1 and adjusted imports for `ConstantTimeEq`.
+- Updated `secure-gate` dependency to v0.7.0-rc.5 and adjusted imports for `ConstantTimeEq` from `secure_gate::eq` to `secure_gate::ct_eq`.
 - Gated `ct_eq` operations behind the `zeroize` feature and made `rand` feature optional.
 - Moved test-only dependencies to `[dev-dependencies]`.
 - Code formatting and improved readability in encryption modules.
