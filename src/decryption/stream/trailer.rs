@@ -7,7 +7,7 @@ use crate::aliases::Trailer32;
 use crate::decryption::stream::context::DecryptionContext;
 use crate::error::AescryptError;
 #[cfg(feature = "zeroize")]
-use secure_gate::eq::ConstantTimeEq;
+use secure_gate::ct_eq::ConstantTimeEq;
 use std::io::Write;
 
 /// Extract 32-byte HMAC using simple wrap-around (used by v0 and v3)

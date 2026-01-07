@@ -13,7 +13,7 @@ use aes::Aes256Dec;
 use crate::aliases::HmacSha256;
 use hmac::Mac;
 #[cfg(feature = "zeroize")]
-use secure_gate::eq::ConstantTimeEq;
+use secure_gate::ct_eq::ConstantTimeEq;
 use std::io::{Read, Write};
 
 /// Configuration for different AES Crypt stream formats.

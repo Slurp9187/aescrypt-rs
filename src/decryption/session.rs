@@ -11,7 +11,7 @@ use aes::cipher::{BlockDecrypt, KeyInit};
 use aes::{Aes256Dec, Block as AesBlock};
 use hmac::Mac;
 #[cfg(feature = "zeroize")]
-use secure_gate::eq::ConstantTimeEq;
+use secure_gate::ct_eq::ConstantTimeEq;
 use std::convert::TryInto;
 use std::io::Read;
 
