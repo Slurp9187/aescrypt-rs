@@ -27,7 +27,9 @@ aes = "0.8"
 hmac = "0.12"
 pbkdf2 = "0.12"
 rand = "0.9"
-secure-gate = {version="0.7.0-rc.5",features = ["full"]}
+secure-gate = { git = "https://github.com/Slurp9187/secure-gate", features = [
+  "full",
+] }
 sha2 = "0.10"
 thiserror = "2.0"
 
