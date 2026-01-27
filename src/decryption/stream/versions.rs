@@ -2,7 +2,8 @@
 //! Final version — matches original working code exactly
 //! All tests pass, zero warnings, secure-gate everywhere
 
-use crate::aliases::{Aes256Key32, Iv16};
+use crate::aliases::HmacSha256;
+use crate::aliases::{Aes256Key32, Iv16, Trailer32};
 use crate::decryption::stream::context::DecryptionContext;
 use crate::decryption::stream::trailer::{
     extract_hmac_scattered, extract_hmac_simple, write_final_modulo, write_final_pkcs7,
@@ -10,10 +11,8 @@ use crate::decryption::stream::trailer::{
 use crate::error::AescryptError;
 use aes::cipher::KeyInit;
 use aes::Aes256Dec;
-use crate::aliases::HmacSha256;
 use hmac::Mac;
-#[cfg(feature = "zeroize")]
-use secure_gate::ct_eq::ConstantTimeEq;
+use secure_gate::ExposeSecret;
 use std::io::{Read, Write};
 
 /// Configuration for different AES Crypt stream formats.
@@ -62,7 +61,7 @@ pub enum StreamConfig {
     /// Version 0 configuration with reserved modulo byte.
     V0 {
         /// Reserved modulo byte used for final block length determination.
-        reserved_modulo: u8
+        reserved_modulo: u8,
     },
     /// Version 1 configuration.
     V1,
@@ -108,11 +107,12 @@ where
             let expected_hmac = extract_hmac_simple(&ctx);
 
             let computed_hmac = hmac.finalize().into_bytes();
-            let computed_hmac_slice: &[u8] = computed_hmac.as_ref();
+            let computed_hmac_fixed =
+                Trailer32::try_from(computed_hmac.as_ref()).expect("computed hmac is 32 bytes");
             #[cfg(feature = "zeroize")]
-            let hmac_valid = computed_hmac_slice.ct_eq(expected_hmac.expose_secret());
+            let hmac_valid = computed_hmac_fixed.ct_eq(&expected_hmac);
             #[cfg(not(feature = "zeroize"))]
-            let hmac_valid = computed_hmac_slice == expected_hmac.expose_secret();
+            let hmac_valid = computed_hmac.as_slice() == expected_hmac.expose_secret();
             if !hmac_valid {
                 return Err(AescryptError::Header("HMAC verification failed".into()));
             }
@@ -130,11 +130,12 @@ where
             let (expected_hmac, modulo_byte) = extract_hmac_scattered(&ctx);
 
             let computed_hmac = hmac.finalize().into_bytes();
-            let computed_hmac_slice: &[u8] = computed_hmac.as_ref();
+            let computed_hmac_fixed =
+                Trailer32::try_from(computed_hmac.as_ref()).expect("computed hmac is 32 bytes");
             #[cfg(feature = "zeroize")]
-            let hmac_valid = computed_hmac_slice.ct_eq(expected_hmac.expose_secret());
+            let hmac_valid = computed_hmac_fixed.ct_eq(&expected_hmac);
             #[cfg(not(feature = "zeroize"))]
-            let hmac_valid = computed_hmac_slice == expected_hmac.expose_secret();
+            let hmac_valid = computed_hmac.as_slice() == expected_hmac.expose_secret();
             if !hmac_valid {
                 return Err(AescryptError::Header("HMAC verification failed".into()));
             }
@@ -152,11 +153,12 @@ where
             let expected_hmac = extract_hmac_simple(&ctx);
 
             let computed_hmac = hmac.finalize().into_bytes();
-            let computed_hmac_slice: &[u8] = computed_hmac.as_ref();
+            let computed_hmac_fixed =
+                Trailer32::try_from(computed_hmac.as_ref()).expect("computed hmac is 32 bytes");
             #[cfg(feature = "zeroize")]
-            let hmac_valid = computed_hmac_slice.ct_eq(expected_hmac.expose_secret());
+            let hmac_valid = computed_hmac_fixed.ct_eq(&expected_hmac);
             #[cfg(not(feature = "zeroize"))]
-            let hmac_valid = computed_hmac_slice == expected_hmac.expose_secret();
+            let hmac_valid = computed_hmac.as_slice() == expected_hmac.expose_secret();
             if !hmac_valid {
                 return Err(AescryptError::Header("HMAC verification failed".into()));
             }

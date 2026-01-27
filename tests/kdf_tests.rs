@@ -9,6 +9,7 @@ mod tests {
 
     use aescrypt_rs::aliases::{Aes256Key32, PasswordString, Salt16};
     use aescrypt_rs::{derive_ackdf_key, derive_pbkdf2_key};
+    use secure_gate::ExposeSecret;
 
     #[derive(Debug, Copy, Clone)]
     enum KdfType {
@@ -78,9 +79,7 @@ mod tests {
                 let mut key = Aes256Key32::new([0u8; 32]);
                 match kdf {
                     KdfType::Ackdf => derive_ackdf_key(&password, &salt, &mut key).unwrap(),
-                    KdfType::Pbkdf2 => {
-                        derive_pbkdf2_key(&password, &salt, 1, &mut key).unwrap()
-                    }
+                    KdfType::Pbkdf2 => derive_pbkdf2_key(&password, &salt, 1, &mut key).unwrap(),
                 };
                 assert_eq!(key.expose_secret().len(), 32, "{kdf:?} {desc} failed");
             }
@@ -94,8 +93,11 @@ mod tests {
         let mut key = Aes256Key32::new([0u8; 32]);
 
         let result = derive_pbkdf2_key(&password, &salt, 0, &mut key);
-        assert!(result.is_err(), "PBKDF2 with 0 iterations should return error");
-        
+        assert!(
+            result.is_err(),
+            "PBKDF2 with 0 iterations should return error"
+        );
+
         if let Err(e) = result {
             assert!(
                 e.to_string().contains("PBKDF2 iterations must be ≥1"),
@@ -103,7 +105,6 @@ mod tests {
             );
         }
     }
-
 
     #[test]
     fn pbkdf2_various_iteration_counts() {
@@ -220,8 +221,8 @@ mod tests {
         let salt1 = Salt16::from([0x00; 16]);
         let salt2 = Salt16::from([0xFF; 16]);
         let salt3 = Salt16::from([
-            0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-            0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF,
+            0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD,
+            0xEE, 0xFF,
         ]);
 
         // Test ACKDF salt sensitivity
@@ -370,4 +371,3 @@ mod tests {
         );
     }
 }
-

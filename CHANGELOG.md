@@ -49,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed `src/decryption/stream/utilities.rs` to `src/decryption/stream/trailer.rs` for better clarity.
 - Enhanced KDF iteration validation with consistent bounds checking using `PBKDF2_MIN_ITER` constant.
 - `Pbkdf2Builder` now uses `DEFAULT_PBKDF2_ITERATIONS` (300,000) as the default iteration count.
-- Updated `secure-gate` dependency to v0.7.0-rc.5 and adjusted imports for `ConstantTimeEq` from `secure_gate::eq` to `secure_gate::ct_eq`.
+- Updated `secure-gate` dependency to v0.7.0-rc.11, incorporating major breaking changes: transitioned random generation from deprecated aliases to `Fixed::from_random()` methods, updated HMAC verification to use wrapper `.ct_eq()` methods for constant-time comparisons on secure types, adapted all code for the new exposure API (existing `.expose_secret()` calls remain compatible), removed auto-`Clone` from wrappers requiring explicit `CloneableType` markers (added manual `Clone` impl to `Pbkdf2Builder`), updated import paths for `ExposeSecret`/`ExposeSecretMut` traits, and adjusted type conversions for session data copying.
 - Gated `ct_eq` operations behind the `zeroize` feature and made `rand` feature optional.
 - Moved test-only dependencies to `[dev-dependencies]`.
 - Code formatting and improved readability in encryption modules.

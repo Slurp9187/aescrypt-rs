@@ -5,9 +5,7 @@
 
 use crate::aliases::PasswordString;
 #[cfg(feature = "rand")]
-use crate::aliases::{
-    Aes256Key32, EncryptedSessionBlock48, HmacSha256, Iv16, RandomAes256Key32, RandomIv16,
-};
+use crate::aliases::{Aes256Key32, EncryptedSessionBlock48, HmacSha256, Iv16};
 #[cfg(feature = "rand")]
 use crate::constants::AESCRYPT_LATEST_VERSION;
 use crate::constants::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
@@ -28,6 +26,7 @@ use aes::cipher::KeyInit;
 use aes::Aes256Enc;
 #[cfg(feature = "rand")]
 use hmac::Mac;
+use secure_gate::ExposeSecret;
 use std::io::{Read, Write};
 
 /// Encrypt an Aescrypt file (v3+) — zero secret exposure, maximum security
@@ -113,9 +112,9 @@ where
         write_extensions(&mut output, AESCRYPT_LATEST_VERSION, None)?;
 
         // Generate secure random values — wrapped from birth
-        let public_iv: Iv16 = RandomIv16::generate().into();
-        let session_iv: Iv16 = RandomIv16::generate().into();
-        let session_key: Aes256Key32 = RandomAes256Key32::generate().into();
+        let public_iv = Iv16::from_random();
+        let session_iv = Iv16::from_random();
+        let session_key = Aes256Key32::from_random();
 
         write_iterations(&mut output, kdf_iterations, AESCRYPT_LATEST_VERSION)?;
         write_public_iv(&mut output, &public_iv)?;

@@ -5,6 +5,7 @@
 mod tests {
     use aescrypt_rs::aliases::{Aes256Key32, PasswordString, Salt16};
     use aescrypt_rs::{derive_ackdf_key, derive_pbkdf2_key};
+    use secure_gate::ExposeSecret;
 
     #[derive(Debug, Copy, Clone)]
     enum KdfType {
@@ -87,4 +88,3 @@ mod tests {
         }
     }
 }
-

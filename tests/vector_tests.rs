@@ -7,6 +7,7 @@ use aescrypt_rs::aliases::{Aes256Key32, EncryptedSessionBlock48, Iv16};
 use aescrypt_rs::decrypt;
 #[cfg(feature = "rand")]
 use aescrypt_rs::encrypt;
+use secure_gate::ExposeSecret;
 
 // Deterministic v3 encryption helper – TEST ONLY
 // Exactly matches the official test vectors (including CREATED_BY extension + version byte in HMAC)

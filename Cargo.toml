@@ -4,7 +4,7 @@
 
 [package]
 name = "aescrypt-rs"
-version = "0.2.0-rc.2"
+version = "0.2.0-rc.3"
 edition = "2021"
 description = "AES Crypt (v0-v3) Rust encryption/decryption library"
 license = "MIT OR Apache-2.0"
@@ -27,7 +27,7 @@ aes = "0.8"
 hmac = "0.12"
 pbkdf2 = "0.12"
 rand = "0.9"
-secure-gate = { git = "https://github.com/Slurp9187/secure-gate", features = [
+secure-gate = { git = "https://github.com/Slurp9187/secure-gate", tag = "v0.7.0-rc.11", features = [
   "full",
 ] }
 sha2 = "0.10"

@@ -41,8 +41,6 @@
 
 use secure_gate::dynamic_alias;
 use secure_gate::fixed_alias;
-#[cfg(feature = "rand")]
-use secure_gate::fixed_alias_random;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HMAC primitives — available via `aliases::*`
@@ -77,15 +75,3 @@ fixed_alias!(pub Iv16, 16); // public IV, session IV
 fixed_alias!(pub RingBuffer64, 64); // streaming decryption ring buffer
 fixed_alias!(pub Salt16, 16); // PBKDF2/ACKDF salt
 fixed_alias!(pub SessionHmacTag32, 32); // session block HMAC
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Random secrets — cryptographically fresh
-// ─────────────────────────────────────────────────────────────────────────────
-#[cfg(feature = "rand")]
-fixed_alias_random!(pub RandomAes256Key32, 32);
-#[cfg(feature = "rand")]
-fixed_alias_random!(pub RandomIv16, 16);
-#[cfg(feature = "rand")]
-fixed_alias_random!(pub RandomPassword32, 32);
-#[cfg(feature = "rand")]
-fixed_alias_random!(pub RandomSalt16, 16);

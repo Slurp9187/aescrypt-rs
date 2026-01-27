@@ -3,11 +3,10 @@
 //! All round-trip and deterministic tests pass
 //! No verify_hmac helper — we use the exact same pattern as encrypt_stream
 
-use crate::aliases::Trailer32;
+use crate::aliases::{Block16, Trailer32};
 use crate::decryption::stream::context::DecryptionContext;
 use crate::error::AescryptError;
-#[cfg(feature = "zeroize")]
-use secure_gate::ct_eq::ConstantTimeEq;
+use secure_gate::{ExposeSecret, ExposeSecretMut};
 use std::io::Write;
 
 /// Extract 32-byte HMAC using simple wrap-around (used by v0 and v3)
@@ -91,10 +90,11 @@ pub fn write_final_pkcs7<W: Write>(
     expected_block[padding_start..].fill(padding);
 
     // Constant-time comparison of entire block
+    let expected_fixed = Block16::from(expected_block);
     #[cfg(feature = "zeroize")]
-    let padding_valid = block.ct_eq(&expected_block);
+    let padding_valid = ctx.plaintext_block.ct_eq(&expected_fixed);
     #[cfg(not(feature = "zeroize"))]
-    let padding_valid = *block == expected_block;
+    let padding_valid = *ctx.plaintext_block.expose_secret() == expected_block;
     if !padding_valid {
         return Err(AescryptError::Header("v3: corrupt PKCS#7 padding".into()));
     }

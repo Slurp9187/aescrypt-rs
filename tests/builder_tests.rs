@@ -9,6 +9,7 @@ mod tests {
 
     use aescrypt_rs::aliases::{Aes256Key32, PasswordString};
     use aescrypt_rs::Pbkdf2Builder;
+    use secure_gate::ExposeSecret;
 
     #[test]
     fn pbkdf2_builder_works() {

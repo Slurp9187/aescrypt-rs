@@ -2,12 +2,11 @@
 //! PBKDF2-HMAC-SHA512 builder — secure-gate best practices
 //! Zero-cost, zero-exposure, idiomatic, audit-ready
 
-#[cfg(feature = "rand")]
-use crate::aliases::RandomSalt16;
 use crate::aliases::{Aes256Key32, PasswordString, Salt16};
 use crate::constants::DEFAULT_PBKDF2_ITERATIONS;
 use crate::derive_pbkdf2_key;
 use crate::error::AescryptError;
+use secure_gate::ExposeSecret;
 
 /// PBKDF2-HMAC-SHA512 key derivation builder
 ///
@@ -37,10 +36,19 @@ use crate::error::AescryptError;
 ///     .derive_secure_new(&password)?;
 /// # Ok::<(), aescrypt_rs::AescryptError>(())
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Pbkdf2Builder {
     iterations: u32,
     salt: Salt16, // Secure from birth
+}
+
+impl Clone for Pbkdf2Builder {
+    fn clone(&self) -> Self {
+        Self {
+            iterations: self.iterations,
+            salt: Salt16::from(*self.salt.expose_secret()),
+        }
+    }
 }
 
 impl Pbkdf2Builder {
@@ -52,7 +60,7 @@ impl Pbkdf2Builder {
         Self {
             iterations: DEFAULT_PBKDF2_ITERATIONS,
             #[cfg(feature = "rand")]
-            salt: RandomSalt16::generate().into(),
+            salt: Salt16::from_random(),
             #[cfg(not(feature = "rand"))]
             salt: Salt16::new([0u8; 16]), // User must call with_salt() when rand is disabled
         }

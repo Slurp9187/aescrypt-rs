@@ -22,6 +22,7 @@ use crate::utilities::xor_blocks;
 use aes::cipher::BlockEncrypt;
 use aes::{Aes256Enc, Block as AesBlock};
 use hmac::Mac;
+use secure_gate::{ExposeSecret, ExposeSecretMut};
 
 /// Derive the AES-256 setup key from password + public IV using PBKDF2-HMAC-SHA512.
 /// Used to encrypt the session key/IV block.

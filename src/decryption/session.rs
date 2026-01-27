@@ -10,9 +10,7 @@ use crate::{aliases::HmacSha256, error::AescryptError, utilities::xor_blocks};
 use aes::cipher::{BlockDecrypt, KeyInit};
 use aes::{Aes256Dec, Block as AesBlock};
 use hmac::Mac;
-#[cfg(feature = "zeroize")]
-use secure_gate::ct_eq::ConstantTimeEq;
-use std::convert::TryInto;
+use secure_gate::{ExposeSecret, ExposeSecretMut};
 use std::io::Read;
 
 /// Extract session IV + key — secure from first byte
@@ -35,8 +33,8 @@ where
 {
     // v0: direct secure copy — no encryption, no HMAC
     if file_version == 0 {
-        *session_iv_out = public_iv.clone();
-        *session_key_out = setup_key.clone();
+        *session_iv_out = Iv16::from(*public_iv.expose_secret());
+        *session_key_out = Aes256Key32::from(*setup_key.expose_secret());
         return Ok(());
     }
 
@@ -54,11 +52,12 @@ where
     }
 
     let computed_hmac = mac.finalize().into_bytes();
-    let computed_hmac_slice: &[u8] = computed_hmac.as_ref();
+    let computed_hmac_fixed =
+        SessionHmacTag32::try_from(computed_hmac.as_ref()).expect("computed hmac is 32 bytes");
     #[cfg(feature = "zeroize")]
-    let hmac_valid = computed_hmac_slice.ct_eq(expected_hmac.expose_secret());
+    let hmac_valid = computed_hmac_fixed.ct_eq(&expected_hmac);
     #[cfg(not(feature = "zeroize"))]
-    let hmac_valid = computed_hmac_slice == expected_hmac.expose_secret();
+    let hmac_valid = computed_hmac.as_slice() == expected_hmac.expose_secret();
     if !hmac_valid {
         return Err(AescryptError::Header(
             "session data corrupted or tampered (HMAC mismatch)".into(),
@@ -71,7 +70,8 @@ where
     let mut previous_block: Block16 = Block16::new(*public_iv.expose_secret());
 
     for (i, chunk) in encrypted_block.expose_secret().chunks_exact(16).enumerate() {
-        let chunk_block = Block16::new(chunk.try_into().expect("chunk is exactly 16 bytes"));
+        let chunk_array: [u8; 16] = chunk.try_into().expect("chunk is exactly 16 bytes");
+        let chunk_block = Block16::from(chunk_array);
         let mut block = AesBlock::from(*chunk_block.expose_secret());
         cipher.decrypt_block(&mut block);
 
