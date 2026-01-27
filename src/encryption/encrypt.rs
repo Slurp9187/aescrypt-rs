@@ -88,7 +88,7 @@ where
     W: Write,
 {
     // Validation
-    if password.expose_secret().is_empty() {
+    if password.with_secret(|p| p.is_empty()) {
         return Err(AescryptError::Header("empty password".into()));
     }
 
@@ -124,11 +124,11 @@ where
         derive_setup_key(password, &public_iv, kdf_iterations, &mut setup_key)?;
 
         // Create cipher and HMAC from secure key
-        let cipher = Aes256Enc::new(setup_key.expose_secret().into());
+        let cipher = setup_key.with_secret(|key| Aes256Enc::new(key.into()));
 
         // Fixed: unambiguous HMAC init
-        let mut hmac = <HmacSha256 as Mac>::new_from_slice(setup_key.expose_secret())
-            .expect("setup_key is 32 bytes — valid HMAC key");
+        let mut hmac =
+            setup_key.with_secret(|key| <HmacSha256 as Mac>::new_from_slice(key).unwrap());
 
         // Encrypt session block
         let mut enc_block = EncryptedSessionBlock48::new([0u8; 48]);
@@ -144,7 +144,7 @@ where
         // Include version byte in HMAC (v3+)
         hmac.update(&[AESCRYPT_LATEST_VERSION]);
 
-        write_octets(&mut output, enc_block.expose_secret())?;
+        enc_block.with_secret(|eb| write_octets(&mut output, eb))?;
         write_hmac(&mut output, hmac)?; // hmac moved here — correct
 
         // Final stream encryption

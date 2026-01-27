@@ -28,24 +28,26 @@ pub fn derive_ackdf_key(
     salt: &Salt16,
     out_key: &mut Aes256Key32,
 ) -> Result<(), AescryptError> {
-    let password_utf16le: Dynamic<Vec<u8>> =
-        Dynamic::new(utf8_to_utf16le(password.expose_secret().as_bytes())?);
+    let password_utf16le_result = password.with_secret(|pw| utf8_to_utf16le(pw.as_bytes()));
+    let password_utf16le: Dynamic<Vec<u8>> = Dynamic::new(password_utf16le_result?);
 
     let mut hasher = Sha256::new();
     let mut hash = AckdfHashState32::new([0u8; 32]); // ← semantic, zero-cost, auto-zeroized
 
     // First 16 bytes = salt
-    hash.expose_secret_mut()[..16].copy_from_slice(salt.expose_secret());
+    salt.with_secret(|s| {
+        hash.with_secret_mut(|h| h[..16].copy_from_slice(s));
+    });
 
     for _ in 0..ACKDF_ITERATIONS {
-        hasher.update(hash.expose_secret());
-        hasher.update(password_utf16le.expose_secret());
+        hash.with_secret(|h| hasher.update(h));
+        password_utf16le.with_secret(|pw| hasher.update(pw));
         hash = AckdfHashState32::new(hasher.finalize_reset().into());
     }
 
-    out_key
-        .expose_secret_mut()
-        .copy_from_slice(hash.expose_secret());
+    hash.with_secret(|h| {
+        out_key.with_secret_mut(|out| out.copy_from_slice(h));
+    });
     // hash is auto-zeroized on drop here
 
     Ok(())

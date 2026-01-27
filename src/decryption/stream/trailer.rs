@@ -3,6 +3,7 @@
 //! All round-trip and deterministic tests pass
 //! No verify_hmac helper — we use the exact same pattern as encrypt_stream
 
+#[allow(unused_imports)]
 use crate::aliases::{Block16, Trailer32};
 use crate::decryption::stream::context::DecryptionContext;
 use crate::error::AescryptError;
@@ -13,31 +14,34 @@ use std::io::Write;
 #[inline(always)]
 pub fn extract_hmac_simple(ctx: &DecryptionContext) -> Trailer32 {
     let mut expected = Trailer32::new([0u8; 32]);
-    let ring = ctx.ring_buffer.expose_secret();
-    for (i, byte) in expected.expose_secret_mut().iter_mut().enumerate() {
-        *byte = ring[(ctx.tail_index + i) % 64];
-    }
+    ctx.ring_buffer.with_secret(|ring| {
+        expected.with_secret_mut(|e| {
+            for (i, byte) in e.iter_mut().enumerate() {
+                *byte = ring[(ctx.tail_index + i) % 64];
+            }
+        });
+    });
     expected
 }
 
 /// Extract 32-byte HMAC + modulo byte using scattered layout (v1/v2 only)
 #[inline(always)]
 pub fn extract_hmac_scattered(ctx: &DecryptionContext) -> (Trailer32, u8) {
-    let ring = ctx.ring_buffer.expose_secret();
-    let modulo_byte = ring[ctx.tail_index];
-
     let mut expected = Trailer32::new([0u8; 32]);
 
     // First 15 bytes: tail+1 → tail+15
     let start1 = (ctx.tail_index + 1) % 64;
-    expected.expose_secret_mut()[..15].copy_from_slice(&ring[start1..start1 + 15]);
-
     // Next 16 bytes: tail+16 → tail+31
     let start2 = (ctx.tail_index + 16) % 64;
-    expected.expose_secret_mut()[15..31].copy_from_slice(&ring[start2..start2 + 16]);
 
-    // Final byte: tail+32
-    expected.expose_secret_mut()[31] = ring[(ctx.tail_index + 32) % 64];
+    let modulo_byte = ctx.ring_buffer.with_secret(|ring| {
+        expected.with_secret_mut(|e| {
+            e[..15].copy_from_slice(&ring[start1..start1 + 15]);
+            e[15..31].copy_from_slice(&ring[start2..start2 + 16]);
+            e[31] = ring[(ctx.tail_index + 32) % 64];
+        });
+        ring[ctx.tail_index]
+    });
 
     (expected, modulo_byte)
 }
@@ -55,7 +59,8 @@ pub fn write_final_modulo<W: Write>(
         } else {
             (modulo & 0x0F) as usize
         };
-        output.write_all(&ctx.plaintext_block.expose_secret()[..len])?;
+        ctx.plaintext_block
+            .with_secret(|pb| output.write_all(&pb[..len]))?;
     }
     Ok(())
 }
@@ -72,8 +77,7 @@ pub fn write_final_pkcs7<W: Write>(
         ));
     }
 
-    let block = ctx.plaintext_block.expose_secret();
-    let padding = block[15];
+    let padding = ctx.plaintext_block.with_secret(|block| block[15]);
 
     // Validate padding value range (non-secret, can be early return)
     if padding == 0 || padding > 16 {
@@ -85,20 +89,25 @@ pub fn write_final_pkcs7<W: Write>(
     let padding_start = 16 - padding as usize;
     let mut expected_block = [0u8; 16];
     // Copy data portion (not secret, but needed for comparison)
-    expected_block[..padding_start].copy_from_slice(&block[..padding_start]);
+    ctx.plaintext_block.with_secret(|block| {
+        expected_block[..padding_start].copy_from_slice(&block[..padding_start]);
+    });
     // Set padding bytes to expected value
     expected_block[padding_start..].fill(padding);
 
     // Constant-time comparison of entire block
-    let expected_fixed = Block16::from(expected_block);
-    #[cfg(feature = "zeroize")]
-    let padding_valid = ctx.plaintext_block.ct_eq(&expected_fixed);
-    #[cfg(not(feature = "zeroize"))]
-    let padding_valid = *ctx.plaintext_block.expose_secret() == expected_block;
+    let padding_valid = if cfg!(feature = "zeroize") {
+        let expected_fixed = Block16::from(expected_block);
+        ctx.plaintext_block.ct_eq(&expected_fixed)
+    } else {
+        ctx.plaintext_block
+            .with_secret(|block| *block == expected_block)
+    };
     if !padding_valid {
         return Err(AescryptError::Header("v3: corrupt PKCS#7 padding".into()));
     }
 
-    output.write_all(&block[..16 - padding as usize])?;
+    ctx.plaintext_block
+        .with_secret(|block| output.write_all(&block[..16 - padding as usize]))?;
     Ok(())
 }

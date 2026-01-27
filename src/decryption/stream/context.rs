@@ -61,7 +61,10 @@ impl DecryptionContext {
             plaintext_block: Block16::new([0u8; 16]),
             need_write_plaintext: false,
         };
-        this.ring_buffer.expose_secret_mut()[0..16].copy_from_slice(iv.expose_secret());
+        iv.with_secret(|iv_bytes| {
+            this.ring_buffer
+                .with_secret_mut(|rb| rb[0..16].copy_from_slice(iv_bytes))
+        });
         this
     }
 
@@ -99,29 +102,40 @@ impl DecryptionContext {
         W: Write,
     {
         let mut initial_buffer = EncryptedSessionBlock48::new([0u8; 48]);
-        let bytes_read = input.read(initial_buffer.expose_secret_mut())?;
-        self.ring_buffer.expose_secret_mut()[self.head_index..self.head_index + bytes_read]
-            .copy_from_slice(&initial_buffer.expose_secret()[..bytes_read]);
+        let bytes_read = initial_buffer.with_secret_mut(|ib| input.read(ib))?;
+        self.ring_buffer.with_secret_mut(|rb| {
+            initial_buffer.with_secret(|ib| {
+                rb[self.head_index..self.head_index + bytes_read]
+                    .copy_from_slice(&ib[..bytes_read]);
+            });
+        });
         self.head_index += bytes_read;
         if bytes_read == 48 {
             loop {
                 if self.need_write_plaintext {
-                    output.write_all(self.plaintext_block.expose_secret())?;
+                    self.plaintext_block
+                        .with_secret(|pb| output.write_all(pb))?;
                 }
-                hmac.update(
-                    &self.ring_buffer.expose_secret()[self.current_index..self.current_index + 16],
-                );
+                self.ring_buffer.with_secret(|rb| {
+                    hmac.update(&rb[self.current_index..self.current_index + 16])
+                });
                 let mut block_bytes = Block16::new([0u8; 16]);
-                block_bytes.expose_secret_mut().copy_from_slice(
-                    &self.ring_buffer.expose_secret()[self.current_index..self.current_index + 16],
-                );
-                let mut aes_block = AesBlock::from(*block_bytes.expose_secret());
+                block_bytes.with_secret_mut(|bb| {
+                    self.ring_buffer.with_secret(|rb| {
+                        bb.copy_from_slice(&rb[self.current_index..self.current_index + 16]);
+                    });
+                });
+                let mut aes_block = block_bytes.with_secret(|bb| AesBlock::from(*bb));
                 cipher.decrypt_block(&mut aes_block);
-                xor_blocks(
-                    aes_block.as_ref(),
-                    &self.ring_buffer.expose_secret()[self.tail_index..self.tail_index + 16],
-                    self.plaintext_block.expose_secret_mut(),
-                );
+                self.ring_buffer.with_secret(|rb| {
+                    self.plaintext_block.with_secret_mut(|pb| {
+                        xor_blocks(
+                            aes_block.as_ref(),
+                            &rb[self.tail_index..self.tail_index + 16],
+                            pb,
+                        );
+                    });
+                });
                 self.need_write_plaintext = true;
                 self.tail_index = (self.tail_index + 16) % 64;
                 self.current_index = (self.current_index + 16) % 64;
@@ -129,15 +143,21 @@ impl DecryptionContext {
                     self.head_index = 0;
                 }
                 let mut next_block = Block16::new([0u8; 16]);
-                let n = input.read(next_block.expose_secret_mut())?;
+                let n = next_block.with_secret_mut(|nb| input.read(nb))?;
                 if n < 16 {
-                    self.ring_buffer.expose_secret_mut()[self.head_index..self.head_index + n]
-                        .copy_from_slice(&next_block.expose_secret()[..n]);
+                    self.ring_buffer.with_secret_mut(|rb| {
+                        next_block.with_secret(|nb| {
+                            rb[self.head_index..self.head_index + n].copy_from_slice(&nb[..n]);
+                        });
+                    });
                     self.head_index += n;
                     break;
                 }
-                self.ring_buffer.expose_secret_mut()[self.head_index..self.head_index + 16]
-                    .copy_from_slice(next_block.expose_secret());
+                self.ring_buffer.with_secret_mut(|rb| {
+                    next_block.with_secret(|nb| {
+                        rb[self.head_index..self.head_index + 16].copy_from_slice(nb);
+                    });
+                });
                 self.head_index += 16;
             }
         }

@@ -33,8 +33,8 @@ where
 {
     // v0: direct secure copy — no encryption, no HMAC
     if file_version == 0 {
-        *session_iv_out = Iv16::from(*public_iv.expose_secret());
-        *session_key_out = Aes256Key32::from(*setup_key.expose_secret());
+        public_iv.with_secret(|iv| *session_iv_out = Iv16::from(*iv));
+        setup_key.with_secret(|key| *session_key_out = Aes256Key32::from(*key));
         return Ok(());
     }
 
@@ -43,21 +43,23 @@ where
     let expected_hmac: SessionHmacTag32 = read_exact_span(reader)?;
 
     // HMAC verification — exact same pattern as encryption side
-    let mut mac = <HmacSha256 as hmac::Mac>::new_from_slice(setup_key.expose_secret())
-        .expect("setup_key is always 32 bytes");
+    let mut mac = setup_key.with_secret(|key| {
+        <HmacSha256 as hmac::Mac>::new_from_slice(key).expect("setup_key is always 32 bytes")
+    });
 
-    mac.update(encrypted_block.expose_secret());
+    encrypted_block.with_secret(|block| mac.update(block));
     if file_version >= 3 {
         mac.update(&[file_version]); // v3 spec: version byte included in session HMAC
     }
 
     let computed_hmac = mac.finalize().into_bytes();
-    let computed_hmac_fixed =
-        SessionHmacTag32::try_from(computed_hmac.as_ref()).expect("computed hmac is 32 bytes");
-    #[cfg(feature = "zeroize")]
-    let hmac_valid = computed_hmac_fixed.ct_eq(&expected_hmac);
-    #[cfg(not(feature = "zeroize"))]
-    let hmac_valid = computed_hmac.as_slice() == expected_hmac.expose_secret();
+    let hmac_valid = if cfg!(feature = "zeroize") {
+        let computed_hmac_fixed =
+            SessionHmacTag32::try_from(computed_hmac.as_ref()).expect("computed hmac is 32 bytes");
+        computed_hmac_fixed.ct_eq(&expected_hmac)
+    } else {
+        expected_hmac.with_secret(|eh| computed_hmac.as_slice() == &eh[..])
+    };
     if !hmac_valid {
         return Err(AescryptError::Header(
             "session data corrupted or tampered (HMAC mismatch)".into(),
@@ -65,28 +67,34 @@ where
     }
 
     // Decrypt directly into secure output buffers
-    let cipher = Aes256Dec::new(setup_key.expose_secret().into());
+    let cipher = setup_key.with_secret(|key| Aes256Dec::new(key.into()));
 
-    let mut previous_block: Block16 = Block16::new(*public_iv.expose_secret());
+    let mut previous_block: Block16 = public_iv.with_secret(|iv| Block16::new(*iv));
 
-    for (i, chunk) in encrypted_block.expose_secret().chunks_exact(16).enumerate() {
-        let chunk_array: [u8; 16] = chunk.try_into().expect("chunk is exactly 16 bytes");
-        let chunk_block = Block16::from(chunk_array);
-        let mut block = AesBlock::from(*chunk_block.expose_secret());
-        cipher.decrypt_block(&mut block);
+    encrypted_block.with_secret(|encrypted| {
+        for (i, chunk) in encrypted.chunks_exact(16).enumerate() {
+            let chunk_array: [u8; 16] = chunk.try_into().expect("chunk is exactly 16 bytes");
+            let chunk_block = Block16::from(chunk_array);
+            chunk_block.with_secret(|cb| {
+                let mut block = AesBlock::from(*cb);
+                cipher.decrypt_block(&mut block);
 
-        let target = match i {
-            0 => session_iv_out.expose_secret_mut(),
-            1 => &mut session_key_out.expose_secret_mut()[0..16],
-            2 => &mut session_key_out.expose_secret_mut()[16..32],
-            _ => break,
-        };
+                let xor_pb = previous_block.with_secret(|pb| *pb);
+                match i {
+                    0 => session_iv_out
+                        .with_secret_mut(|siv| xor_blocks(block.as_ref(), &xor_pb, siv)),
+                    1 => session_key_out
+                        .with_secret_mut(|sk| xor_blocks(block.as_ref(), &xor_pb, &mut sk[0..16])),
+                    2 => session_key_out
+                        .with_secret_mut(|sk| xor_blocks(block.as_ref(), &xor_pb, &mut sk[16..32])),
+                    _ => return,
+                };
 
-        xor_blocks(block.as_ref(), previous_block.expose_secret(), target);
-
-        // Update previous ciphertext block for next iteration
-        previous_block = chunk_block;
-    }
+                // Update previous ciphertext block for next iteration
+                previous_block = chunk_block.with_secret(|cb| Block16::new(*cb));
+            });
+        }
+    });
 
     Ok(())
 }

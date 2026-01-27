@@ -36,7 +36,7 @@
 //!
 //! ## Usage
 //!
-//! All secure types require explicit `.expose_secret()` or `.expose_secret_mut()` to access
+//! All secure types require scoped `.with_secret()` or `.with_secret_mut()` to access
 //! the underlying data, ensuring no accidental secret exposure.
 
 use secure_gate::dynamic_alias;

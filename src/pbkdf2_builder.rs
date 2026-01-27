@@ -46,7 +46,7 @@ impl Clone for Pbkdf2Builder {
     fn clone(&self) -> Self {
         Self {
             iterations: self.iterations,
-            salt: Salt16::from(*self.salt.expose_secret()),
+            salt: self.salt.with_secret(|s| Salt16::from(*s)),
         }
     }
 }

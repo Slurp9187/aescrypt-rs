@@ -3,6 +3,7 @@
 //! All tests pass, zero warnings, secure-gate everywhere
 
 use crate::aliases::HmacSha256;
+#[allow(unused_imports)]
 use crate::aliases::{Aes256Key32, Iv16, Trailer32};
 use crate::decryption::stream::context::DecryptionContext;
 use crate::decryption::stream::trailer::{
@@ -83,12 +84,13 @@ where
     R: Read,
     W: Write,
 {
-    let key_bytes = encryption_key.expose_secret();
-    let cipher = Aes256Dec::new(key_bytes.into());
+    let cipher = encryption_key.with_secret(|key| Aes256Dec::new(key.into()));
 
     // This is the exact same construction used in encrypt_stream
-    let mut hmac = <HmacSha256 as Mac>::new_from_slice(key_bytes)
-        .expect("encryption_key is always 32 bytes — valid HMAC key");
+    let mut hmac = encryption_key.with_secret(|key| {
+        <HmacSha256 as Mac>::new_from_slice(key)
+            .expect("encryption_key is always 32 bytes — valid HMAC key")
+    });
 
     let mut ctx = DecryptionContext::new_with_iv(initial_vector);
     ctx.decrypt_cbc_loop(&mut input_reader, &mut output_writer, &cipher, &mut hmac)?;
@@ -107,12 +109,13 @@ where
             let expected_hmac = extract_hmac_simple(&ctx);
 
             let computed_hmac = hmac.finalize().into_bytes();
-            let computed_hmac_fixed =
-                Trailer32::try_from(computed_hmac.as_ref()).expect("computed hmac is 32 bytes");
-            #[cfg(feature = "zeroize")]
-            let hmac_valid = computed_hmac_fixed.ct_eq(&expected_hmac);
-            #[cfg(not(feature = "zeroize"))]
-            let hmac_valid = computed_hmac.as_slice() == expected_hmac.expose_secret();
+            let hmac_valid = if cfg!(feature = "zeroize") {
+                let computed_hmac_fixed =
+                    Trailer32::try_from(computed_hmac.as_ref()).expect("computed hmac is 32 bytes");
+                computed_hmac_fixed.ct_eq(&expected_hmac)
+            } else {
+                expected_hmac.with_secret(|eh| computed_hmac.as_slice() == eh)
+            };
             if !hmac_valid {
                 return Err(AescryptError::Header("HMAC verification failed".into()));
             }
@@ -130,12 +133,13 @@ where
             let (expected_hmac, modulo_byte) = extract_hmac_scattered(&ctx);
 
             let computed_hmac = hmac.finalize().into_bytes();
-            let computed_hmac_fixed =
-                Trailer32::try_from(computed_hmac.as_ref()).expect("computed hmac is 32 bytes");
-            #[cfg(feature = "zeroize")]
-            let hmac_valid = computed_hmac_fixed.ct_eq(&expected_hmac);
-            #[cfg(not(feature = "zeroize"))]
-            let hmac_valid = computed_hmac.as_slice() == expected_hmac.expose_secret();
+            let hmac_valid = if cfg!(feature = "zeroize") {
+                let computed_hmac_fixed =
+                    Trailer32::try_from(computed_hmac.as_ref()).expect("computed hmac is 32 bytes");
+                computed_hmac_fixed.ct_eq(&expected_hmac)
+            } else {
+                expected_hmac.with_secret(|eh| computed_hmac.as_slice() == eh)
+            };
             if !hmac_valid {
                 return Err(AescryptError::Header("HMAC verification failed".into()));
             }
@@ -153,12 +157,13 @@ where
             let expected_hmac = extract_hmac_simple(&ctx);
 
             let computed_hmac = hmac.finalize().into_bytes();
-            let computed_hmac_fixed =
-                Trailer32::try_from(computed_hmac.as_ref()).expect("computed hmac is 32 bytes");
-            #[cfg(feature = "zeroize")]
-            let hmac_valid = computed_hmac_fixed.ct_eq(&expected_hmac);
-            #[cfg(not(feature = "zeroize"))]
-            let hmac_valid = computed_hmac.as_slice() == expected_hmac.expose_secret();
+            let hmac_valid = if cfg!(feature = "zeroize") {
+                let computed_hmac_fixed =
+                    Trailer32::try_from(computed_hmac.as_ref()).expect("computed hmac is 32 bytes");
+                computed_hmac_fixed.ct_eq(&expected_hmac)
+            } else {
+                expected_hmac.with_secret(|eh| computed_hmac.as_slice() == eh)
+            };
             if !hmac_valid {
                 return Err(AescryptError::Header("HMAC verification failed".into()));
             }

@@ -74,45 +74,39 @@ pub fn encrypt_session_block(
     enc_block: &mut EncryptedSessionBlock48,
     hmac: &mut HmacSha256,
 ) -> Result<(), AescryptError> {
-    let mut prev_block: Block16 = Block16::new(*public_iv.expose_secret());
+    let mut prev_block = public_iv.with_secret(|iv| Block16::new(*iv));
     let mut block = Block16::new([0u8; 16]);
 
     // === Block 1: session IV (16 bytes) ===
-    xor_blocks(
-        session_iv.expose_secret(),
-        prev_block.expose_secret(),
-        block.expose_secret_mut(),
-    );
-    let mut aes_block = AesBlock::from(*block.expose_secret());
+    session_iv.with_secret(|siv| {
+        prev_block.with_secret(|pb| block.with_secret_mut(|b| xor_blocks(siv, pb, b)))
+    });
+    let mut aes_block = block.with_secret(|b| AesBlock::from(*b));
     cipher.encrypt_block(&mut aes_block);
-    enc_block.expose_secret_mut()[0..16].copy_from_slice(aes_block.as_ref());
-    hmac.update(&enc_block.expose_secret()[0..16]);
-    let temp_block = Block16::new(enc_block.expose_secret()[0..16].try_into().unwrap());
+    enc_block.with_secret_mut(|eb| eb[0..16].copy_from_slice(aes_block.as_ref()));
+    hmac.update(&aes_block.as_ref());
+    let temp_block = Block16::new(*aes_block.as_ref());
     prev_block = temp_block;
 
     // === Block 2: first half of session key (16 bytes) ===
-    xor_blocks(
-        &session_key.expose_secret()[0..16],
-        prev_block.expose_secret(),
-        block.expose_secret_mut(),
-    );
-    aes_block = AesBlock::from(*block.expose_secret());
+    session_key.with_secret(|sk| {
+        prev_block.with_secret(|pb| block.with_secret_mut(|b| xor_blocks(&sk[0..16], pb, b)))
+    });
+    aes_block = block.with_secret(|b| AesBlock::from(*b));
     cipher.encrypt_block(&mut aes_block);
-    enc_block.expose_secret_mut()[16..32].copy_from_slice(aes_block.as_ref());
-    hmac.update(&enc_block.expose_secret()[16..32]);
-    let temp_block = Block16::new(enc_block.expose_secret()[16..32].try_into().unwrap());
+    enc_block.with_secret_mut(|eb| eb[16..32].copy_from_slice(aes_block.as_ref()));
+    hmac.update(&aes_block.as_ref());
+    let temp_block = Block16::new(*aes_block.as_ref());
     prev_block = temp_block;
 
     // === Block 3: second half of session key (16 bytes) ===
-    xor_blocks(
-        &session_key.expose_secret()[16..32],
-        prev_block.expose_secret(),
-        block.expose_secret_mut(),
-    );
-    aes_block = AesBlock::from(*block.expose_secret());
+    session_key.with_secret(|sk| {
+        prev_block.with_secret(|pb| block.with_secret_mut(|b| xor_blocks(&sk[16..32], pb, b)))
+    });
+    aes_block = block.with_secret(|b| AesBlock::from(*b));
     cipher.encrypt_block(&mut aes_block);
-    enc_block.expose_secret_mut()[32..48].copy_from_slice(aes_block.as_ref());
-    hmac.update(&enc_block.expose_secret()[32..48]);
+    enc_block.with_secret_mut(|eb| eb[32..48].copy_from_slice(aes_block.as_ref()));
+    hmac.update(&aes_block.as_ref());
 
     Ok(())
 }

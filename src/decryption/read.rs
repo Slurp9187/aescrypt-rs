@@ -31,12 +31,13 @@ where
     R: Read,
 {
     let header = read_exact_span::<_, 4>(reader)?;
-    if header.expose_secret()[..3] != *b"AES" {
+    let is_aes = header.with_secret(|h| &h[..3] == b"AES");
+    if !is_aes {
         return Err(AescryptError::Header(
             "invalid magic header (expected 'AES')".into(),
         ));
     }
-    let version = header.expose_secret()[3];
+    let version = header.with_secret(|h| h[3]);
     if version > 3 {
         return Err(AescryptError::UnsupportedVersion(version));
     }
@@ -49,7 +50,7 @@ pub fn read_reserved_modulo_byte<R>(reader: &mut R) -> Result<u8, AescryptError>
 where
     R: Read,
 {
-    Ok(read_exact_span::<_, 1>(reader)?.expose_secret()[0])
+    Ok(read_exact_span::<_, 1>(reader)?.with_secret(|b| b[0]))
 }
 
 /// Consume all v2+ extensions (zero-copy skip)
@@ -64,7 +65,7 @@ where
 
     loop {
         let len_bytes = read_exact_span::<_, 2>(reader)?;
-        let len = u16::from_be_bytes(*len_bytes.expose_secret());
+        let len = len_bytes.with_secret(|lb| u16::from_be_bytes(*lb));
 
         if len == 0 {
             break; // end of extensions
@@ -96,7 +97,7 @@ where
     }
 
     let iter_bytes = read_exact_span::<_, 4>(reader)?;
-    let iterations = u32::from_be_bytes(*iter_bytes.expose_secret());
+    let iterations = iter_bytes.with_secret(|ib| u32::from_be_bytes(*ib));
 
     if iterations == 0 {
         return Err(AescryptError::Header(

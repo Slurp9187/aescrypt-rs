@@ -40,7 +40,7 @@ use sha2::Sha512;
 ///
 /// - Uses secure-gate types throughout for automatic zeroization
 /// - Output buffer is zeroized on drop
-/// - Password never exposed in plain form (requires `.expose_secret()` to access)
+/// - Password never exposed in plain form (scoped access via `.with_secret()`)
 /// - Salt and key are protected by secure-gate wrappers
 ///
 /// # Errors
@@ -72,12 +72,14 @@ pub fn derive_pbkdf2_key(
         return Err(AescryptError::Crypto("PBKDF2 iterations must be ≥1".into()));
     }
 
-    pbkdf2::<Hmac<Sha512>>(
-        password.expose_secret().as_bytes(),
-        salt.expose_secret(),
-        iterations,
-        out_key.expose_secret_mut(),
-    )
-    .map_err(|e| AescryptError::Crypto(format!("PBKDF2 failed: {e}")))?;
+    password
+        .with_secret(|pw| {
+            salt.with_secret(|s| {
+                out_key.with_secret_mut(|key| {
+                    pbkdf2::<Hmac<Sha512>>(pw.as_bytes(), s, iterations, key)
+                })
+            })
+        })
+        .map_err(|e| AescryptError::Crypto(format!("PBKDF2 failed: {e}")))?;
     Ok(())
 }

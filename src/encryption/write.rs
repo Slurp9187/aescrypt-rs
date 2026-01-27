@@ -52,7 +52,7 @@ pub fn write_iterations<W: Write>(
 
 #[inline]
 pub fn write_public_iv<W: Write>(writer: &mut W, iv: &Iv16) -> Result<(), AescryptError> {
-    write_octets(writer, iv.expose_secret())
+    iv.with_secret(|i| write_octets(writer, i))
 }
 
 // REMOVED: derive_setup_key — moved to session.rs for crypto cohesion

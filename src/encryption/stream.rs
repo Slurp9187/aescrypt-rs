@@ -23,34 +23,32 @@ where
     R: Read,
     W: Write,
 {
-    let cipher = Aes256Enc::new(session_key.expose_secret().into());
-    let mut hmac = <HmacSha256 as Mac>::new_from_slice(session_key.expose_secret())
-        .expect("session_key is 32 bytes");
+    let cipher = session_key.with_secret(|sk| Aes256Enc::new(sk.into()));
+    let mut hmac = session_key.with_secret(|sk| <HmacSha256 as Mac>::new_from_slice(sk).unwrap());
 
     // previous ciphertext block — secure from birth
-    let mut prev_block: Block16 = Block16::new(*session_iv.expose_secret());
+    let mut prev_block = session_iv.with_secret(|siv| Block16::new(*siv));
 
     let mut plaintext_block = Block16::new([0u8; 16]);
 
     loop {
-        let n = source.read(plaintext_block.expose_secret_mut())?;
+        let n = plaintext_block.with_secret_mut(|pb| source.read(pb))?;
 
         let is_final = n < 16;
         if is_final {
             let pad = (16 - n) as u8;
-            plaintext_block.expose_secret_mut()[n..].fill(pad);
+            plaintext_block.with_secret_mut(|pb| pb[n..].fill(pad));
         }
 
         // XOR with previous ciphertext
         let mut xor_output = Block16::new([0u8; 16]);
-        xor_blocks(
-            plaintext_block.expose_secret(),
-            prev_block.expose_secret(),
-            xor_output.expose_secret_mut(),
-        );
+        plaintext_block.with_secret(|pb| {
+            prev_block
+                .with_secret(|pb_prev| xor_output.with_secret_mut(|xo| xor_blocks(pb, pb_prev, xo)))
+        });
 
         // Encrypt
-        let mut aes_block = AesBlock::from(*xor_output.expose_secret());
+        let mut aes_block = xor_output.with_secret(|xo| AesBlock::from(*xo));
         cipher.encrypt_block(&mut aes_block);
         let ct_slice = aes_block.as_ref(); // &[u8]
 
