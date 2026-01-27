@@ -84,7 +84,7 @@ pub fn encrypt_session_block(
     let mut aes_block = block.with_secret(|b| AesBlock::from(*b));
     cipher.encrypt_block(&mut aes_block);
     enc_block.with_secret_mut(|eb| eb[0..16].copy_from_slice(aes_block.as_ref()));
-    hmac.update(&aes_block.as_ref());
+    hmac.update(aes_block.as_ref());
     let temp_block = Block16::new(*aes_block.as_ref());
     prev_block = temp_block;
 
@@ -95,7 +95,7 @@ pub fn encrypt_session_block(
     aes_block = block.with_secret(|b| AesBlock::from(*b));
     cipher.encrypt_block(&mut aes_block);
     enc_block.with_secret_mut(|eb| eb[16..32].copy_from_slice(aes_block.as_ref()));
-    hmac.update(&aes_block.as_ref());
+    hmac.update(aes_block.as_ref());
     let temp_block = Block16::new(*aes_block.as_ref());
     prev_block = temp_block;
 
@@ -106,7 +106,7 @@ pub fn encrypt_session_block(
     aes_block = block.with_secret(|b| AesBlock::from(*b));
     cipher.encrypt_block(&mut aes_block);
     enc_block.with_secret_mut(|eb| eb[32..48].copy_from_slice(aes_block.as_ref()));
-    hmac.update(&aes_block.as_ref());
+    hmac.update(aes_block.as_ref());
 
     Ok(())
 }

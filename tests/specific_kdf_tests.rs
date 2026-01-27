@@ -43,7 +43,7 @@ mod tests {
                 KdfType::Pbkdf2 => derive_pbkdf2_key(&password, &salt, 1, &mut key).unwrap(),
             };
 
-            assert_eq!(key.expose_secret(), &expected, "{kdf:?} zero salt mismatch");
+            key.with_secret(|k| assert_eq!(k, &expected, "{kdf:?} zero salt mismatch"));
         }
     }
 
@@ -80,11 +80,7 @@ mod tests {
                 KdfType::Pbkdf2 => derive_pbkdf2_key(&password, &salt, 1, &mut key).unwrap(),
             };
 
-            assert_eq!(
-                key.expose_secret(),
-                &expected,
-                "{kdf:?} custom salt mismatch"
-            );
+            key.with_secret(|k| assert_eq!(k, &expected, "{kdf:?} custom salt mismatch"));
         }
     }
 }

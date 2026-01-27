@@ -22,7 +22,7 @@ mod tests {
             .derive_secure(&password, &mut key)
             .unwrap();
 
-        assert_eq!(key.expose_secret().len(), 32);
+        key.with_secret(|k| assert_eq!(k.len(), 32));
     }
 
     #[test]
@@ -44,7 +44,7 @@ mod tests {
                 .derive_secure(&password, &mut key)
                 .unwrap();
 
-            assert_eq!(key.expose_secret().len(), 32);
+            key.with_secret(|k| assert_eq!(k.len(), 32));
         }
     }
 
@@ -63,7 +63,7 @@ mod tests {
             .derive_secure(&password, &mut key2)
             .unwrap();
 
-        assert_ne!(key1.expose_secret(), key2.expose_secret());
+        assert!(key1.with_secret(|k1| key2.with_secret(|k2| k1 != k2)));
     }
 
     #[test]
@@ -75,7 +75,7 @@ mod tests {
             .derive_secure_new(&password)
             .unwrap();
 
-        assert_eq!(key.expose_secret().len(), 32);
+        key.with_secret(|k| assert_eq!(k.len(), 32));
     }
 
     // REMOVED the invalid-iterations test
@@ -91,7 +91,7 @@ mod tests {
             .derive_secure(&password, &mut key)
             .unwrap();
 
-        assert_eq!(key.expose_secret().len(), 32);
+        key.with_secret(|k| assert_eq!(k.len(), 32));
     }
 
     #[test]
@@ -143,11 +143,14 @@ mod tests {
             .derive_secure(&password, &mut key2)
             .unwrap();
 
-        assert_eq!(
-            key1.expose_secret(),
-            key2.expose_secret(),
-            "Same password/salt/iterations should produce same key"
-        );
+        key1.with_secret(|k1| {
+            key2.with_secret(|k2| {
+                assert_eq!(
+                    k1, k2,
+                    "Same password/salt/iterations should produce same key"
+                )
+            })
+        });
     }
 
     #[test]
@@ -170,11 +173,11 @@ mod tests {
             .derive_secure(&password, &mut key2)
             .unwrap();
 
-        assert_ne!(
-            key1.expose_secret(),
-            key2.expose_secret(),
-            "Different salts should produce different keys"
-        );
+        key1.with_secret(|k1| {
+            key2.with_secret(|k2| {
+                assert_ne!(k1, k2, "Different salts should produce different keys")
+            })
+        });
     }
 
     #[test]
@@ -197,11 +200,11 @@ mod tests {
             .derive_secure(&password, &mut key2)
             .unwrap();
 
-        assert_ne!(
-            key1.expose_secret(),
-            key2.expose_secret(),
-            "Different iterations should produce different keys"
-        );
+        key1.with_secret(|k1| {
+            key2.with_secret(|k2| {
+                assert_ne!(k1, k2, "Different iterations should produce different keys")
+            })
+        });
     }
 
     #[test]
@@ -224,11 +227,11 @@ mod tests {
             .derive_secure(&PasswordString::new("password2".to_string()), &mut key2)
             .unwrap();
 
-        assert_ne!(
-            key1.expose_secret(),
-            key2.expose_secret(),
-            "Different passwords should produce different keys"
-        );
+        key1.with_secret(|k1| {
+            key2.with_secret(|k2| {
+                assert_ne!(k1, k2, "Different passwords should produce different keys")
+            })
+        });
     }
 
     #[test]
@@ -246,7 +249,7 @@ mod tests {
         assert_eq!(builder.salt(), &[0xAA; 16]);
 
         builder.derive_secure(&password, &mut key).unwrap();
-        assert_eq!(key.expose_secret().len(), 32);
+        key.with_secret(|k| assert_eq!(k.len(), 32));
     }
 
     #[test]
@@ -272,7 +275,7 @@ mod tests {
             .derive_secure(&password, &mut key)
             .unwrap();
 
-        assert_eq!(key.expose_secret().len(), 32);
+        key.with_secret(|k| assert_eq!(k.len(), 32));
     }
 
     #[test]
@@ -288,6 +291,6 @@ mod tests {
 
         // PBKDF2 should accept empty password (though it's not secure)
         assert!(result.is_ok());
-        assert_eq!(key.expose_secret().len(), 32);
+        key.with_secret(|k| assert_eq!(k.len(), 32));
     }
 }

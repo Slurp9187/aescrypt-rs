@@ -60,11 +60,11 @@ fn encrypt_with_fixed_session<R: Read, W: Write>(
     let mut setup_key = Aes256Key32::new([0u8; 32]);
     derive_setup_key(password, public_iv, iterations, &mut setup_key)?;
 
-    let cipher = Aes256Enc::new(setup_key.expose_secret().into());
+    let cipher = setup_key.with_secret(|sk| Aes256Enc::new(sk.into()));
 
     // Create HMAC – disambiguate using the Mac trait directly
-    let mut session_hmac = <Hmac<Sha256> as Mac>::new_from_slice(setup_key.expose_secret())
-        .expect("setup_key is exactly 32 bytes");
+    let mut session_hmac =
+        setup_key.with_secret(|sk| <Hmac<Sha256> as Mac>::new_from_slice(sk).unwrap());
 
     // Encrypt the session block (IV + key)
     let mut enc_session_block = EncryptedSessionBlock48::new([0u8; 48]);
@@ -81,7 +81,7 @@ fn encrypt_with_fixed_session<R: Read, W: Write>(
     session_hmac.update(&[3]);
 
     // Write encrypted session + HMAC
-    destination.write_all(enc_session_block.expose_secret())?;
+    enc_session_block.with_secret(|eb| destination.write_all(eb))?;
     write_hmac(&mut destination, session_hmac)?;
 
     // Encrypt payload

@@ -18,8 +18,7 @@ where
     R: Read,
 {
     let mut buf = SpanBuffer::new([0u8; N]);
-    reader
-        .read_exact(buf.expose_secret_mut())
+    buf.with_secret_mut(|b| reader.read_exact(b))
         .map_err(AescryptError::Io)?;
     Ok(buf)
 }

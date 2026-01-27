@@ -30,7 +30,7 @@ mod tests {
             0xc2, 0x79, 0x28, 0xf3, 0x07, 0x1f, 0xed, 0x7e, 0xb2, 0xe7, 0xe6, 0xaf, 0x5c, 0x6f,
             0x48, 0xde, 0x11, 0xeb,
         ];
-        assert_eq!(ackdf_key.expose_secret(), &expected_ackdf, "ACKDF mismatch");
+        ackdf_key.with_secret(|ak| assert_eq!(ak, &expected_ackdf, "ACKDF mismatch"));
 
         let mut pbkdf2_key = Aes256Key32::new([0u8; 32]);
         derive_pbkdf2_key(&password, &salt, 1, &mut pbkdf2_key).unwrap();
@@ -39,11 +39,7 @@ mod tests {
             142, 124, 235, 125, 184, 202, 68, 61, 255, 97, 150, 244, 189, 12, 170, 47, 125, 231,
             198, 156, 219, 100, 132, 2, 12, 34, 200, 165, 120, 169, 161, 207,
         ];
-        assert_eq!(
-            pbkdf2_key.expose_secret(),
-            &expected_pbkdf2,
-            "PBKDF2 mismatch"
-        );
+        pbkdf2_key.with_secret(|pk| assert_eq!(pk, &expected_pbkdf2, "PBKDF2 mismatch"));
     }
 
     #[test]
@@ -57,7 +53,7 @@ mod tests {
         let mut pbkdf2_key = Aes256Key32::new([0u8; 32]);
         derive_pbkdf2_key(&password, &salt, 1, &mut pbkdf2_key).unwrap();
 
-        assert_ne!(ackdf_key.expose_secret(), pbkdf2_key.expose_secret());
+        ackdf_key.with_secret(|ak| pbkdf2_key.with_secret(|pk| assert_ne!(ak, pk)));
     }
 
     #[test]
@@ -81,7 +77,7 @@ mod tests {
                     KdfType::Ackdf => derive_ackdf_key(&password, &salt, &mut key).unwrap(),
                     KdfType::Pbkdf2 => derive_pbkdf2_key(&password, &salt, 1, &mut key).unwrap(),
                 };
-                assert_eq!(key.expose_secret().len(), 32, "{kdf:?} {desc} failed");
+                key.with_secret(|k| assert_eq!(k.len(), 32, "{kdf:?} {desc} failed"));
             }
         }
     }
@@ -122,15 +118,18 @@ mod tests {
             derive_pbkdf2_key(&password, &salt, iterations, &mut key2).unwrap();
 
             // Determinism: same input should produce same output
-            assert_eq!(
-                key1.expose_secret(),
-                key2.expose_secret(),
-                "PBKDF2 should be deterministic with {iterations} iterations"
-            );
+            key1.with_secret(|k1| {
+                key2.with_secret(|k2| {
+                    assert_eq!(
+                        k1, k2,
+                        "PBKDF2 should be deterministic with {iterations} iterations"
+                    )
+                })
+            });
 
             // Verify output is 32 bytes
             assert_eq!(
-                key1.expose_secret().len(),
+                key1.with_secret(|k| k.len()),
                 32,
                 "PBKDF2 output should be 32 bytes with {iterations} iterations"
             );
@@ -151,21 +150,30 @@ mod tests {
         derive_pbkdf2_key(&password, &salt, 100, &mut key3).unwrap();
 
         // Different iteration counts should produce different keys
-        assert_ne!(
-            key1.expose_secret(),
-            key2.expose_secret(),
-            "Different iteration counts should produce different keys"
-        );
-        assert_ne!(
-            key2.expose_secret(),
-            key3.expose_secret(),
-            "Different iteration counts should produce different keys"
-        );
-        assert_ne!(
-            key1.expose_secret(),
-            key3.expose_secret(),
-            "Different iteration counts should produce different keys"
-        );
+        key1.with_secret(|k1| {
+            key2.with_secret(|k2| {
+                assert_ne!(
+                    k1, k2,
+                    "Different iteration counts should produce different keys"
+                )
+            })
+        });
+        key2.with_secret(|k2| {
+            key3.with_secret(|k3| {
+                assert_ne!(
+                    k2, k3,
+                    "Different iteration counts should produce different keys"
+                )
+            })
+        });
+        key1.with_secret(|k1| {
+            key3.with_secret(|k3| {
+                assert_ne!(
+                    k1, k3,
+                    "Different iteration counts should produce different keys"
+                )
+            })
+        });
     }
 
     #[test]
@@ -182,16 +190,12 @@ mod tests {
         derive_ackdf_key(&password, &salt, &mut ackdf_key2).unwrap();
         derive_ackdf_key(&password, &salt, &mut ackdf_key3).unwrap();
 
-        assert_eq!(
-            ackdf_key1.expose_secret(),
-            ackdf_key2.expose_secret(),
-            "ACKDF should be deterministic"
-        );
-        assert_eq!(
-            ackdf_key2.expose_secret(),
-            ackdf_key3.expose_secret(),
-            "ACKDF should be deterministic"
-        );
+        ackdf_key1.with_secret(|k1| {
+            ackdf_key2.with_secret(|k2| assert_eq!(k1, k2, "ACKDF should be deterministic"))
+        });
+        ackdf_key2.with_secret(|k2| {
+            ackdf_key3.with_secret(|k3| assert_eq!(k2, k3, "ACKDF should be deterministic"))
+        });
 
         // Test PBKDF2 determinism
         let mut pbkdf2_key1 = Aes256Key32::new([0u8; 32]);
@@ -202,16 +206,12 @@ mod tests {
         derive_pbkdf2_key(&password, &salt, 100, &mut pbkdf2_key2).unwrap();
         derive_pbkdf2_key(&password, &salt, 100, &mut pbkdf2_key3).unwrap();
 
-        assert_eq!(
-            pbkdf2_key1.expose_secret(),
-            pbkdf2_key2.expose_secret(),
-            "PBKDF2 should be deterministic"
-        );
-        assert_eq!(
-            pbkdf2_key2.expose_secret(),
-            pbkdf2_key3.expose_secret(),
-            "PBKDF2 should be deterministic"
-        );
+        pbkdf2_key1.with_secret(|k1| {
+            pbkdf2_key2.with_secret(|k2| assert_eq!(k1, k2, "PBKDF2 should be deterministic"))
+        });
+        pbkdf2_key2.with_secret(|k2| {
+            pbkdf2_key3.with_secret(|k3| assert_eq!(k2, k3, "PBKDF2 should be deterministic"))
+        });
     }
 
     #[test]
@@ -234,21 +234,30 @@ mod tests {
         derive_ackdf_key(&password, &salt2, &mut ackdf_key2).unwrap();
         derive_ackdf_key(&password, &salt3, &mut ackdf_key3).unwrap();
 
-        assert_ne!(
-            ackdf_key1.expose_secret(),
-            ackdf_key2.expose_secret(),
-            "ACKDF should produce different keys for different salts"
-        );
-        assert_ne!(
-            ackdf_key2.expose_secret(),
-            ackdf_key3.expose_secret(),
-            "ACKDF should produce different keys for different salts"
-        );
-        assert_ne!(
-            ackdf_key1.expose_secret(),
-            ackdf_key3.expose_secret(),
-            "ACKDF should produce different keys for different salts"
-        );
+        ackdf_key1.with_secret(|k1| {
+            ackdf_key2.with_secret(|k2| {
+                assert_ne!(
+                    k1, k2,
+                    "ACKDF should produce different keys for different salts"
+                )
+            })
+        });
+        ackdf_key2.with_secret(|k2| {
+            ackdf_key3.with_secret(|k3| {
+                assert_ne!(
+                    k2, k3,
+                    "ACKDF should produce different keys for different salts"
+                )
+            })
+        });
+        ackdf_key1.with_secret(|k1| {
+            ackdf_key3.with_secret(|k3| {
+                assert_ne!(
+                    k1, k3,
+                    "ACKDF should produce different keys for different salts"
+                )
+            })
+        });
 
         // Test PBKDF2 salt sensitivity
         let mut pbkdf2_key1 = Aes256Key32::new([0u8; 32]);
@@ -259,21 +268,30 @@ mod tests {
         derive_pbkdf2_key(&password, &salt2, 100, &mut pbkdf2_key2).unwrap();
         derive_pbkdf2_key(&password, &salt3, 100, &mut pbkdf2_key3).unwrap();
 
-        assert_ne!(
-            pbkdf2_key1.expose_secret(),
-            pbkdf2_key2.expose_secret(),
-            "PBKDF2 should produce different keys for different salts"
-        );
-        assert_ne!(
-            pbkdf2_key2.expose_secret(),
-            pbkdf2_key3.expose_secret(),
-            "PBKDF2 should produce different keys for different salts"
-        );
-        assert_ne!(
-            pbkdf2_key1.expose_secret(),
-            pbkdf2_key3.expose_secret(),
-            "PBKDF2 should produce different keys for different salts"
-        );
+        pbkdf2_key1.with_secret(|k1| {
+            pbkdf2_key2.with_secret(|k2| {
+                assert_ne!(
+                    k1, k2,
+                    "PBKDF2 should produce different keys for different salts"
+                )
+            })
+        });
+        pbkdf2_key2.with_secret(|k2| {
+            pbkdf2_key3.with_secret(|k3| {
+                assert_ne!(
+                    k2, k3,
+                    "PBKDF2 should produce different keys for different salts"
+                )
+            })
+        });
+        pbkdf2_key1.with_secret(|k1| {
+            pbkdf2_key3.with_secret(|k3| {
+                assert_ne!(
+                    k1, k3,
+                    "PBKDF2 should produce different keys for different salts"
+                )
+            })
+        });
     }
 
     #[test]
@@ -293,21 +311,30 @@ mod tests {
         derive_ackdf_key(&password2, &salt, &mut ackdf_key2).unwrap();
         derive_ackdf_key(&password3, &salt, &mut ackdf_key3).unwrap();
 
-        assert_ne!(
-            ackdf_key1.expose_secret(),
-            ackdf_key2.expose_secret(),
-            "ACKDF should produce different keys for different passwords"
-        );
-        assert_ne!(
-            ackdf_key2.expose_secret(),
-            ackdf_key3.expose_secret(),
-            "ACKDF should produce different keys for different passwords"
-        );
-        assert_ne!(
-            ackdf_key1.expose_secret(),
-            ackdf_key3.expose_secret(),
-            "ACKDF should produce different keys for different passwords"
-        );
+        ackdf_key1.with_secret(|k1| {
+            ackdf_key2.with_secret(|k2| {
+                assert_ne!(
+                    k1, k2,
+                    "ACKDF should produce different keys for different passwords"
+                )
+            })
+        });
+        ackdf_key2.with_secret(|k2| {
+            ackdf_key3.with_secret(|k3| {
+                assert_ne!(
+                    k2, k3,
+                    "ACKDF should produce different keys for different passwords"
+                )
+            })
+        });
+        ackdf_key1.with_secret(|k1| {
+            ackdf_key3.with_secret(|k3| {
+                assert_ne!(
+                    k1, k3,
+                    "ACKDF should produce different keys for different passwords"
+                )
+            })
+        });
 
         // Test PBKDF2 password sensitivity
         let mut pbkdf2_key1 = Aes256Key32::new([0u8; 32]);
@@ -318,21 +345,30 @@ mod tests {
         derive_pbkdf2_key(&password2, &salt, 100, &mut pbkdf2_key2).unwrap();
         derive_pbkdf2_key(&password3, &salt, 100, &mut pbkdf2_key3).unwrap();
 
-        assert_ne!(
-            pbkdf2_key1.expose_secret(),
-            pbkdf2_key2.expose_secret(),
-            "PBKDF2 should produce different keys for different passwords"
-        );
-        assert_ne!(
-            pbkdf2_key2.expose_secret(),
-            pbkdf2_key3.expose_secret(),
-            "PBKDF2 should produce different keys for different passwords"
-        );
-        assert_ne!(
-            pbkdf2_key1.expose_secret(),
-            pbkdf2_key3.expose_secret(),
-            "PBKDF2 should produce different keys for different passwords"
-        );
+        pbkdf2_key1.with_secret(|k1| {
+            pbkdf2_key2.with_secret(|k2| {
+                assert_ne!(
+                    k1, k2,
+                    "PBKDF2 should produce different keys for different passwords"
+                )
+            })
+        });
+        pbkdf2_key2.with_secret(|k2| {
+            pbkdf2_key3.with_secret(|k3| {
+                assert_ne!(
+                    k2, k3,
+                    "PBKDF2 should produce different keys for different passwords"
+                )
+            })
+        });
+        pbkdf2_key1.with_secret(|k1| {
+            pbkdf2_key3.with_secret(|k3| {
+                assert_ne!(
+                    k1, k3,
+                    "PBKDF2 should produce different keys for different passwords"
+                )
+            })
+        });
     }
 
     #[test]
@@ -345,13 +381,13 @@ mod tests {
         derive_ackdf_key(&password, &salt, &mut ackdf_key).unwrap();
 
         assert_eq!(
-            ackdf_key.expose_secret().len(),
+            ackdf_key.with_secret(|k| k.len()),
             32,
             "ACKDF output should be exactly 32 bytes"
         );
         // Verify buffer is not all zeros (very unlikely but good to check)
         assert!(
-            ackdf_key.expose_secret().iter().any(|&b| b != 0),
+            ackdf_key.with_secret(|k| k.iter().any(|&b| b != 0)),
             "ACKDF output should not be all zeros"
         );
 
@@ -360,13 +396,13 @@ mod tests {
         derive_pbkdf2_key(&password, &salt, 100, &mut pbkdf2_key).unwrap();
 
         assert_eq!(
-            pbkdf2_key.expose_secret().len(),
+            pbkdf2_key.with_secret(|k| k.len()),
             32,
             "PBKDF2 output should be exactly 32 bytes"
         );
         // Verify buffer is not all zeros
         assert!(
-            pbkdf2_key.expose_secret().iter().any(|&b| b != 0),
+            pbkdf2_key.with_secret(|k| k.iter().any(|&b| b != 0)),
             "PBKDF2 output should not be all zeros"
         );
     }
