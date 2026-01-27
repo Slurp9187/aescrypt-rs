@@ -95,16 +95,6 @@ mod tests {
     }
 
     #[test]
-    fn pbkdf2_builder_getters() {
-        let builder = Pbkdf2Builder::new()
-            .with_iterations(50_000)
-            .with_salt([0xAA; 16]);
-
-        assert_eq!(builder.iterations(), 50_000);
-        assert_eq!(builder.salt(), &[0xAA; 16]);
-    }
-
-    #[test]
     fn pbkdf2_builder_iterations_clamps_to_one() {
         let builder = Pbkdf2Builder::new().with_iterations(0);
         assert_eq!(builder.iterations(), 1, "Iterations should clamp to 1");
@@ -119,7 +109,6 @@ mod tests {
         let builder2 = builder1.clone();
 
         assert_eq!(builder1.iterations(), builder2.iterations());
-        assert_eq!(builder1.salt(), builder2.salt());
     }
 
     #[test]
@@ -246,7 +235,6 @@ mod tests {
             .with_salt([0xAA; 16]); // Override previous
 
         assert_eq!(builder.iterations(), TEST_ITERATIONS);
-        assert_eq!(builder.salt(), &[0xAA; 16]);
 
         builder.derive_secure(&password, &mut key).unwrap();
         key.with_secret(|k| assert_eq!(k.len(), 32));

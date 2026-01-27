@@ -59,10 +59,7 @@ impl Pbkdf2Builder {
     pub fn new() -> Self {
         Self {
             iterations: DEFAULT_PBKDF2_ITERATIONS,
-            #[cfg(feature = "rand")]
             salt: Salt16::from_random(),
-            #[cfg(not(feature = "rand"))]
-            salt: Salt16::new([0u8; 16]), // User must call with_salt() when rand is disabled
         }
     }
 
@@ -78,12 +75,6 @@ impl Pbkdf2Builder {
     pub fn with_salt(mut self, salt: impl Into<[u8; 16]>) -> Self {
         self.salt = Salt16::from(salt.into());
         self
-    }
-
-    /// Current salt as raw 16-byte array (for serialization)
-    #[must_use]
-    pub fn salt(&self) -> &[u8; 16] {
-        self.salt.expose_secret()
     }
 
     /// Current iteration count

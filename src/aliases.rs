@@ -28,12 +28,6 @@
 //! - [`Salt16`] - 16-byte salt for KDF operations
 //! - [`SessionHmacTag32`] - 32-byte session block HMAC tag
 //!
-//! ### Random Secret Generators
-//! - [`RandomAes256Key32`] - Generates random 32-byte AES keys
-//! - [`RandomIv16`] - Generates random 16-byte IVs
-//! - [`RandomPassword32`] - Generates random 32-byte passwords
-//! - [`RandomSalt16`] - Generates random 16-byte salts
-//!
 //! ## Usage
 //!
 //! All secure types require scoped `.with_secret()` or `.with_secret_mut()` to access
