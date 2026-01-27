@@ -101,17 +101,6 @@ mod tests {
     }
 
     #[test]
-    fn pbkdf2_builder_clone() {
-        let builder1 = Pbkdf2Builder::new()
-            .with_iterations(TEST_ITERATIONS)
-            .with_salt([0xBB; 16]);
-
-        let builder2 = builder1.clone();
-
-        assert_eq!(builder1.iterations(), builder2.iterations());
-    }
-
-    #[test]
     fn pbkdf2_builder_determinism() {
         let password = PasswordString::new("deterministic".to_string());
         let salt = [0xCC; 16];
@@ -136,7 +125,7 @@ mod tests {
             key2.with_secret(|k2| {
                 assert_eq!(
                     k1, k2,
-                    "Same password/salt/iterations should produce same key"
+                    "PBKDF2 should be deterministic with {iterations} iterations"
                 )
             })
         });

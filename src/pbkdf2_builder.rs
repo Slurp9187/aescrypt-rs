@@ -6,7 +6,6 @@ use crate::aliases::{Aes256Key32, PasswordString, Salt16};
 use crate::constants::DEFAULT_PBKDF2_ITERATIONS;
 use crate::derive_pbkdf2_key;
 use crate::error::AescryptError;
-use secure_gate::ExposeSecret;
 
 /// PBKDF2-HMAC-SHA512 key derivation builder
 ///
@@ -40,15 +39,6 @@ use secure_gate::ExposeSecret;
 pub struct Pbkdf2Builder {
     iterations: u32,
     salt: Salt16, // Secure from birth
-}
-
-impl Clone for Pbkdf2Builder {
-    fn clone(&self) -> Self {
-        Self {
-            iterations: self.iterations,
-            salt: self.salt.with_secret(|s| Salt16::from(*s)),
-        }
-    }
 }
 
 impl Pbkdf2Builder {

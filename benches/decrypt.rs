@@ -55,7 +55,7 @@ fn bench_decrypt(c: &mut Criterion) {
                     let mut dst = Vec::with_capacity(size);
                     let mut src = Cursor::new(black_box(&encrypted));
 
-                    // decrypt takes ownership → we clone the password each time
+                    // decrypt takes password by reference
                     decrypt(&mut src, &mut dst, black_box(&password)).unwrap();
 
                     black_box(dst)
