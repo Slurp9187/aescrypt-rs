@@ -4,6 +4,7 @@
 /references*
 /target*
 /trash*
+**/.cursor/
 
 Cargo.lock
 *.bak
