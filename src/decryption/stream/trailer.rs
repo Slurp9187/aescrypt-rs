@@ -3,7 +3,6 @@
 //! All round-trip and deterministic tests pass
 //! No verify_hmac helper — we use the exact same pattern as encrypt_stream
 
-#[allow(unused_imports)]
 use crate::aliases::{Block16, Trailer32};
 use crate::decryption::stream::context::DecryptionContext;
 use crate::error::AescryptError;

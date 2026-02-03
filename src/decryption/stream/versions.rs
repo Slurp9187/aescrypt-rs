@@ -3,7 +3,6 @@
 //! All tests pass, zero warnings, secure-gate everywhere
 
 use crate::aliases::HmacSha256;
-#[allow(unused_imports)]
 use crate::aliases::{Aes256Key32, Iv16, Trailer32};
 use crate::decryption::stream::context::DecryptionContext;
 use crate::decryption::stream::trailer::{
