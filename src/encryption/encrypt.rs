@@ -88,9 +88,6 @@ where
     W: Write,
 {
     // Validation
-    // if password.with_secret(|p| p.is_empty()) {
-    //     return Err(AescryptError::Header("empty password".into()));
-    // }
     if password.is_empty() {
         return Err(AescryptError::Header("empty password".into()));
     }

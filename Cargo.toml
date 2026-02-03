@@ -27,7 +27,7 @@ aes = "0.8"
 hmac = "0.12"
 pbkdf2 = "0.12"
 rand = "0.9"
-secure-gate = { version = "0.7.0-rc.12", features = [
+secure-gate = { version = "0.7.0-rc.14", features = [
   "secure","rand","ct-eq"
 ] }
 sha2 = "0.10"
