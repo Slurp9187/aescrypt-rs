@@ -10,6 +10,17 @@ use sha2::{Digest, Sha256};
 /// Fixed iteration count for ACKDF as defined by AES Crypt v0–v2 specification
 pub const ACKDF_ITERATIONS: u32 = 8192;
 
+#[inline(always)]
+fn hash_once<F1, F2>(hasher: &mut Sha256, update_prev: F1, update_pw: F2) -> [u8; 32]
+where
+    F1: FnOnce(&mut Sha256),
+    F2: FnOnce(&mut Sha256),
+{
+    update_prev(hasher);
+    update_pw(hasher);
+    hasher.finalize_reset().into()
+}
+
 /// Derive ACKDF key directly into caller buffer (zero-cost, zero-exposure)
 ///
 /// - 8192 × SHA-256 iterations
@@ -40,9 +51,11 @@ pub fn derive_ackdf_key(
     });
 
     for _ in 0..ACKDF_ITERATIONS {
-        hash.with_secret(|h| hasher.update(h));
-        password_utf16le.with_secret(|pw| hasher.update(pw));
-        hash = AckdfHashState32::new(hasher.finalize_reset().into());
+        hash = AckdfHashState32::new(hash_once(
+            &mut hasher,
+            |hasher| hash.with_secret(|h| hasher.update(h)),
+            |hasher| password_utf16le.with_secret(|p| hasher.update(p)),
+        ));
     }
 
     hash.with_secret(|h| {
