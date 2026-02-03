@@ -199,7 +199,7 @@ All benchmarks include full 300,000 PBKDF2 iterations when applicable.
 ## Installation
 ```toml
 [dependencies]
-aescrypt-rs = "0.2.0-rc.4"
+aescrypt-rs = "0.2.0-rc.5"
 ```
 
 ## Changelog

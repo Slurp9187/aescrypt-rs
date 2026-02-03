@@ -1,4 +1,41 @@
-#![doc = include_str!("../README.md")]
+// uncomment to run doctests
+// cargo test --doc lib
+//#![doc = include_str!("../README.md")]
+
+//! # Quick Start
+//!
+//! Encrypt and decrypt data using AES Crypt format v3:
+//!
+//! ```rust,no_run
+//! use aescrypt_rs::{encrypt, decrypt, PasswordString, constants::DEFAULT_PBKDF2_ITERATIONS};
+//! use std::io::Cursor;
+//!
+//! let password = PasswordString::new("correct horse battery staple".to_string());
+//! let data = b"top secret";
+//!
+//! // Encrypt
+//! let mut ciphertext = Vec::new();
+//! encrypt(Cursor::new(data), &mut ciphertext, &password, DEFAULT_PBKDF2_ITERATIONS)?;
+//!
+//! // Decrypt
+//! let mut plaintext = Vec::new();
+//! decrypt(Cursor::new(&ciphertext), &mut plaintext, &password)?;
+//!
+//! assert_eq!(data, &plaintext[..]);
+//! # Ok::<(), aescrypt_rs::AescryptError>(())
+//! ```
+//!
+//! Detect file format version without decrypting:
+//!
+//! ```rust
+//! use aescrypt_rs::read_version;
+//! use std::io::Cursor;
+//!
+//! let header = b"AES\x03\x00";
+//! let version = read_version(Cursor::new(header))?;
+//! assert_eq!(version, 3);
+//! # Ok::<(), aescrypt_rs::AescryptError>(())
+//! ```
 
 pub mod aliases;
 pub mod constants;
