@@ -13,6 +13,8 @@ use aescrypt_rs::decrypt;
 #[cfg(feature = "rand")]
 use aescrypt_rs::encrypt;
 #[cfg(feature = "rand")]
+use aescrypt_rs::error::AescryptError;
+#[cfg(feature = "rand")]
 use std::io::Cursor;
 
 #[test]
@@ -35,4 +37,22 @@ fn encrypt_with_real_world_iterations() {
     decrypt(Cursor::new(&encrypted), &mut decrypted, &password).unwrap();
 
     assert_eq!(decrypted, plaintext);
+}
+
+#[test]
+#[cfg(feature = "rand")]
+fn encrypt_empty_password() {
+    let empty_password = PasswordString::new("".to_string());
+    let plaintext = b"dummy data";
+    let mut encrypted = Vec::new();
+    let result = encrypt(
+        Cursor::new(plaintext),
+        &mut encrypted,
+        &empty_password,
+        DEFAULT_PBKDF2_ITERATIONS,
+    );
+    match result {
+        Err(AescryptError::Header(msg)) if msg == "empty password" => {}
+        _ => panic!("Expected Header error with 'empty password'"),
+    }
 }
