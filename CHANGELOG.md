@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - 2026-01-06
+## [0.2.0] - 2026-02-02
 
 **Clean slate release**: Complete API redesign focused on core encryption/decryption functionality. All non-essential features have been removed for a minimal, focused library.
 
@@ -49,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed `src/decryption/stream/utilities.rs` to `src/decryption/stream/trailer.rs` for better clarity.
 - Enhanced KDF iteration validation with consistent bounds checking using `PBKDF2_MIN_ITER` constant.
 - `Pbkdf2Builder` now uses `DEFAULT_PBKDF2_ITERATIONS` (300,000) as the default iteration count.
-- Updated `secure-gate` dependency to v0.7.0-rc.11, incorporating major breaking changes: transitioned random generation from deprecated aliases to `Fixed::from_random()` methods, updated HMAC verification to use wrapper `.ct_eq()` methods for constant-time comparisons on secure types, adapted all code for the new exposure API (existing `.expose_secret()` calls remain compatible), removed auto-`Clone` from wrappers requiring explicit `CloneableType` markers (added manual `Clone` impl to `Pbkdf2Builder`), updated import paths for `ExposeSecret`/`ExposeSecretMut` traits, and adjusted type conversions for session data copying.
+- Updated `secure-gate` dependency to v0.7.0-rc.14, incorporating major breaking changes: transitioned random generation from deprecated aliases to `Fixed::from_random()` methods, updated HMAC verification to use wrapper `.ct_eq()` methods for constant-time comparisons on secure types, adapted all code for the new exposure API (existing `.expose_secret()` calls remain compatible), removed auto-`Clone` from wrappers requiring explicit `CloneableType` markers (added manual `Clone` impl to `Pbkdf2Builder`), updated import paths for `ExposeSecret`/`ExposeSecretMut` traits, and adjusted type conversions for session data copying.
 - Gated `ct_eq` operations behind the `zeroize` feature and made `rand` feature optional.
 - Moved test-only dependencies to `[dev-dependencies]`.
 - Code formatting and improved readability in encryption modules.

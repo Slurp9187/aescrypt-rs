@@ -5,7 +5,7 @@
 - **Detect**: `read_version()` — header-only version check in <1 μs (ideal for batch tools)
 - AES-256-CBC with **HMAC-SHA256** (payload) + **HMAC-SHA512** (session) authentication
 - Constant-memory streaming (64-byte ring buffer)
-- **Zero-cost secure memory & cryptographically secure RNG** via [`secure-gate`](https://github.com/Slurp9187/secure-gate) v0.7.0-rc.1 (enabled by default)
+- **Zero-cost secure memory & cryptographically secure RNG** via [`secure-gate`](https://github.com/Slurp9187/secure-gate) (enabled by default)
 - **Constant-time security**: All HMAC comparisons and padding validation use constant-time operations
 - No `unsafe` in the core decryption path when `zeroize` is enabled
 - Pure Rust, `#![no_std]`-compatible core
