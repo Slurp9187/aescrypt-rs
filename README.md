@@ -192,7 +192,7 @@ This crate defines **no optional features**. It always links `aes` with the `zer
 ## Installation
 ```toml
 [dependencies]
-aescrypt-rs = "0.2.0-rc.5"
+aescrypt-rs = "0.2.0-rc.6"
 ```
 
 ## Changelog
