@@ -102,7 +102,20 @@ impl DecryptionContext {
         W: Write,
     {
         let mut initial_buffer = EncryptedSessionBlock48::new([0u8; 48]);
-        let bytes_read = initial_buffer.with_secret_mut(|ib| input.read(ib))?;
+        // Accumulate partial `read()` results until 48 bytes or EOF (same contract as encrypt_stream).
+        let bytes_read = initial_buffer
+            .with_secret_mut(|ib| -> Result<usize, std::io::Error> {
+                let mut total = 0usize;
+                while total < 48 {
+                    match input.read(&mut ib[total..]) {
+                        Ok(0) => break,
+                        Ok(k) => total += k,
+                        Err(e) => return Err(e),
+                    }
+                }
+                Ok(total)
+            })
+            .map_err(AescryptError::Io)?;
         self.ring_buffer.with_secret_mut(|rb| {
             initial_buffer.with_secret(|ib| {
                 rb[self.head_index..self.head_index + bytes_read]
@@ -143,7 +156,19 @@ impl DecryptionContext {
                     self.head_index = 0;
                 }
                 let mut next_block = Block16::new([0u8; 16]);
-                let n = next_block.with_secret_mut(|nb| input.read(nb))?;
+                let n = next_block
+                    .with_secret_mut(|nb| -> Result<usize, std::io::Error> {
+                        let mut total = 0usize;
+                        while total < 16 {
+                            match input.read(&mut nb[total..]) {
+                                Ok(0) => break,
+                                Ok(k) => total += k,
+                                Err(e) => return Err(e),
+                            }
+                        }
+                        Ok(total)
+                    })
+                    .map_err(AescryptError::Io)?;
                 if n < 16 {
                     self.ring_buffer.with_secret_mut(|rb| {
                         next_block.with_secret(|nb| {

@@ -11,7 +11,8 @@ use aescrypt_rs::encrypt;
 use aescrypt_rs::error::AescryptError;
 use std::io::{Cursor, Read, Result as IoResult};
 
-/// `Read` adapter that returns at most one byte per call (exercises `encrypt_stream` partial-read handling).
+/// `Read` adapter that returns at most one byte per call (exercises `encrypt_stream` and
+/// `decrypt_cbc_loop` partial-read handling).
 struct StingyReader<R> {
     inner: R,
 }
@@ -70,6 +71,32 @@ fn encrypt_round_trip_with_stingy_reader() {
 
     let mut decrypted = Vec::new();
     decrypt(Cursor::new(&encrypted), &mut decrypted, &password).unwrap();
+    assert_eq!(decrypted, plaintext);
+}
+
+#[test]
+fn decrypt_round_trip_with_stingy_reader() {
+    let password = PasswordString::new("stingy-decrypt-test".to_string());
+    let plaintext: Vec<u8> = (0u8..=255).collect();
+
+    let mut encrypted = Vec::new();
+    encrypt(
+        Cursor::new(&plaintext),
+        &mut encrypted,
+        &password,
+        DEFAULT_PBKDF2_ITERATIONS,
+    )
+    .unwrap();
+
+    let mut decrypted = Vec::new();
+    decrypt(
+        StingyReader {
+            inner: Cursor::new(&encrypted),
+        },
+        &mut decrypted,
+        &password,
+    )
+    .unwrap();
     assert_eq!(decrypted, plaintext);
 }
 

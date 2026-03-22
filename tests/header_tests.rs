@@ -1,7 +1,9 @@
 //! tests/header_tests.rs
 //! Header validation using the *real* test vectors from tests/test_data/
 
+use aescrypt_rs::decryption::consume_all_extensions;
 use aescrypt_rs::read_version;
+use aescrypt_rs::{decrypt, PasswordString};
 use hex::decode;
 use serde::Deserialize;
 use std::io::Cursor;
@@ -186,6 +188,42 @@ fn io_error_on_short_magic_read() {
         aescrypt_rs::AescryptError::Io(_) => {},
         e => panic!("Expected I/O error, got: {:?}", e),
     }
+}
+
+#[test]
+fn decrypt_rejects_nonzero_reserved_byte() {
+    // Craft a v3 file header with reserved byte = 0x01 — should be rejected by decrypt(),
+    // not silently accepted (M1 fix: read_file_version now validates the reserved byte).
+    let mut bad_header: Vec<u8> = b"AES\x03\x01".to_vec(); // version=3, reserved=0x01
+    bad_header.extend_from_slice(&[0u8; 100]); // pad with zeros so reads don't fail before header check
+
+    let password = PasswordString::new("irrelevant".to_string());
+    let mut output = Vec::new();
+    let err = decrypt(std::io::Cursor::new(&bad_header), &mut output, &password).unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("reserved byte must be 0x00 for v1"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn too_many_extensions_rejected() {
+    // Craft a byte stream representing 257 one-byte v2 extensions.
+    // Each extension is: [0x00, 0x01] (length=1) + [0x00] (payload), then a final [0x00, 0x00] terminator.
+    // The limit is MAX_EXTENSIONS = 256, so the 257th should trigger a Header error.
+    let mut stream: Vec<u8> = Vec::new();
+    for _ in 0..257 {
+        stream.extend_from_slice(&[0x00, 0x01, 0x00]); // length=1, payload=0x00
+    }
+    stream.extend_from_slice(&[0x00, 0x00]); // terminator
+
+    let mut cursor = std::io::Cursor::new(&stream);
+    let err = consume_all_extensions(&mut cursor, 2).unwrap_err();
+    assert!(
+        err.to_string().contains("too many extensions"),
+        "unexpected error: {err}"
+    );
 }
 
 #[test]

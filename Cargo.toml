@@ -27,7 +27,7 @@ branch = "v020rc"
 aes = { version = "0.8", features = ["zeroize"] }
 hmac = "0.12"
 pbkdf2 = "0.12"
-rand = "0.9"
+# Pin to RC until 0.8.0 stable is published. Upgrade to "= 0.8.0" on stable release.
 secure-gate = { version = "0.8.0-rc.1", features = ["rand", "ct-eq"] }
 sha2 = "0.10"
 thiserror = "2.0"

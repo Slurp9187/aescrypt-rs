@@ -56,7 +56,7 @@ pub use encryption::encrypt;
 pub use error::AescryptError; // Core type used in every encrypt/decrypt call
 
 // Low-level KDFs — intentionally public at the root because:
-// • They are needed for custom decryption flows (e (e.g. reading v0–v2 files without the high-level API)
+// • They are needed for custom decryption flows (e.g. reading v0–v2 files without the high-level API)
 // • They are the only non-wrapper crypto functions users ever need directly
 // • Keeping them at the root is the established pattern in the ecosystem (see `ring`, `password-hash`, etc.)
 pub use pbkdf2_builder::Pbkdf2Builder;

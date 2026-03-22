@@ -3,7 +3,6 @@
 
 use crate::decryption::read::{
     consume_all_extensions, read_exact_span, read_file_version, read_kdf_iterations,
-    read_reserved_modulo_byte,
 };
 use crate::decryption::session::extract_session_data;
 use crate::decryption::stream::{decrypt_ciphertext_stream, StreamConfig};
@@ -14,6 +13,37 @@ use crate::{derive_ackdf_key, derive_pbkdf2_key};
 use std::io::{Read, Write};
 
 /// Decrypt an Aescrypt file (v0–v3) — zero secret exposure, maximum security
+///
+/// # Warning — Plaintext written before final payload authentication
+///
+/// For payloads larger than roughly two AES blocks (~32 bytes of ciphertext after the
+/// session block), decrypted data is written to `output` **incrementally** as blocks are
+/// processed. The payload HMAC (and v3 PKCS#7 validation) runs only after the ciphertext
+/// stream has been read.
+///
+/// If this function returns an error—for example `"HMAC verification failed"` or a v3
+/// padding error—`output` may already contain **partial, unauthenticated plaintext**.
+/// Callers **must** discard or overwrite `output` on error and must not treat its
+/// contents as secret or trustworthy.
+///
+/// ```no_run
+/// use aescrypt_rs::{decrypt, PasswordString};
+/// use std::io::Cursor;
+///
+/// # let reader = Cursor::new(vec![]);
+/// # let password = PasswordString::new("pw".to_string());
+/// let mut plaintext = Vec::new();
+/// if decrypt(reader, &mut plaintext, &password).is_err() {
+///     plaintext.clear(); // mandatory when using an accumulating buffer
+/// }
+/// ```
+///
+/// # Note — Empty password
+///
+/// Unlike [`encrypt`](crate::encrypt), this function does not reject an empty password.
+/// An empty password against a file encrypted with a non-empty password will fail at HMAC
+/// verification. This asymmetry is intentional: third-party AES Crypt tools may produce
+/// files encrypted with an empty password, and `decrypt` must be able to handle them.
 ///
 /// # Thread Safety
 ///
@@ -61,8 +91,7 @@ where
     R: Read,
     W: Write,
 {
-    let file_version = read_file_version(&mut input)?;
-    let reserved_modulo = read_reserved_modulo_byte(&mut input)?;
+    let (file_version, reserved_modulo) = read_file_version(&mut input)?;
     consume_all_extensions(&mut input, file_version)?;
 
     let kdf_iterations = read_kdf_iterations(&mut input, file_version)?;

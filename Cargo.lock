@@ -23,7 +23,6 @@ dependencies = [
  "hex",
  "hmac",
  "pbkdf2",
- "rand",
  "secure-gate",
  "serde",
  "serde_json",

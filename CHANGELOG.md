@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed optional crate features `zeroize` and `rand`. The library always enables `aes`’s `zeroize` integration, always enables secure-gate `rand` and `ct-eq`, uses constant-time comparisons unconditionally, and always compiles `encrypt()` with CSPRNG-backed IV/key generation. Drop `--no-default-features` / `--features zeroize` / `--features rand` from downstream manifests.
 
+### Security
+
+- **Streaming encryption (`encrypt_stream`)**: Read plaintext in a loop until each 16-byte block is full (or EOF). A single short `Read::read` is no longer treated as end-of-file, which could have truncated ciphertext silently (AUDIT_020RC6 H1).
+- **Streaming decryption (`decrypt_cbc_loop`)**: Accumulate the 48-byte bootstrap read and each 16-byte ciphertext block the same way, so stingy readers (sockets, pipes, test adapters) no longer skip the CBC loop or mis-handle blocks (AUDIT_020RC6 H2).
+- **Header parsing**: For file versions 1–3, the reserved byte after the version must be `0x00`; non-zero values are rejected (AUDIT_020RC6 M1).
+- **Extensions**: Header extension parsing is capped at 256 extensions to bound work on malicious inputs (AUDIT_020RC6 L5).
+
+### Fixed
+
+- Unified v3 PKCS#7 padding error text to `v3: invalid PKCS#7 padding` in both validation paths (AUDIT_020RC6 L1).
+- PBKDF2 iteration count `0` is clamped to `1` consistently in `Pbkdf2Builder::with_iterations` and low-level derivation (AUDIT_020RC6 M3).
+- Documentation: `decrypt()` now documents streaming output before HMAC verification (discard output on error), empty-password behavior vs `encrypt()`, corrected `xor_blocks` documentation (panics instead of misleading UB wording), and an ACKDF note on SHA-256 state not being explicitly zeroized (AUDIT_020RC6 H3, L2, L3, L4).
+- `Cargo.toml`: inline comment documenting the pre-release `secure-gate` pin (AUDIT_020RC6 M2); removed unused direct `rand` dependency (AUDIT_020RC6 L6).
+- Typo fix in crate-level docs in `lib.rs` (AUDIT_020RC6 L8).
+- Tests: stingy-reader encrypt/decrypt round-trips, reserved-byte rejection, extension limit, and updated PKCS#7 assertion (AUDIT_020RC6 test plan).
+
 ### Changed
 
 - Updated `secure-gate` dependency to v0.8.0-rc.1 and migrated all trait imports from `ExposeSecret`/`ExposeSecretMut` to `RevealSecret`/`RevealSecretMut` (secure-gate 0.8 rename). Import `ConstantTimeEq` where `.ct_eq()` is used on `Fixed` wrappers.

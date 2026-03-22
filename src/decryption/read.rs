@@ -23,9 +23,18 @@ where
     Ok(buf)
 }
 
-/// Validate file magic `"AES"` + version byte (0–3 supported)
+/// Validate file magic `"AES"` + version byte (0–3 supported), and read the 5th byte.
+///
+/// Returns `(version, modulo_or_reserved)` where:
+/// - `version` is the file format version (0–3)
+/// - `modulo_or_reserved` is the 5th header byte: the modulo byte for v0 (any value), or the
+///   reserved byte for v1–v3 (must be `0x00`; an error is returned if it is not)
+///
+/// This consolidates what was previously `read_file_version` + `read_reserved_modulo_byte`
+/// so that both the version and the reserved-byte validation happen in one place, matching
+/// the behaviour of the public [`crate::read_version`] API.
 #[inline(always)]
-pub fn read_file_version<R>(reader: &mut R) -> Result<u8, AescryptError>
+pub fn read_file_version<R>(reader: &mut R) -> Result<(u8, u8), AescryptError>
 where
     R: Read,
 {
@@ -40,17 +49,21 @@ where
     if version > 3 {
         return Err(AescryptError::UnsupportedVersion(version));
     }
-    Ok(version)
+    let modulo_or_reserved = read_exact_span::<_, 1>(reader)?.with_secret(|b| b[0]);
+    if version >= 1 && modulo_or_reserved != 0x00 {
+        return Err(AescryptError::Header(
+            "invalid header: reserved byte must be 0x00 for v1–v3".into(),
+        ));
+    }
+    Ok((version, modulo_or_reserved))
 }
 
-/// Read the reserved/modulo byte (v0–v2: modulo, v3: reserved)
-#[inline(always)]
-pub fn read_reserved_modulo_byte<R>(reader: &mut R) -> Result<u8, AescryptError>
-where
-    R: Read,
-{
-    Ok(read_exact_span::<_, 1>(reader)?.with_secret(|b| b[0]))
-}
+/// Maximum number of extensions accepted before returning an error.
+///
+/// A crafted file with an unbounded number of small extensions could consume
+/// proportional CPU/IO before the HMAC check. Limiting to 256 extensions is
+/// well above any legitimate use while capping the pre-auth work.
+const MAX_EXTENSIONS: usize = 256;
 
 /// Consume all v2+ extensions (zero-copy skip)
 #[inline(always)]
@@ -62,7 +75,14 @@ where
         return Ok(());
     }
 
+    let mut count = 0usize;
     loop {
+        if count >= MAX_EXTENSIONS {
+            return Err(AescryptError::Header(
+                "too many extensions (limit: 256)".into(),
+            ));
+        }
+
         let len_bytes = read_exact_span::<_, 2>(reader)?;
         let len = len_bytes.with_secret(|lb| u16::from_be_bytes(*lb));
 
@@ -81,6 +101,7 @@ where
                 .map_err(AescryptError::Io)?;
             remaining -= to_read;
         }
+        count += 1;
     }
     Ok(())
 }

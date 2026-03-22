@@ -53,7 +53,10 @@ impl Pbkdf2Builder {
         }
     }
 
-    /// Set custom iteration count (minimum 1)
+    /// Set custom iteration count.
+    ///
+    /// A value of `0` is silently clamped to `1`. For production use,
+    /// [`DEFAULT_PBKDF2_ITERATIONS`] (300,000) is strongly recommended.
     #[must_use]
     pub fn with_iterations(mut self, iterations: u32) -> Self {
         self.iterations = iterations.max(1);

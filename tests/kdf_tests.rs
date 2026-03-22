@@ -82,23 +82,20 @@ mod tests {
     }
 
     #[test]
-    fn pbkdf2_zero_iterations_error() {
+    fn pbkdf2_zero_iterations_clamps_to_one() {
+        // Both `derive_pbkdf2_key` and `Pbkdf2Builder::with_iterations` clamp 0 → 1
+        // so they are consistent. A 0-iteration call should succeed and produce the
+        // same key as an explicit 1-iteration call.
         let password = PasswordString::new("test".to_string());
         let salt = Salt16::from([0x11; 16]);
-        let mut key = Aes256Key32::new([0u8; 32]);
 
-        let result = derive_pbkdf2_key(&password, &salt, 0, &mut key);
-        assert!(
-            result.is_err(),
-            "PBKDF2 with 0 iterations should return error"
-        );
+        let mut key_zero = Aes256Key32::new([0u8; 32]);
+        derive_pbkdf2_key(&password, &salt, 0, &mut key_zero).expect("0 should clamp to 1");
 
-        if let Err(e) = result {
-            assert!(
-                e.to_string().contains("PBKDF2 iterations must be ≥1"),
-                "Error message should mention iterations requirement"
-            );
-        }
+        let mut key_one = Aes256Key32::new([0u8; 32]);
+        derive_pbkdf2_key(&password, &salt, 1, &mut key_one).expect("1 iteration should succeed");
+
+        key_zero.with_secret(|kz| key_one.with_secret(|ko| assert_eq!(kz, ko)));
     }
 
     #[test]

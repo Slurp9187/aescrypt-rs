@@ -68,9 +68,8 @@ pub fn derive_pbkdf2_key(
     iterations: u32,
     out_key: &mut Aes256Key32,
 ) -> Result<(), AescryptError> {
-    if iterations == 0 {
-        return Err(AescryptError::Crypto("PBKDF2 iterations must be ≥1".into()));
-    }
+    // Clamp 0 to 1 — consistent with `Pbkdf2Builder::with_iterations`.
+    let iterations = iterations.max(1);
 
     password
         .with_secret(|pw| {

@@ -42,6 +42,12 @@ pub fn derive_ackdf_key(
     let password_utf16le_result = password.with_secret(|pw| utf8_to_utf16le(pw.as_bytes()));
     let password_utf16le: Dynamic<Vec<u8>> = Dynamic::new(password_utf16le_result?);
 
+    // Note: `Sha256` holds internal chaining state (8 × u32) on the stack and is not wrapped
+    // in a secure-gate type. The intermediate SHA-256 state derived from the password will
+    // persist on the stack until the frame is reused. `finalize_reset()` clears the hasher
+    // back to its IV after each iteration, so only the most recent state survives, but it
+    // is not explicitly zeroized on function exit. The output `hash` is auto-zeroized via
+    // secure-gate on drop.
     let mut hasher = Sha256::new();
     let mut hash = AckdfHashState32::new([0u8; 32]); // ← semantic, zero-cost, auto-zeroized
 

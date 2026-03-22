@@ -57,10 +57,9 @@ pub fn utf8_to_utf16le(input_utf8: &[u8]) -> Result<Vec<u8>, AescryptError> {
 /// * `block_b` - Second 16-byte block
 /// * `output` - Output buffer (must be at least 16 bytes)
 ///
-/// # Safety
+/// # Panics
 ///
-/// This function assumes both input blocks and the output buffer are at least 16 bytes.
-/// Calling with smaller buffers will result in undefined behavior.
+/// Panics if `block_a`, `block_b`, or `output` are shorter than 16 bytes.
 ///
 /// # Example
 ///

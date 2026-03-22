@@ -98,7 +98,7 @@ pub fn write_final_pkcs7<W: Write>(
     let expected_fixed = Block16::from(expected_block);
     let padding_valid = ctx.plaintext_block.ct_eq(&expected_fixed);
     if !padding_valid {
-        return Err(AescryptError::Header("v3: corrupt PKCS#7 padding".into()));
+        return Err(AescryptError::Header("v3: invalid PKCS#7 padding".into()));
     }
 
     ctx.plaintext_block
