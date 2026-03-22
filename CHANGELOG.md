@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated `secure-gate` dependency to v0.8.0-rc.1 and migrated all trait imports from `ExposeSecret`/`ExposeSecretMut` to `RevealSecret`/`RevealSecretMut` (secure-gate 0.8 rename). Import `ConstantTimeEq` where `.ct_eq()` is used on `Fixed` wrappers.
 - Documentation: constant-time equality is described via secure-gate’s [`ConstantTimeEq`](https://docs.rs/secure-gate/latest/secure_gate/trait.ConstantTimeEq.html) trait (`ct-eq` feature), not the removed `SecureConversionsExt` / conversions-module path.
 
-## [0.2.0-rc.5] - 2026-02-02
+## [0.2.0-rc.1 - rc.5] - 2026-02-02
 
 **Clean slate release**: Complete API redesign focused on core encryption/decryption functionality. All non-essential features have been removed for a minimal, focused library.
 

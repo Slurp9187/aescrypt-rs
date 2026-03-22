@@ -2,6 +2,8 @@
 // cargo test --doc lib
 //#![doc = include_str!("../README.md")]
 
+#![forbid(unsafe_code)]
+
 //! # Quick Start
 //!
 //! Encrypt and decrypt data using AES Crypt format v3:

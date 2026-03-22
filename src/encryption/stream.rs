@@ -32,9 +32,23 @@ where
     let mut plaintext_block = Block16::new([0u8; 16]);
 
     loop {
-        let n = plaintext_block.with_secret_mut(|pb| source.read(pb))?;
+        // Read up to 16 bytes, accumulating partial `read()` results until the buffer is full
+        // or the source returns 0 (EOF). A single `read()` may return fewer than requested even
+        // when more data exist (sockets, pipes); treating that as EOF would silently truncate.
+        let (n, is_final) = plaintext_block
+            .with_secret_mut(|pb| -> Result<(usize, bool), std::io::Error> {
+                let mut bytes = 0usize;
+                while bytes < 16 {
+                    match source.read(&mut pb[bytes..]) {
+                        Ok(0) => return Ok((bytes, true)),
+                        Ok(k) => bytes += k,
+                        Err(e) => return Err(e),
+                    }
+                }
+                Ok((bytes, false))
+            })
+            .map_err(AescryptError::Io)?;
 
-        let is_final = n < 16;
         if is_final {
             let pad = (16 - n) as u8;
             plaintext_block.with_secret_mut(|pb| pb[n..].fill(pad));
