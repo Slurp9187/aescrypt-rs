@@ -13,6 +13,13 @@ repository = "https://github.com/Slurp9187/aescrypt-rs/tree/v020rc"
 documentation = "https://docs.rs/aescrypt-rs"
 keywords = ["aes", "crypt", "encryption", "decryption"]
 categories = ["cryptography"]
+include = [
+    "src/**/*.rs",
+    "CHANGELOG.md",
+    "LICENSE*",
+    "README.md",
+]
+
 
 # ----------------------------------------------------------------------
 # docs.rs metadata
