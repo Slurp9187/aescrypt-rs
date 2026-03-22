@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0-rc.6] - 2026-03-21
+
 ### Breaking Changes
 
 - Removed optional crate features `zeroize` and `rand`. The library always enables `aes`’s `zeroize` integration, always enables secure-gate `rand` and `ct-eq`, uses constant-time comparisons unconditionally, and always compiles `encrypt()` with CSPRNG-backed IV/key generation. Drop `--no-default-features` / `--features zeroize` / `--features rand` from downstream manifests.
