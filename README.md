@@ -5,9 +5,9 @@
 - **Detect**: `read_version()` — header-only version check in <1 μs (ideal for batch tools)
 - AES-256-CBC with **HMAC-SHA256** (payload) + **HMAC-SHA512** (session) authentication
 - Constant-memory streaming (64-byte ring buffer)
-- **Zero-cost secure memory & cryptographically secure RNG** via [`secure-gate`](https://github.com/Slurp9187/secure-gate) (enabled by default)
+- **Zero-cost secure memory & cryptographically secure RNG** via [`secure-gate`](https://github.com/Slurp9187/secure-gate)
 - **Constant-time security**: All HMAC comparisons and padding validation use constant-time operations
-- No `unsafe` in the core decryption path when `zeroize` is enabled
+- No `unsafe` in the core decryption path (with `aes` zeroize integration enabled)
 - Pure Rust, `#![no_std]`-compatible core
 - **100% bit-perfect round-trip verified** against all 63 official v0–v3 test vectors
 
@@ -185,16 +185,9 @@ use aescrypt_rs::constants::{
 | Round-trip 10 MiB         | ~75 MiB/s    |
 All benchmarks include full 300,000 PBKDF2 iterations when applicable.
 **Note**: For very large files (GB+), operations may take minutes. All functions are thread-safe and can be spawned in threads for parallel processing or custom cancellation implementations.
-## Features
-| Feature             | Description                                                                                                   |
-| ------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `zeroize` (default) | Enables automatic secure memory wiping on drop for `aes` crate and constant-time operations (`ct_eq()`).     |
-| `rand` (default)    | Enables cryptographically secure random generation (required for encryption convenience methods).           |
+## Cargo features
 
-**Feature Details:**
-- When `zeroize` is disabled, regular equality comparisons (`==`) are used (not constant-time, vulnerable to timing attacks).
-- When `rand` is disabled, encryption convenience methods are unavailable (decryption still works; encryption possible with custom RNG).
-- All features are optional — library can run with `--no-default-features`.
+This crate defines **no optional features**. It always links `aes` with the `zeroize` feature, and `secure-gate` with `rand` and `ct-eq`, so secure wiping, CSPRNG-backed encryption, and constant-time comparisons are always in effect.
 
 ## Installation
 ```toml

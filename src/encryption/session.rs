@@ -64,7 +64,7 @@ pub fn derive_setup_key(
 /// # Security
 ///
 /// All sensitive values are wrapped in `secure-gate` fixed-size aliases
-/// with automatic zeroing on drop (when `zeroize` feature is enabled).
+/// with automatic zeroing on drop.
 #[inline]
 pub fn encrypt_session_block(
     cipher: &Aes256Enc,

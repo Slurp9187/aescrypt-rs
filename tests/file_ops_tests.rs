@@ -6,18 +6,14 @@
 
 mod common;
 use common::TEST_PASSWORD;
-#[cfg(feature = "rand")]
 use common::TEST_ITERATIONS;
 
 use aescrypt_rs::aliases::PasswordString;
 use aescrypt_rs::decrypt;
-#[cfg(feature = "rand")]
 use aescrypt_rs::encrypt;
-#[cfg(feature = "rand")]
 use serde::Deserialize;
 use std::fs::File;
 use std::io::BufReader;
-#[cfg(feature = "rand")]
 use std::io::Cursor;
 use std::path::PathBuf;
 
@@ -42,7 +38,6 @@ fn get_v3_deterministic_path(index: usize) -> PathBuf {
 }
 
 // JSON vector loader for migration tests
-#[cfg(feature = "rand")]
 #[derive(Debug, Deserialize)]
 struct TestVector {
     #[allow(dead_code)]
@@ -53,7 +48,6 @@ struct TestVector {
     ciphertext_hex: String,
 }
 
-#[cfg(feature = "rand")]
 fn load_json_vectors(filename: &str) -> Vec<TestVector> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
@@ -152,7 +146,6 @@ fn decrypt_actual_v3_files() {
 // 2. Round-trip: decrypt → encrypt → decrypt from actual files (v3 only)
 // —————————————————————————————————————————————————————————————————————————————
 #[test]
-#[cfg(feature = "rand")]
 fn round_trip_from_actual_files() {
     let password = PasswordString::new(TEST_PASSWORD.to_string());
     
@@ -192,7 +185,6 @@ fn round_trip_from_actual_files() {
 // as v3 while preserving data integrity.
 
 #[test]
-#[cfg(feature = "rand")]
 fn migrate_v0_to_v3() {
     let password = PasswordString::new(TEST_PASSWORD.to_string());
     let vectors = load_json_vectors("test_vectors_v0.json");
@@ -240,7 +232,6 @@ fn migrate_v0_to_v3() {
 }
 
 #[test]
-#[cfg(feature = "rand")]
 fn migrate_v1_to_v3() {
     let password = PasswordString::new(TEST_PASSWORD.to_string());
     let vectors = load_json_vectors("test_vectors_v1.json");
@@ -288,7 +279,6 @@ fn migrate_v1_to_v3() {
 }
 
 #[test]
-#[cfg(feature = "rand")]
 fn migrate_v2_to_v3() {
     let password = PasswordString::new(TEST_PASSWORD.to_string());
     let vectors = load_json_vectors("test_vectors_v2.json");

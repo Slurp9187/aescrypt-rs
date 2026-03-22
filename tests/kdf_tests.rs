@@ -3,7 +3,6 @@
 
 mod common;
 
-#[cfg(feature = "zeroize")]
 mod tests {
     use super::common::TEST_ITERATION_VALUES;
 

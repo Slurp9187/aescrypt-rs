@@ -4,27 +4,18 @@
 //! Zero secret exposure, zero-cost, auto-zeroizing
 
 use crate::aliases::PasswordString;
-#[cfg(feature = "rand")]
 use crate::aliases::{Aes256Key32, EncryptedSessionBlock48, HmacSha256, Iv16};
-#[cfg(feature = "rand")]
 use crate::constants::AESCRYPT_LATEST_VERSION;
 use crate::constants::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
-#[cfg(feature = "rand")]
 use crate::encryption::derive_setup_key;
-#[cfg(feature = "rand")]
 use crate::encryption::encrypt_session_block;
-#[cfg(feature = "rand")]
 use crate::encryption::stream::encrypt_stream;
-#[cfg(feature = "rand")]
 use crate::encryption::write::{
     write_extensions, write_header, write_hmac, write_iterations, write_octets, write_public_iv,
 };
 use crate::error::AescryptError;
-#[cfg(feature = "rand")]
 use aes::cipher::KeyInit;
-#[cfg(feature = "rand")]
 use aes::Aes256Enc;
-#[cfg(feature = "rand")]
 use hmac::Mac;
 use secure_gate::RevealSecret;
 use std::io::{Read, Write};
@@ -76,7 +67,6 @@ use std::io::{Read, Write};
 /// let result = handle.join().unwrap();
 /// ```
 #[inline(always)]
-#[allow(unused_mut)] // mut needed when rand feature is enabled
 pub fn encrypt<R, W>(
     mut input: R,
     mut output: W,
@@ -97,59 +87,46 @@ where
         return Err(AescryptError::Header("invalid KDF iterations".into()));
     }
 
-    #[cfg(not(feature = "rand"))]
-    {
-        #[allow(unused_mut, unused_variables)]
-        let _ = (input, output); // Suppress unused variable warnings
-        Err(AescryptError::Crypto(
-            "encryption requires 'rand' feature for random IV/key generation".into(),
-        ))
-    }
+    write_header(&mut output, AESCRYPT_LATEST_VERSION)?;
+    write_extensions(&mut output, AESCRYPT_LATEST_VERSION, None)?;
 
-    #[cfg(feature = "rand")]
-    {
-        write_header(&mut output, AESCRYPT_LATEST_VERSION)?;
-        write_extensions(&mut output, AESCRYPT_LATEST_VERSION, None)?;
+    // Generate secure random values — wrapped from birth
+    let public_iv = Iv16::from_random();
+    let session_iv = Iv16::from_random();
+    let session_key = Aes256Key32::from_random();
 
-        // Generate secure random values — wrapped from birth
-        let public_iv = Iv16::from_random();
-        let session_iv = Iv16::from_random();
-        let session_key = Aes256Key32::from_random();
+    write_iterations(&mut output, kdf_iterations, AESCRYPT_LATEST_VERSION)?;
+    write_public_iv(&mut output, &public_iv)?;
 
-        write_iterations(&mut output, kdf_iterations, AESCRYPT_LATEST_VERSION)?;
-        write_public_iv(&mut output, &public_iv)?;
+    // Derive setup key directly into secure buffer — zero exposure
+    let mut setup_key = Aes256Key32::new([0u8; 32]);
+    derive_setup_key(password, &public_iv, kdf_iterations, &mut setup_key)?;
 
-        // Derive setup key directly into secure buffer — zero exposure
-        let mut setup_key = Aes256Key32::new([0u8; 32]);
-        derive_setup_key(password, &public_iv, kdf_iterations, &mut setup_key)?;
+    // Create cipher and HMAC from secure key
+    let cipher = setup_key.with_secret(|key| Aes256Enc::new(key.into()));
 
-        // Create cipher and HMAC from secure key
-        let cipher = setup_key.with_secret(|key| Aes256Enc::new(key.into()));
+    // Fixed: unambiguous HMAC init
+    let mut hmac = setup_key.with_secret(|key| <HmacSha256 as Mac>::new_from_slice(key).unwrap());
 
-        // Fixed: unambiguous HMAC init
-        let mut hmac =
-            setup_key.with_secret(|key| <HmacSha256 as Mac>::new_from_slice(key).unwrap());
+    // Encrypt session block
+    let mut enc_block = EncryptedSessionBlock48::new([0u8; 48]);
+    encrypt_session_block(
+        &cipher,
+        &session_iv,
+        &session_key,
+        &public_iv,
+        &mut enc_block,
+        &mut hmac,
+    )?;
 
-        // Encrypt session block
-        let mut enc_block = EncryptedSessionBlock48::new([0u8; 48]);
-        encrypt_session_block(
-            &cipher,
-            &session_iv,
-            &session_key,
-            &public_iv,
-            &mut enc_block,
-            &mut hmac,
-        )?;
+    // Include version byte in HMAC (v3+)
+    hmac.update(&[AESCRYPT_LATEST_VERSION]);
 
-        // Include version byte in HMAC (v3+)
-        hmac.update(&[AESCRYPT_LATEST_VERSION]);
+    enc_block.with_secret(|eb| write_octets(&mut output, eb))?;
+    write_hmac(&mut output, hmac)?; // hmac moved here — correct
 
-        enc_block.with_secret(|eb| write_octets(&mut output, eb))?;
-        write_hmac(&mut output, hmac)?; // hmac moved here — correct
+    // Final stream encryption
+    encrypt_stream(&mut input, &mut output, &session_iv, &session_key)?;
 
-        // Final stream encryption
-        encrypt_stream(&mut input, &mut output, &session_iv, &session_key)?;
-
-        Ok(())
-    }
+    Ok(())
 }

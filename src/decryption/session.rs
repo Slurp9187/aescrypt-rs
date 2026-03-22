@@ -53,13 +53,9 @@ where
     }
 
     let computed_hmac = mac.finalize().into_bytes();
-    let hmac_valid = if cfg!(feature = "zeroize") {
-        let computed_hmac_fixed =
-            SessionHmacTag32::try_from(computed_hmac.as_ref()).expect("computed hmac is 32 bytes");
-        computed_hmac_fixed.ct_eq(&expected_hmac)
-    } else {
-        expected_hmac.with_secret(|eh| computed_hmac.as_slice() == &eh[..])
-    };
+    let computed_hmac_fixed =
+        SessionHmacTag32::try_from(computed_hmac.as_ref()).expect("computed hmac is 32 bytes");
+    let hmac_valid = computed_hmac_fixed.ct_eq(&expected_hmac);
     if !hmac_valid {
         return Err(AescryptError::Header(
             "session data corrupted or tampered (HMAC mismatch)".into(),

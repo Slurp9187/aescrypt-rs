@@ -23,7 +23,7 @@ use crate::error::AescryptError;
 ///
 /// let password = PasswordString::new("my-secret-password".to_string());
 ///
-/// // Use defaults (300k iterations, random salt when 'rand' feature is enabled)
+/// // Use defaults (300k iterations, random salt from `Pbkdf2Builder::new()`)
 /// let mut key = Aes256Key32::new([0u8; 32]);
 /// Pbkdf2Builder::new()
 ///     .with_salt([0x42; 16]) // Fixed salt for reproducible doctest

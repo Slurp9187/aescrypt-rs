@@ -4,21 +4,14 @@
 //! This minimal test suite focuses on validating production settings (300k iterations).
 //! Comprehensive encryption testing is covered by vector_tests.rs.
 
-#[cfg(feature = "rand")]
 use aescrypt_rs::aliases::PasswordString;
-#[cfg(feature = "rand")]
 use aescrypt_rs::constants::DEFAULT_PBKDF2_ITERATIONS;
-#[cfg(feature = "rand")]
 use aescrypt_rs::decrypt;
-#[cfg(feature = "rand")]
 use aescrypt_rs::encrypt;
-#[cfg(feature = "rand")]
 use aescrypt_rs::error::AescryptError;
-#[cfg(feature = "rand")]
 use std::io::Cursor;
 
 #[test]
-#[cfg(feature = "rand")]
 fn encrypt_with_real_world_iterations() {
     // Test with real-world DEFAULT_PBKDF2_ITERATIONS (300,000) to verify production settings work
     let password = PasswordString::new("real-world-test".to_string());
@@ -40,7 +33,6 @@ fn encrypt_with_real_world_iterations() {
 }
 
 #[test]
-#[cfg(feature = "rand")]
 fn encrypt_empty_password() {
     let empty_password = PasswordString::new("".to_string());
     let plaintext = b"dummy data";

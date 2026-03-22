@@ -24,18 +24,13 @@ branch = "v020rc"
 # Runtime dependencies
 # ----------------------------------------------------------------------
 [dependencies]
-aes = "0.8"
+aes = { version = "0.8", features = ["zeroize"] }
 hmac = "0.12"
 pbkdf2 = "0.12"
 rand = "0.9"
-secure-gate = { version = "0.8.0-rc.1", features = ["alloc", "rand", "ct-eq"] }
+secure-gate = { version = "0.8.0-rc.1", features = ["rand", "ct-eq"] }
 sha2 = "0.10"
 thiserror = "2.0"
-
-[features]
-default = ["zeroize", "rand"]
-zeroize = ["aes/zeroize", "secure-gate/alloc", "secure-gate/ct-eq"]
-rand = ["secure-gate/rand"]
 
 # ----------------------------------------------------------------------
 # Dev / test / bench dependencies

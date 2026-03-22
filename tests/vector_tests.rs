@@ -2,40 +2,29 @@
 //! Final merged vector test suite – fully compatible with v0–v3 JSON formats (2025)
 
 use aescrypt_rs::aliases::PasswordString;
-#[cfg(feature = "rand")]
 use aescrypt_rs::aliases::{Aes256Key32, EncryptedSessionBlock48, Iv16};
 use aescrypt_rs::decrypt;
-#[cfg(feature = "rand")]
 use aescrypt_rs::encrypt;
-#[cfg(feature = "rand")]
 use secure_gate::RevealSecret;
 
 // Deterministic v3 encryption helper – TEST ONLY
 // Exactly matches the official test vectors (including CREATED_BY extension + version byte in HMAC)
-#[cfg(feature = "rand")]
 use aes::cipher::KeyInit;
-#[cfg(feature = "rand")]
 use aes::Aes256Enc;
-#[cfg(feature = "rand")]
 use aescrypt_rs::encryption::{
     derive_setup_key, encrypt_session_block, encrypt_stream, write_header, write_hmac,
     write_iterations, write_public_iv,
 };
-#[cfg(feature = "rand")]
 use hmac::{Hmac, Mac};
-#[cfg(feature = "rand")]
 use sha2::Sha256;
-#[cfg(feature = "rand")]
 use std::io::{Read, Write};
 
 // Exact extension blob used in the official deterministic test vectors
-#[cfg(feature = "rand")]
 const V3_CREATED_BY_EXTENSION: [u8; 29] = [
     0x00, 0x1B, b'C', b'R', b'E', b'A', b'T', b'E', b'D', b'_', b'B', b'Y', 0x00, b'a', b'e', b's',
     b'c', b'r', b'y', b'p', b't', b' ', b'4', b'.', b'0', b'.', b'0', b'.', b'0',
 ];
 
-#[cfg(feature = "rand")]
 fn encrypt_with_fixed_session<R: Read, W: Write>(
     mut source: R,
     mut destination: W,
@@ -96,7 +85,6 @@ use std::io::Cursor;
 
 mod common;
 use common::TEST_PASSWORD;
-#[cfg(feature = "rand")]
 use common::{TEST_DATA, TEST_DATA_SHORT, TEST_ITERATIONS, TEST_ITERATION_VALUES};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -126,7 +114,6 @@ impl AescryptVersion {
         }
     }
 
-    #[cfg(feature = "rand")]
     const fn deterministic_json() -> &'static str {
         "deterministic_test_vectors_v3.json"
     }
@@ -190,10 +177,8 @@ fn run_decrypt_for_version(version: AescryptVersion) {
 }
 
 // === Round-trip vectors (same schema as decrypt) ===
-#[cfg(feature = "rand")]
 type RoundTripVector = DecryptVector;
 
-#[cfg(feature = "rand")]
 fn run_roundtrip_for_version(version: AescryptVersion) {
     eprintln!(
         "RUNNING: Round-trip test for AES Crypt {}",
@@ -231,7 +216,6 @@ fn run_roundtrip_for_version(version: AescryptVersion) {
 }
 
 // === Deterministic v3 ===
-#[cfg(feature = "rand")]
 #[derive(Debug, Deserialize)]
 struct DeterministicVector {
     #[allow(dead_code)]
@@ -249,7 +233,6 @@ struct DeterministicVector {
 }
 
 #[test]
-#[cfg(feature = "rand")]
 fn roundtrip_v3_deterministic() {
     eprintln!("RUNNING: Deterministic v3 test (exact ciphertext + round-trip)");
     let vectors: Vec<DeterministicVector> = load_json(AescryptVersion::deterministic_json());
@@ -321,7 +304,6 @@ fn decrypt_all_versions() {
 }
 
 #[test]
-#[cfg(feature = "rand")]
 fn roundtrip_all_versions() {
     eprintln!("RUNNING: Full round-trip suite (v0–v3 + deterministic v3)\n");
     for version in AescryptVersion::all() {
@@ -333,7 +315,6 @@ fn roundtrip_all_versions() {
 
 // === Extreme tests ===
 #[test]
-#[cfg(feature = "rand")]
 fn roundtrip_v3_empty_input() {
     let password = PasswordString::new("test-empty".to_string());
     let mut encrypted = Vec::new();
@@ -344,7 +325,6 @@ fn roundtrip_v3_empty_input() {
 }
 
 #[test]
-#[cfg(feature = "rand")]
 fn roundtrip_v3_large_input() {
     let plaintext = vec![0x41u8; 10_000];
     let password = PasswordString::new("test-large".to_string());
@@ -362,7 +342,6 @@ fn roundtrip_v3_large_input() {
 }
 
 #[test]
-#[cfg(feature = "rand")]
 fn roundtrip_v3_huge_input() {
     let plaintext = vec![0x41u8; 10 * 1024 * 1024];
     let password = PasswordString::new("test-huge-10mib".to_string());
@@ -380,7 +359,6 @@ fn roundtrip_v3_huge_input() {
 }
 
 #[test]
-#[cfg(feature = "rand")]
 #[ignore = "Stress test for streaming correctness at extreme scale - run manually when needed"]
 fn roundtrip_extreme_1gib() {
     // This test verifies streaming correctness at 1 GiB scale, ensuring the implementation
@@ -416,7 +394,6 @@ fn roundtrip_extreme_1gib() {
 
 // === Error Handling Tests ===
 #[test]
-#[cfg(feature = "rand")]
 fn decrypt_wrong_password() {
     let correct_password = PasswordString::new(TEST_PASSWORD.to_string());
     let wrong_password = PasswordString::new("WrongPassword".to_string());
@@ -449,7 +426,6 @@ fn decrypt_wrong_password() {
 }
 
 #[test]
-#[cfg(feature = "rand")]
 fn decrypt_corrupted_hmac() {
     let password = PasswordString::new(TEST_PASSWORD.to_string());
     let plaintext = TEST_DATA;
@@ -482,7 +458,6 @@ fn decrypt_corrupted_hmac() {
 }
 
 #[test]
-#[cfg(feature = "rand")]
 fn decrypt_corrupted_session_hmac() {
     let password = PasswordString::new(TEST_PASSWORD.to_string());
     let plaintext = TEST_DATA;
@@ -563,7 +538,6 @@ fn decrypt_unsupported_version() {
 }
 
 #[test]
-#[cfg(feature = "rand")]
 fn decrypt_truncated_file() {
     let password = PasswordString::new(TEST_PASSWORD.to_string());
     let plaintext = TEST_DATA;
@@ -586,7 +560,6 @@ fn decrypt_truncated_file() {
 }
 
 #[test]
-#[cfg(feature = "rand")]
 fn encrypt_empty_password() {
     let empty_password = PasswordString::new("".to_string());
     let plaintext = TEST_DATA_SHORT;
@@ -611,7 +584,6 @@ fn encrypt_empty_password() {
 }
 
 #[test]
-#[cfg(feature = "rand")]
 fn encrypt_invalid_iterations() {
     let password = PasswordString::new("test".to_string());
     let plaintext = TEST_DATA_SHORT;
@@ -635,7 +607,6 @@ fn encrypt_invalid_iterations() {
 
 // === Edge Case Tests ===
 #[test]
-#[cfg(feature = "rand")]
 fn roundtrip_block_boundary_sizes() {
     let password = PasswordString::new("boundary-test".to_string());
     let sizes = vec![
@@ -673,7 +644,6 @@ fn roundtrip_block_boundary_sizes() {
 }
 
 #[test]
-#[cfg(feature = "rand")]
 fn roundtrip_various_passwords() {
     let plaintext = TEST_DATA;
     let passwords = vec![
@@ -705,7 +675,6 @@ fn roundtrip_various_passwords() {
 }
 
 #[test]
-#[cfg(feature = "rand")]
 fn roundtrip_various_kdf_iterations() {
     let password = PasswordString::new("iterations-test".to_string());
     let plaintext = TEST_DATA;
@@ -727,7 +696,6 @@ fn roundtrip_various_kdf_iterations() {
 }
 
 #[test]
-#[cfg(feature = "rand")]
 fn roundtrip_various_input_patterns() {
     let password = PasswordString::new("pattern-test".to_string());
     let patterns = vec![
@@ -757,7 +725,6 @@ fn roundtrip_various_input_patterns() {
 }
 
 #[test]
-#[cfg(feature = "rand")]
 fn roundtrip_small_inputs() {
     let password = PasswordString::new("small-test".to_string());
     let sizes = vec![0, 1, 2, 3, 4, 5, 6, 7, 8];
@@ -784,7 +751,6 @@ fn roundtrip_small_inputs() {
 }
 
 #[test]
-#[cfg(feature = "rand")]
 fn decrypt_corrupted_ciphertext() {
     let password = PasswordString::new(TEST_PASSWORD.to_string());
     let plaintext = TEST_DATA;
@@ -820,7 +786,6 @@ fn decrypt_corrupted_ciphertext() {
 }
 
 #[test]
-#[cfg(feature = "rand")]
 fn roundtrip_deterministic_with_different_iterations() {
     let password = PasswordString::new(TEST_PASSWORD.to_string());
     let plaintext = b"deterministic test";

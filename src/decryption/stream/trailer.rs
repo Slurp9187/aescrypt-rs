@@ -95,13 +95,8 @@ pub fn write_final_pkcs7<W: Write>(
     expected_block[padding_start..].fill(padding);
 
     // Constant-time comparison of entire block
-    let padding_valid = if cfg!(feature = "zeroize") {
-        let expected_fixed = Block16::from(expected_block);
-        ctx.plaintext_block.ct_eq(&expected_fixed)
-    } else {
-        ctx.plaintext_block
-            .with_secret(|block| *block == expected_block)
-    };
+    let expected_fixed = Block16::from(expected_block);
+    let padding_valid = ctx.plaintext_block.ct_eq(&expected_fixed);
     if !padding_valid {
         return Err(AescryptError::Header("v3: corrupt PKCS#7 padding".into()));
     }
