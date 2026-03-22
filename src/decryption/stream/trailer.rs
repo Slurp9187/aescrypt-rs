@@ -6,7 +6,7 @@
 use crate::aliases::{Block16, Trailer32};
 use crate::decryption::stream::context::DecryptionContext;
 use crate::error::AescryptError;
-use secure_gate::{ExposeSecret, ExposeSecretMut};
+use secure_gate::{ConstantTimeEq, RevealSecret, RevealSecretMut};
 use std::io::Write;
 
 /// Extract 32-byte HMAC using simple wrap-around (used by v0 and v3)

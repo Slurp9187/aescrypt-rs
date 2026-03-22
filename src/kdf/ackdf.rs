@@ -4,7 +4,7 @@
 use crate::aliases::{AckdfHashState32, Aes256Key32, PasswordString, Salt16};
 use crate::utilities::utf8_to_utf16le;
 use crate::AescryptError;
-use secure_gate::{Dynamic, ExposeSecret, ExposeSecretMut};
+use secure_gate::{Dynamic, RevealSecret, RevealSecretMut};
 use sha2::{Digest, Sha256};
 
 /// Fixed iteration count for ACKDF as defined by AES Crypt v0–v2 specification

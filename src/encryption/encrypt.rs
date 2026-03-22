@@ -26,7 +26,7 @@ use aes::cipher::KeyInit;
 use aes::Aes256Enc;
 #[cfg(feature = "rand")]
 use hmac::Mac;
-use secure_gate::ExposeSecret;
+use secure_gate::RevealSecret;
 use std::io::{Read, Write};
 
 /// Encrypt an Aescrypt file (v3+) — zero secret exposure, maximum security

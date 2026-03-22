@@ -8,7 +8,7 @@ use aescrypt_rs::decrypt;
 #[cfg(feature = "rand")]
 use aescrypt_rs::encrypt;
 #[cfg(feature = "rand")]
-use secure_gate::ExposeSecret;
+use secure_gate::RevealSecret;
 
 // Deterministic v3 encryption helper – TEST ONLY
 // Exactly matches the official test vectors (including CREATED_BY extension + version byte in HMAC)

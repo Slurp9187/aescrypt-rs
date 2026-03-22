@@ -12,7 +12,7 @@ use crate::error::AescryptError;
 use aes::cipher::KeyInit;
 use aes::Aes256Dec;
 use hmac::Mac;
-use secure_gate::ExposeSecret;
+use secure_gate::{ConstantTimeEq, RevealSecret};
 use std::io::{Read, Write};
 
 /// Configuration for different AES Crypt stream formats.

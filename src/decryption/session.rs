@@ -10,7 +10,7 @@ use crate::{aliases::HmacSha256, error::AescryptError, utilities::xor_blocks};
 use aes::cipher::{BlockDecrypt, KeyInit};
 use aes::{Aes256Dec, Block as AesBlock};
 use hmac::Mac;
-use secure_gate::{ExposeSecret, ExposeSecretMut};
+use secure_gate::{ConstantTimeEq, RevealSecret, RevealSecretMut};
 use std::io::Read;
 
 /// Extract session IV + key — secure from first byte

@@ -9,7 +9,7 @@ use crate::AescryptError;
 
 use hmac::Hmac;
 use pbkdf2::pbkdf2;
-use secure_gate::{ExposeSecret, ExposeSecretMut};
+use secure_gate::{RevealSecret, RevealSecretMut};
 use sha2::Sha512;
 
 /// Derive PBKDF2-HMAC-SHA512 key directly into a secure buffer.

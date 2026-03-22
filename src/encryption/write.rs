@@ -6,7 +6,7 @@ use crate::aliases::{HmacSha256, Iv16};
 use crate::constants::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
 use crate::error::AescryptError;
 use hmac::Mac;
-use secure_gate::ExposeSecret;
+use secure_gate::RevealSecret;
 use std::io::Write;
 
 #[inline]

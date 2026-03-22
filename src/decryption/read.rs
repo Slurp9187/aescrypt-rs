@@ -4,7 +4,7 @@
 
 use crate::aliases::SpanBuffer;
 use crate::error::AescryptError;
-use secure_gate::{ExposeSecret, ExposeSecretMut};
+use secure_gate::{RevealSecret, RevealSecretMut};
 use std::io::Read;
 
 /// Read exactly `N` bytes into a secure, auto-zeroizing stack buffer.

@@ -9,7 +9,7 @@ use crate::utilities::xor_blocks;
 use aes::cipher::{BlockEncrypt, KeyInit};
 use aes::{Aes256Enc, Block as AesBlock};
 use hmac::Mac;
-use secure_gate::{ExposeSecret, ExposeSecretMut};
+use secure_gate::{RevealSecret, RevealSecretMut};
 use std::io::{Read, Write};
 
 #[inline(always)]

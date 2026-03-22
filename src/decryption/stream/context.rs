@@ -11,7 +11,7 @@ use crate::utilities::xor_blocks; // Note: This is crate::utilities (existing), 
 use aes::cipher::BlockDecrypt;
 use aes::{Aes256Dec, Block as AesBlock};
 use hmac::Mac;
-use secure_gate::{ExposeSecret, ExposeSecretMut};
+use secure_gate::{RevealSecret, RevealSecretMut};
 use std::io::{Read, Write};
 
 /// Decryption context for streaming CBC decryption.
