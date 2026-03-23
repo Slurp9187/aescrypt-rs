@@ -82,7 +82,6 @@ where
         return Err(AescryptError::Header("empty password".into()));
     }
 
-    // Fixed: parentheses around range + proper contains call
     if !(PBKDF2_MIN_ITER..=PBKDF2_MAX_ITER).contains(&kdf_iterations) {
         return Err(AescryptError::Header("invalid KDF iterations".into()));
     }
@@ -105,8 +104,10 @@ where
     // Create cipher and HMAC from secure key
     let cipher = setup_key.with_secret(|key| Aes256Enc::new(key.into()));
 
-    // Fixed: unambiguous HMAC init
-    let mut hmac = setup_key.with_secret(|key| <HmacSha256 as Mac>::new_from_slice(key).unwrap());
+    let mut hmac = setup_key.with_secret(|key| {
+        <HmacSha256 as Mac>::new_from_slice(key)
+            .expect("setup_key is always 32 bytes — valid HMAC key")
+    });
 
     // Encrypt session block
     let mut enc_block = EncryptedSessionBlock48::new([0u8; 48]);

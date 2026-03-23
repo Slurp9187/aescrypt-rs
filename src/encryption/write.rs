@@ -55,8 +55,6 @@ pub fn write_public_iv<W: Write>(writer: &mut W, iv: &Iv16) -> Result<(), Aescry
     iv.with_secret(|i| write_octets(writer, i))
 }
 
-// REMOVED: derive_setup_key — moved to session.rs for crypto cohesion
-
 #[inline]
 pub fn write_hmac<W: Write>(writer: &mut W, hmac: HmacSha256) -> Result<(), AescryptError> {
     write_octets(writer, hmac.finalize().into_bytes().as_ref())

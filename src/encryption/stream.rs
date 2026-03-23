@@ -24,7 +24,10 @@ where
     W: Write,
 {
     let cipher = session_key.with_secret(|sk| Aes256Enc::new(sk.into()));
-    let mut hmac = session_key.with_secret(|sk| <HmacSha256 as Mac>::new_from_slice(sk).unwrap());
+    let mut hmac = session_key.with_secret(|sk| {
+        <HmacSha256 as Mac>::new_from_slice(sk)
+            .expect("session_key is always 32 bytes — valid HMAC key")
+    });
 
     // previous ciphertext block — secure from birth
     let mut prev_block = session_iv.with_secret(|siv| Block16::new(*siv));
