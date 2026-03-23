@@ -1,5 +1,7 @@
 # aescrypt-rs
+
 **Fast, safe, streaming Rust implementation of the AES Crypt file format**
+
 - **Read**: Full compatibility with **all versions** — v0, v1, v2, and v3
 - **Write**: Modern **v3 only** (PBKDF2-HMAC-SHA512, PKCS#7 padding, proper session-key encryption)
 - **Detect**: `read_version()` — header-only version check in <1 μs (ideal for batch tools)
@@ -17,39 +19,48 @@
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
 
 ## Support the Original Author
+
 AES Crypt was created and maintained for over two decades by **Paul E. Jones**.
 If you find AES Crypt (or this Rust port) useful, please consider supporting Paul directly:
+
 - Official apps & licenses: https://www.aescrypt.com/download/
 - Business/enterprise licensing: https://www.aescrypt.com/license.html
 
 ## Version Support Summary
-| Operation          | v0 | v1 | v2 | v3 |
+
+| Operation          | v0  | v1  | v2  | v3  |
 | ------------------ | --- | --- | --- | --- |
 | Decrypt            | Yes | Yes | Yes | Yes |
 | Encrypt            | –   | –   | –   | Yes |
 | **Detect version** | Yes | Yes | Yes | Yes |
+
 > **Why v3-only on write?**
 > Version 3 is the only secure, future-proof variant. Producing legacy formats today would be a security downgrade.
 
 ## Cryptographic Primitives (v3)
-| Layer                     | Encryption     | Integrity / KDF          |
-| ------------------------- | -------------- | ------------------------ |
-| Password → Master Key     | –              | PBKDF2-HMAC-SHA512       |
-| Session Key + IV (48 B)   | AES-256-CBC    | HMAC-SHA256              |
-| File Payload              | AES-256-CBC    | HMAC-SHA256              |
+
+| Layer                   | Encryption  | Integrity / KDF    |
+| ----------------------- | ----------- | ------------------ |
+| Password → Master Key   | –           | PBKDF2-HMAC-SHA512 |
+| Session Key + IV (48 B) | AES-256-CBC | HMAC-SHA256        |
+| File Payload            | AES-256-CBC | HMAC-SHA256        |
 
 ## Security Features
+
 - **Constant-time operations**: All HMAC verifications and PKCS#7 padding validation use constant-time comparisons to prevent timing attacks
 - **Secure memory management**: All sensitive data (keys, passwords, IVs) wrapped in `secure-gate` types with automatic zeroization
 - **Streaming architecture**: Constant-memory decryption using 64-byte ring buffer (no full-file buffering)
 
 ## Thread Safety
+
 All public functions are **thread-safe** (`Send + Sync`). The library has no shared mutable state, making all operations safe for:
+
 - **Concurrent execution**: Call functions from multiple threads simultaneously
 - **Async runtimes**: Use with `tokio::task::spawn_blocking` or similar
 - **Custom cancellation**: Spawn operations in threads and implement your own cancellation via channels or thread handles
 
 ### Example: Threaded Usage
+
 ```rust,no_run
 use aescrypt_rs::{encrypt, PasswordString, constants::DEFAULT_PBKDF2_ITERATIONS};
 use std::io::Cursor;
@@ -73,21 +84,26 @@ let handle = thread::spawn(move || {
 let result = handle.join().unwrap()?;
 # Ok::<(), aescrypt_rs::AescryptError>(())
 ```
+
 For large files, operations may take significant time. Users requiring cancellation should spawn functions in threads and implement their own cancellation mechanism.
 
 ## Core API
+
 The library provides a minimal, focused API at the root level:
 **High-level functions** (99% of use cases):
+
 - `encrypt()` - Encrypt data to AES Crypt v3 format
 - `decrypt()` - Decrypt AES Crypt files (v0-v3)
 - `read_version()` - Quick version detection without full decryption
 
 **Key derivation**:
+
 - `Pbkdf2Builder` - Fluent builder for PBKDF2 key derivation
 - `derive_ackdf_key()` - Low-level ACKDF for v0-v2 files
 - `derive_pbkdf2_key()` - Low-level PBKDF2 for v3 files
 
 **Types and constants**:
+
 - `AescryptError` - Comprehensive error type
 - `PasswordString` and other secure types via `aliases::*`
 - Configuration constants via `constants::*`
@@ -97,6 +113,7 @@ The library provides a minimal, focused API at the root level:
 ## API Examples
 
 ### Detect file version (header only)
+
 ```rust
 use aescrypt_rs::read_version;
 use std::io::Cursor;
@@ -114,6 +131,7 @@ assert_eq!(version, 0);
 ```
 
 ### Standard encrypt / decrypt
+
 ```rust,no_run
 use aescrypt_rs::{encrypt, decrypt, PasswordString, constants::DEFAULT_PBKDF2_ITERATIONS};
 use std::io::Cursor;
@@ -129,6 +147,7 @@ assert_eq!(data, &plaintext[..]);
 ```
 
 ### PBKDF2 Key Derivation Builder
+
 For custom key derivation with a fluent API:
 
 ```rust,no_run
@@ -155,6 +174,7 @@ let derived_key = Pbkdf2Builder::new()
 ```
 
 ### Advanced API Access
+
 For custom decryption/encryption flows, access lower-level functions via module paths:
 
 ```rust,no_run
@@ -183,6 +203,7 @@ extract_session_data(&mut reader, version, &public_iv, &setup_key, &mut session_
 ```
 
 ## Constants
+
 Configuration constants are available via the `constants` module:
 
 ```rust,no_run
@@ -195,11 +216,13 @@ use aescrypt_rs::constants::{
 ```
 
 ## Performance (release mode, modern laptop)
-| Workload                  | Throughput   |
-| ------------------------- | ------------ |
-| Decrypt 10 MiB            | ~158 MiB/s   |
-| Encrypt 10 MiB (with KDF) | ~149 MiB/s   |
-| Round-trip 10 MiB         | ~75 MiB/s    |
+
+| Workload                  | Throughput |
+| ------------------------- | ---------- |
+| Decrypt 10 MiB            | ~158 MiB/s |
+| Encrypt 10 MiB (with KDF) | ~149 MiB/s |
+| Round-trip 10 MiB         | ~75 MiB/s  |
+
 All benchmarks include full 300,000 PBKDF2 iterations when applicable.
 **Note**: For very large files (GB+), operations may take minutes. All functions are thread-safe and can be spawned in threads for parallel processing or custom cancellation implementations.
 
@@ -221,7 +244,9 @@ aescrypt-rs = "0.2.0-rc.7"
 See [CHANGELOG.md](https://github.com/Slurp9187/aescrypt-rs/blob/v020rc/CHANGELOG.md) for a list of changes.
 
 ## License
+
 Licensed under MIT or Apache-2.0 at your option.
 
 ---
+
 **aescrypt-rs** — the modern, safe, and future-proof way to handle AES Crypt files in Rust.
