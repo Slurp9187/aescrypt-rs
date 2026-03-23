@@ -3,12 +3,12 @@
 - **Read**: Full compatibility with **all versions** — v0, v1, v2, and v3
 - **Write**: Modern **v3 only** (PBKDF2-HMAC-SHA512, PKCS#7 padding, proper session-key encryption)
 - **Detect**: `read_version()` — header-only version check in <1 μs (ideal for batch tools)
-- AES-256-CBC with **HMAC-SHA256** (payload) + **HMAC-SHA512** (session) authentication
+- AES-256-CBC with **HMAC-SHA256** (payload + session) authentication — **PBKDF2-HMAC-SHA512** key derivation
 - Constant-memory streaming (64-byte ring buffer)
 - **Zero-cost secure memory & cryptographically secure RNG** via [`secure-gate`](https://github.com/Slurp9187/secure-gate)
 - **Constant-time security**: All HMAC comparisons and padding validation use constant-time operations
 - No `unsafe` code — enforced via `#![forbid(unsafe_code)]`
-- Pure Rust, `#![no_std]`-compatible core
+- Pure Rust, no `unsafe` transitive dependencies
 - **100% bit-perfect round-trip verified** against all 63 official v0–v3 test vectors
 
 [![Crates.io](https://img.shields.io/crates/v/aescrypt-rs.svg)](https://crates.io/crates/aescrypt-rs)
@@ -173,7 +173,7 @@ let password = PasswordString::new("password".to_string());
 // Read public IV from file header (example placeholder)
 let public_iv = Iv16::new([0u8; 16]);
 let mut setup_key = Aes256Key32::new([0u8; 32]);
-// derive_setup_key(&password, &public_iv, version, &mut setup_key)?;
+// derive_setup_key(&password, &public_iv, DEFAULT_PBKDF2_ITERATIONS, &mut setup_key)?;
 let mut session_iv = Iv16::new([0u8; 16]);
 let mut session_key = Aes256Key32::new([0u8; 32]);
 extract_session_data(&mut reader, version, &public_iv, &setup_key, &mut session_iv, &mut session_key)?;
