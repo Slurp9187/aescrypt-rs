@@ -236,7 +236,7 @@ This crate defines **no optional features**. It always links `aes` with the `zer
 
 ```toml
 [dependencies]
-aescrypt-rs = "0.2.0-rc.7"
+aescrypt-rs = "0.2.0"
 ```
 
 ## Changelog
