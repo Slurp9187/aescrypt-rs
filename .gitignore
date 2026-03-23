@@ -14,3 +14,4 @@ Cargo.lock
 
 docs/aescrypt_decryption_logic.md
 docs/stream_format_enhanced.md
+AUDIT_020RC6.md
