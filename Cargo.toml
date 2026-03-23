@@ -4,7 +4,7 @@
 
 [package]
 name = "aescrypt-rs"
-version = "0.2.0-rc.7-dev"
+version = "0.2.0-rc.7"
 edition = "2024"
 rust-version = "1.85"
 description = "AES Crypt (v0-v3) Rust encryption/decryption library"

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0-rc.7] - 2026-03-23
+
+### Note
+
+- Waiting on secure-gate stable release to make v0.2.0 stable release.
+
 ### Breaking Changes
 
 - **Minimum supported Rust version (MSRV) is now 1.85** (previously 1.75). Projects or CI pinned to older toolchains must upgrade rustc.
