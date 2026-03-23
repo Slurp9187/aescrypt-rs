@@ -14,8 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Rust edition 2024** — `edition = "2024"` in `Cargo.toml` (no source rewrites needed in this crate; `#![forbid(unsafe_code)]` and I/O `match read` patterns avoid typical edition-2024 migration hazards).
-- **`secure-gate`** updated to **`=0.9.0-rc.1`** (exact pin); refresh **`Cargo.lock`** for new transitive versions (e.g. `getrandom` 0.4, `rand` 0.10). No public API changes were required in this codebase for the 0.9 upgrade.
+- **`secure-gate`** updated to **`=0.9.0-rc.2`** (exact pin); refresh **`Cargo.lock`** for new transitive versions (e.g. `getrandom` 0.4, `rand` 0.10). No public API changes were required in this codebase for the 0.9 upgrade.
 - **`criterion`** (dev-dependency) held at **0.7** — **criterion 0.8.x** declares **rustc 1.86+**, which would exceed the declared MSRV 1.85. Benchmarks remain on Criterion 0.7 until MSRV is raised or criterion’s MSRV aligns.
+- **Decryption stream** (`decrypt_ciphertext_stream` / trailer): factored repeated payload HMAC verification into `verify_payload_hmac`; rewrote v1/v2 `extract_hmac_scattered` to use wrap-around ring indexing (`% 64`) like `extract_hmac_simple` instead of slice copies that relied on an implicit `tail_index` alignment invariant; clarified PKCS#7 final-block validation and trailer module comments. **No intentional on-wire or output behavior change** for valid `.aes` files.
+- **Encryption** (`encrypt`, `encrypt_stream`, `write`, `mod`): removed stale development comments from source; HMAC construction now uses explicit `.expect(...)` messages (aligned with the decryption path); removed dead commented-out `encrypt_fixed_session` stubs from `encryption/mod.rs`.
+- **Tests** (`vector_tests`): removed duplicate deterministic v3 round-trip from `roundtrip_all_versions`, dropped redundant empty-input size, tightened comments and `DeterministicVector` field visibility — same coverage, less noise.
 
 ### Added
 

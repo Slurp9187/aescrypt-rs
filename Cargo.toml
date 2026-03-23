@@ -34,8 +34,8 @@ branch = "v020rc"
 aes = { version = "0.8", features = ["zeroize"] }
 hmac = "0.12"
 pbkdf2 = "0.12"
-# Exact pin on 0.9.0-rc.1; bump deliberately when a newer RC or stable is desired.
-secure-gate = { version = "=0.9.0-rc.1", features = ["rand", "ct-eq"] }
+# Exact pin on 0.9.0-rc.2; bump deliberately when a newer RC or stable is desired.
+secure-gate = { version = "=0.9.0-rc.2", features = ["rand", "ct-eq"] }
 sha2 = "0.10"
 thiserror = "2.0"
 
