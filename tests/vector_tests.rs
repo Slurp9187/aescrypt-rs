@@ -218,17 +218,11 @@ fn run_roundtrip_for_version(version: AescryptVersion) {
 // === Deterministic v3 ===
 #[derive(Debug, Deserialize)]
 struct DeterministicVector {
-    #[allow(dead_code)]
     plaintext: String,
-    #[allow(dead_code)]
     ciphertext_hex: String,
-    #[allow(dead_code)]
     kdf_iterations: u32,
-    #[allow(dead_code)]
     public_iv: String,
-    #[allow(dead_code)]
     session_iv: String,
-    #[allow(dead_code)]
     session_key: String,
 }
 
@@ -305,11 +299,10 @@ fn decrypt_all_versions() {
 
 #[test]
 fn roundtrip_all_versions() {
-    eprintln!("RUNNING: Full round-trip suite (v0–v3 + deterministic v3)\n");
+    eprintln!("RUNNING: Full round-trip suite (v0–v3 JSON vectors)\n");
     for version in AescryptVersion::all() {
         run_roundtrip_for_version(version);
     }
-    roundtrip_v3_deterministic();
     eprintln!("SUCCESS: All round-trip tests PASSED!\n");
 }
 
@@ -470,12 +463,12 @@ fn decrypt_corrupted_session_hmac() {
     )
     .unwrap();
 
-    // Corrupt the session HMAC (32 bytes after the encrypted session block)
-    // Session block is 48 bytes, so HMAC starts at offset after header + extensions + iterations + IV + 48
-    // For v3: header(5) + extensions(2) + iterations(4) + IV(16) + session_block(48) = 75
-    // Session HMAC is at bytes 75-106
+    // Corrupt the session HMAC (32 bytes immediately after the 48-byte encrypted session block).
+    // Layout here is for ciphertext from `encrypt()` (v3, no CREATED_BY extension): only the
+    // standard 2-byte extension terminator after the header, then iterations + public IV + session.
+    // Offset 75 = 5 (header) + 2 (terminator) + 4 (iterations) + 16 (public IV) + 48 (session block).
     if encrypted.len() > 106 {
-        encrypted[75] ^= 0xFF; // Flip a bit in session HMAC
+        encrypted[75] ^= 0xFF; // First byte of session HMAC
     }
 
     let mut decrypted = Vec::new();
@@ -727,7 +720,8 @@ fn roundtrip_various_input_patterns() {
 #[test]
 fn roundtrip_small_inputs() {
     let password = PasswordString::new("small-test".to_string());
-    let sizes = vec![0, 1, 2, 3, 4, 5, 6, 7, 8];
+    // Size 0 is covered by `roundtrip_v3_empty_input`.
+    let sizes = vec![1, 2, 3, 4, 5, 6, 7, 8];
 
     for size in sizes {
         let plaintext = vec![0xAAu8; size];
