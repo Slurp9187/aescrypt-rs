@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- **Minimum supported Rust version (MSRV) is now 1.85** (previously 1.75). Projects or CI pinned to older toolchains must upgrade rustc.
+
+### Changed
+
+- **Rust edition 2024** — `edition = "2024"` in `Cargo.toml` (no source rewrites needed in this crate; `#![forbid(unsafe_code)]` and I/O `match read` patterns avoid typical edition-2024 migration hazards).
+- **`secure-gate`** updated to **`=0.9.0-rc.1`** (exact pin); refresh **`Cargo.lock`** for new transitive versions (e.g. `getrandom` 0.4, `rand` 0.10). No public API changes were required in this codebase for the 0.9 upgrade.
+- **`criterion`** (dev-dependency) held at **0.7** — **criterion 0.8.x** declares **rustc 1.86+**, which would exceed the declared MSRV 1.85. Benchmarks remain on Criterion 0.7 until MSRV is raised or criterion’s MSRV aligns.
+
+### Added
+
+- **README**: MSRV badge (shields.io) aligned with `rust-version = "1.85"`.
+
 ## [0.2.0-rc.6] - 2026-03-21
 
 ### Breaking Changes

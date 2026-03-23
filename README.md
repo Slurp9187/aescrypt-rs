@@ -7,18 +7,21 @@
 - Constant-memory streaming (64-byte ring buffer)
 - **Zero-cost secure memory & cryptographically secure RNG** via [`secure-gate`](https://github.com/Slurp9187/secure-gate)
 - **Constant-time security**: All HMAC comparisons and padding validation use constant-time operations
-- No `unsafe` in the core decryption path (with `aes` zeroize integration enabled)
+- No `unsafe` code — enforced via `#![forbid(unsafe_code)]`
 - Pure Rust, `#![no_std]`-compatible core
 - **100% bit-perfect round-trip verified** against all 63 official v0–v3 test vectors
 
 [![Crates.io](https://img.shields.io/crates/v/aescrypt-rs.svg)](https://crates.io/crates/aescrypt-rs)
 [![Docs.rs](https://docs.rs/aescrypt-rs/badge.svg)](https://docs.rs/aescrypt-rs)
+[![MSRV](https://img.shields.io/badge/MSRV-1.85-orange)](https://releases.rs/docs/1.85.0/)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
+
 ## Support the Original Author
 AES Crypt was created and maintained for over two decades by **Paul E. Jones**.
 If you find AES Crypt (or this Rust port) useful, please consider supporting Paul directly:
 - Official apps & licenses: https://www.aescrypt.com/download/
 - Business/enterprise licensing: https://www.aescrypt.com/license.html
+
 ## Version Support Summary
 | Operation          | v0 | v1 | v2 | v3 |
 | ------------------ | --- | --- | --- | --- |
@@ -27,21 +30,25 @@ If you find AES Crypt (or this Rust port) useful, please consider supporting Pau
 | **Detect version** | Yes | Yes | Yes | Yes |
 > **Why v3-only on write?**
 > Version 3 is the only secure, future-proof variant. Producing legacy formats today would be a security downgrade.
+
 ## Cryptographic Primitives (v3)
 | Layer                     | Encryption     | Integrity / KDF          |
 | ------------------------- | -------------- | ------------------------ |
 | Password → Master Key     | –              | PBKDF2-HMAC-SHA512       |
 | Session Key + IV (48 B)   | AES-256-CBC    | HMAC-SHA256              |
 | File Payload              | AES-256-CBC    | HMAC-SHA256              |
+
 ## Security Features
 - **Constant-time operations**: All HMAC verifications and PKCS#7 padding validation use constant-time comparisons to prevent timing attacks
 - **Secure memory management**: All sensitive data (keys, passwords, IVs) wrapped in `secure-gate` types with automatic zeroization
 - **Streaming architecture**: Constant-memory decryption using 64-byte ring buffer (no full-file buffering)
+
 ## Thread Safety
 All public functions are **thread-safe** (`Send + Sync`). The library has no shared mutable state, making all operations safe for:
 - **Concurrent execution**: Call functions from multiple threads simultaneously
 - **Async runtimes**: Use with `tokio::task::spawn_blocking` or similar
 - **Custom cancellation**: Spawn operations in threads and implement your own cancellation via channels or thread handles
+
 ### Example: Threaded Usage
 ```rust,no_run
 use aescrypt_rs::{encrypt, PasswordString, constants::DEFAULT_PBKDF2_ITERATIONS};
@@ -67,6 +74,7 @@ let result = handle.join().unwrap()?;
 # Ok::<(), aescrypt_rs::AescryptError>(())
 ```
 For large files, operations may take significant time. Users requiring cancellation should spawn functions in threads and implement their own cancellation mechanism.
+
 ## Core API
 The library provides a minimal, focused API at the root level:
 **High-level functions** (99% of use cases):
@@ -87,6 +95,7 @@ The library provides a minimal, focused API at the root level:
 **Advanced access**: Lower-level functions available via `decryption::*` and `encryption::*` module paths for custom flows.
 
 ## API Examples
+
 ### Detect file version (header only)
 ```rust
 use aescrypt_rs::read_version;
@@ -103,6 +112,7 @@ let version = read_version(Cursor::new(header))?;
 assert_eq!(version, 0);
 # Ok::<(), aescrypt_rs::AescryptError>(())
 ```
+
 ### Standard encrypt / decrypt
 ```rust,no_run
 use aescrypt_rs::{encrypt, decrypt, PasswordString, constants::DEFAULT_PBKDF2_ITERATIONS};
@@ -117,8 +127,10 @@ decrypt(Cursor::new(&ciphertext), &mut plaintext, &pw)?;
 assert_eq!(data, &plaintext[..]);
 # Ok::<(), aescrypt_rs::AescryptError>(())
 ```
+
 ### PBKDF2 Key Derivation Builder
 For custom key derivation with a fluent API:
+
 ```rust,no_run
 use aescrypt_rs::{Pbkdf2Builder, PasswordString, aliases::Aes256Key32};
 
@@ -141,8 +153,10 @@ let derived_key = Pbkdf2Builder::new()
     .derive_secure_new(&password)?;
 # Ok::<(), aescrypt_rs::AescryptError>(())
 ```
+
 ### Advanced API Access
 For custom decryption/encryption flows, access lower-level functions via module paths:
+
 ```rust,no_run
 use aescrypt_rs::{
     decryption::{extract_session_data, StreamConfig, read_file_version},
@@ -167,8 +181,10 @@ extract_session_data(&mut reader, version, &public_iv, &setup_key, &mut session_
 // Continue custom decryption with StreamConfig::V3, etc.
 # Ok::<(), aescrypt_rs::AescryptError>(())
 ```
+
 ## Constants
 Configuration constants are available via the `constants` module:
+
 ```rust,no_run
 use aescrypt_rs::constants::{
     DEFAULT_PBKDF2_ITERATIONS, // 300,000 (recommended default)
@@ -177,6 +193,7 @@ use aescrypt_rs::constants::{
     AESCRYPT_LATEST_VERSION,   // 3
 };
 ```
+
 ## Performance (release mode, modern laptop)
 | Workload                  | Throughput   |
 | ------------------------- | ------------ |
@@ -185,14 +202,18 @@ use aescrypt_rs::constants::{
 | Round-trip 10 MiB         | ~75 MiB/s    |
 All benchmarks include full 300,000 PBKDF2 iterations when applicable.
 **Note**: For very large files (GB+), operations may take minutes. All functions are thread-safe and can be spawned in threads for parallel processing or custom cancellation implementations.
+
 ## Cargo features
 
 This crate defines **no optional features**. It always links `aes` with the `zeroize` feature, and `secure-gate` with `rand` and `ct-eq`, so secure wiping, CSPRNG-backed encryption, and constant-time comparisons are always in effect.
 
 ## Installation
+
+**Requires Rust 1.85+** (edition 2024), matching `rust-version` in this crate’s `Cargo.toml`.
+
 ```toml
 [dependencies]
-aescrypt-rs = "0.2.0-rc.6"
+aescrypt-rs = "0.2.0-rc.7"
 ```
 
 ## Changelog
