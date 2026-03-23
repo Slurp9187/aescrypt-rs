@@ -1,7 +1,7 @@
 //! src/decryption/stream/trailer.rs
 //! Trailer processing — HMAC extraction and final block writing
 //! All round-trip and deterministic tests pass
-//! No verify_hmac helper — we use the exact same pattern as encrypt_stream
+//! HMAC verification lives in versions.rs as `verify_payload_hmac`
 
 use crate::aliases::{Block16, Trailer32};
 use crate::decryption::stream::context::DecryptionContext;
@@ -24,24 +24,20 @@ pub fn extract_hmac_simple(ctx: &DecryptionContext) -> Trailer32 {
 }
 
 /// Extract 32-byte HMAC + modulo byte using scattered layout (v1/v2 only)
+///
+/// Layout in the ring: byte 0 = modulo, bytes 1–32 = HMAC (sequential).
+/// Uses wrap-around indexing (`% 64`) matching `extract_hmac_simple`.
 #[inline(always)]
 pub fn extract_hmac_scattered(ctx: &DecryptionContext) -> (Trailer32, u8) {
     let mut expected = Trailer32::new([0u8; 32]);
-
-    // First 15 bytes: tail+1 → tail+15
-    let start1 = (ctx.tail_index + 1) % 64;
-    // Next 16 bytes: tail+16 → tail+31
-    let start2 = (ctx.tail_index + 16) % 64;
-
     let modulo_byte = ctx.ring_buffer.with_secret(|ring| {
         expected.with_secret_mut(|e| {
-            e[..15].copy_from_slice(&ring[start1..start1 + 15]);
-            e[15..31].copy_from_slice(&ring[start2..start2 + 16]);
-            e[31] = ring[(ctx.tail_index + 32) % 64];
+            for (i, byte) in e.iter_mut().enumerate() {
+                *byte = ring[(ctx.tail_index + 1 + i) % 64];
+            }
         });
         ring[ctx.tail_index]
     });
-
     (expected, modulo_byte)
 }
 
@@ -83,18 +79,15 @@ pub fn write_final_pkcs7<W: Write>(
         return Err(AescryptError::Header("v3: invalid PKCS#7 padding".into()));
     }
 
-    // Constant-time validation: always compare full 16-byte block
-    // Build expected block where padding bytes match, data bytes are zero (will be validated separately)
+    // Constant-time validation: build expected block = data bytes || padding bytes,
+    // then compare the full 16-byte block in one constant-time operation.
     let padding_start = 16 - padding as usize;
     let mut expected_block = [0u8; 16];
-    // Copy data portion (not secret, but needed for comparison)
     ctx.plaintext_block.with_secret(|block| {
         expected_block[..padding_start].copy_from_slice(&block[..padding_start]);
     });
-    // Set padding bytes to expected value
     expected_block[padding_start..].fill(padding);
 
-    // Constant-time comparison of entire block
     let expected_fixed = Block16::from(expected_block);
     let padding_valid = ctx.plaintext_block.ct_eq(&expected_fixed);
     if !padding_valid {

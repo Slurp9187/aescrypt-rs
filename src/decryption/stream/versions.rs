@@ -15,6 +15,16 @@ use hmac::Mac;
 use secure_gate::{ConstantTimeEq, RevealSecret};
 use std::io::{Read, Write};
 
+fn verify_payload_hmac(hmac: HmacSha256, expected: &Trailer32) -> Result<(), AescryptError> {
+    let computed = hmac.finalize().into_bytes();
+    let computed_fixed =
+        Trailer32::try_from(computed.as_ref()).expect("computed hmac is 32 bytes");
+    if !computed_fixed.ct_eq(expected) {
+        return Err(AescryptError::Header("HMAC verification failed".into()));
+    }
+    Ok(())
+}
+
 /// Configuration for different AES Crypt stream formats.
 ///
 /// This enum specifies the version-specific behavior for decryption, including
@@ -106,15 +116,7 @@ where
             }
 
             let expected_hmac = extract_hmac_simple(&ctx);
-
-            let computed_hmac = hmac.finalize().into_bytes();
-            let computed_hmac_fixed =
-                Trailer32::try_from(computed_hmac.as_ref()).expect("computed hmac is 32 bytes");
-            let hmac_valid = computed_hmac_fixed.ct_eq(&expected_hmac);
-            if !hmac_valid {
-                return Err(AescryptError::Header("HMAC verification failed".into()));
-            }
-
+            verify_payload_hmac(hmac, &expected_hmac)?;
             write_final_modulo(&ctx, &mut output_writer, reserved_modulo)?;
         }
 
@@ -126,15 +128,7 @@ where
             }
 
             let (expected_hmac, modulo_byte) = extract_hmac_scattered(&ctx);
-
-            let computed_hmac = hmac.finalize().into_bytes();
-            let computed_hmac_fixed =
-                Trailer32::try_from(computed_hmac.as_ref()).expect("computed hmac is 32 bytes");
-            let hmac_valid = computed_hmac_fixed.ct_eq(&expected_hmac);
-            if !hmac_valid {
-                return Err(AescryptError::Header("HMAC verification failed".into()));
-            }
-
+            verify_payload_hmac(hmac, &expected_hmac)?;
             write_final_modulo(&ctx, &mut output_writer, modulo_byte)?;
         }
 
@@ -146,15 +140,7 @@ where
             }
 
             let expected_hmac = extract_hmac_simple(&ctx);
-
-            let computed_hmac = hmac.finalize().into_bytes();
-            let computed_hmac_fixed =
-                Trailer32::try_from(computed_hmac.as_ref()).expect("computed hmac is 32 bytes");
-            let hmac_valid = computed_hmac_fixed.ct_eq(&expected_hmac);
-            if !hmac_valid {
-                return Err(AescryptError::Header("HMAC verification failed".into()));
-            }
-
+            verify_payload_hmac(hmac, &expected_hmac)?;
             write_final_pkcs7(&ctx, &mut output_writer)?;
         }
     }
