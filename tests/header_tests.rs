@@ -1,7 +1,9 @@
 //! tests/header_tests.rs
-//! Header validation using the *real* test vectors from tests/vector/data/
+//! Header validation using the *real* test vectors from tests/test_data/
 
+use aescrypt_rs::decryption::consume_all_extensions;
 use aescrypt_rs::read_version;
+use aescrypt_rs::{decrypt, PasswordString};
 use hex::decode;
 use serde::Deserialize;
 use std::io::Cursor;
@@ -14,8 +16,7 @@ where
 {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
-        .join("vector")
-        .join("data")
+        .join("test_data")
         .join(filename);
 
     let content =
@@ -100,4 +101,151 @@ fn invalid_reserved_byte_rejected() {
         err.to_string(),
         "Header error: Invalid header: reserved byte != 0x00"
     );
+}
+
+#[test]
+fn v0_4byte_header_zero_byte() {
+    // v0 legacy 4-byte header: "AES" + 0x00
+    let data = b"AES\x00";
+    assert_eq!(read_version(Cursor::new(data)).unwrap(), 0);
+}
+
+#[test]
+fn v0_4byte_header_nonzero_byte_rejected() {
+    // v0 legacy 4-byte header with non-zero byte should error
+    let data = b"AES\x01";
+    let err = read_version(Cursor::new(data)).unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Header error: Invalid v0 header: version byte not zero"
+    );
+}
+
+#[test]
+fn v0_allows_nonzero_reserved_byte() {
+    // v0 allows non-zero reserved byte (only v1+ require 0x00)
+    let data = b"AES\x00\xFF"; // v0 with reserved = 0xFF
+    assert_eq!(read_version(Cursor::new(data)).unwrap(), 0);
+}
+
+#[test]
+fn version_boundary_values() {
+    // Test all valid versions
+    let valid_versions = [
+        (b"AES\x00\x00".as_slice(), 0u8),
+        (b"AES\x01\x00".as_slice(), 1u8),
+        (b"AES\x02\x00".as_slice(), 2u8),
+        (b"AES\x03\x00".as_slice(), 3u8),
+    ];
+    
+    for (data, expected) in valid_versions {
+        assert_eq!(
+            read_version(Cursor::new(data)).unwrap(),
+            expected,
+            "Failed for version {}",
+            expected
+        );
+    }
+}
+
+#[test]
+fn unsupported_version_boundary_values() {
+    // Test versions > 3
+    let unsupported_versions = [4u8, 5u8, 10u8, 255u8];
+    
+    for version in unsupported_versions {
+        let data = [b'A', b'E', b'S', version, 0x00];
+        let err = read_version(Cursor::new(&data)).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            format!("Header error: Unsupported version: {}", version)
+        );
+    }
+}
+
+#[test]
+fn io_error_on_short_magic_read() {
+    // Test I/O error when magic read fails (short read)
+    use std::io::{self, Read};
+    
+    struct ShortReader;
+    impl Read for ShortReader {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            // Only read 2 bytes instead of 3
+            if buf.len() >= 2 {
+                buf[0] = b'A';
+                buf[1] = b'E';
+                Ok(2)
+            } else {
+                Ok(0)
+            }
+        }
+    }
+    
+    let err = read_version(ShortReader).unwrap_err();
+    // Should be I/O error from read_exact
+    match err {
+        aescrypt_rs::AescryptError::Io(_) => {},
+        e => panic!("Expected I/O error, got: {:?}", e),
+    }
+}
+
+#[test]
+fn decrypt_rejects_nonzero_reserved_byte() {
+    // Craft a v3 file header with reserved byte = 0x01 — should be rejected by decrypt(),
+    // not silently accepted (M1 fix: read_file_version now validates the reserved byte).
+    let mut bad_header: Vec<u8> = b"AES\x03\x01".to_vec(); // version=3, reserved=0x01
+    bad_header.extend_from_slice(&[0u8; 100]); // pad with zeros so reads don't fail before header check
+
+    let password = PasswordString::new("irrelevant".to_string());
+    let mut output = Vec::new();
+    let err = decrypt(std::io::Cursor::new(&bad_header), &mut output, &password).unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("reserved byte must be 0x00 for v1"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn too_many_extensions_rejected() {
+    // Craft a byte stream representing 257 one-byte v2 extensions.
+    // Each extension is: [0x00, 0x01] (length=1) + [0x00] (payload), then a final [0x00, 0x00] terminator.
+    // The limit is MAX_EXTENSIONS = 256, so the 257th should trigger a Header error.
+    let mut stream: Vec<u8> = Vec::new();
+    for _ in 0..257 {
+        stream.extend_from_slice(&[0x00, 0x01, 0x00]); // length=1, payload=0x00
+    }
+    stream.extend_from_slice(&[0x00, 0x00]); // terminator
+
+    let mut cursor = std::io::Cursor::new(&stream);
+    let err = consume_all_extensions(&mut cursor, 2).unwrap_err();
+    assert!(
+        err.to_string().contains("too many extensions"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn all_version_combinations() {
+    // Test all valid version/reserved combinations
+    let cases = vec![
+        // v0 allows any reserved byte
+        (b"AES\x00\x00".as_slice(), 0u8),
+        (b"AES\x00\x01".as_slice(), 0u8),
+        (b"AES\x00\xFF".as_slice(), 0u8),
+        // v1+ require reserved = 0x00
+        (b"AES\x01\x00".as_slice(), 1u8),
+        (b"AES\x02\x00".as_slice(), 2u8),
+        (b"AES\x03\x00".as_slice(), 3u8),
+    ];
+    
+    for (data, expected) in cases {
+        assert_eq!(
+            read_version(Cursor::new(data)).unwrap(),
+            expected,
+            "Failed for data: {:02x?}",
+            data
+        );
+    }
 }

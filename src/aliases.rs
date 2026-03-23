@@ -1,48 +1,71 @@
-// src/aliases.rs
+//! # Secure-Gate Type Aliases
+//!
+//! This module provides type aliases for secure memory management using [`secure-gate`](https://github.com/Slurp9187/secure-gate).
+//! All types in this module provide automatic zeroization on drop and prevent accidental secret exposure.
+//!
+//! ## Type Categories
+//!
+//! ### HMAC Primitives
+//! - [`HmacSha256`] - HMAC-SHA256 for session block and payload authentication
+//! - [`HmacSha512`] - HMAC-SHA512 for PBKDF2 key derivation
+//!
+//! ### Generic Secure Buffers
+//! - [`SpanBuffer<N>`] - Generic secure stack buffer for any size `N`
+//!
+//! ### Semantic Fixed-Size Types
+//! - [`AckdfHashState32`] - 32-byte ACKDF hash state
+//! - [`Block16`] - 16-byte AES block
+//! - [`Trailer32`] - 32-byte HMAC trailer (v0/v3)
+//!
+//! ### Dynamic Secrets
+//! - [`PasswordString`] - Secure password string wrapper
+//!
+//! ### Fixed-Size Secrets
+//! - [`Aes256Key32`] - 32-byte AES-256 key
+//! - [`EncryptedSessionBlock48`] - 48-byte encrypted session block
+//! - [`Iv16`] - 16-byte initialization vector
+//! - [`RingBuffer64`] - 64-byte ring buffer for streaming decryption
+//! - [`Salt16`] - 16-byte salt for KDF operations
+//! - [`SessionHmacTag32`] - 32-byte session block HMAC tag
+//!
+//! ## Usage
+//!
+//! All secure types require scoped `.with_secret()` or `.with_secret_mut()` to access
+//! the underlying data, ensuring no accidental secret exposure.
 
-//! Global secure type aliases — secure-gate v0.5.10+
-//! Maximum overkill, minimal duplication, audit-perfect
-
-use secure_gate::{dynamic_alias, fixed_alias, random_alias};
+use secure_gate::dynamic_alias;
+use secure_gate::fixed_alias;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Re-exported crypto primitives — available via `aliases::*`
+// HMAC primitives — available via `aliases::*`
 // ─────────────────────────────────────────────────────────────────────────────
-pub use crate::crypto::hmac::{HmacSha256, HmacSha512};
+use hmac::Hmac;
+use sha2::{Sha256, Sha512};
+
+pub type HmacSha256 = Hmac<Sha256>;
+pub type HmacSha512 = Hmac<Sha512>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SpanBuffer — generic secure stack buffer (direct alias to secure-gate's Fixed)
 // ─────────────────────────────────────────────────────────────────────────────
-/// Generic secure fixed-size buffer — zero-cost, auto-zeroizing via secure-gate
 pub type SpanBuffer<const N: usize> = secure_gate::Fixed<[u8; N]>;
 
 // Semantic sub-types — compile-time safe
 pub type AckdfHashState32 = SpanBuffer<32>;
 pub type Block16 = SpanBuffer<16>; // one AES block
-pub type InitialRead48 = SpanBuffer<48>; // first read in streaming decryptor
-pub type Pbkdf2DerivedKey32 = SpanBuffer<32>;
-pub type Pbkdf2HashState32 = SpanBuffer<32>;
 pub type Trailer32 = SpanBuffer<32>; // v0/v3 HMAC trailer
-pub type Trailer33 = SpanBuffer<33>; // v1–v2 legacy scattered trailer
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Dynamic secrets
 // ─────────────────────────────────────────────────────────────────────────────
-dynamic_alias!(PasswordString, String);
+dynamic_alias!(pub PasswordString, String);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fixed-size concrete secrets — alphabetical order
 // ─────────────────────────────────────────────────────────────────────────────
-fixed_alias!(Aes256Key32, 32); // session key, HMAC key
-fixed_alias!(EncryptedSessionBlock48, 48); // encrypted session IV + key
-fixed_alias!(Iv16, 16); // public IV, session IV
-fixed_alias!(RingBuffer64, 64); // streaming decryptor ring buffer
-fixed_alias!(Salt16, 16); // PBKDF2/ACKDF salt
-fixed_alias!(SessionHmacTag32, 32); // session block HMAC
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Random secrets — cryptographically fresh
-// ─────────────────────────────────────────────────────────────────────────────
-random_alias!(RandomAes256Key32, 32);
-random_alias!(RandomIv16, 16);
-random_alias!(RandomPassword32, 32);
+fixed_alias!(pub Aes256Key32, 32); // session key, HMAC key
+fixed_alias!(pub EncryptedSessionBlock48, 48); // encrypted session IV + key
+fixed_alias!(pub Iv16, 16); // public IV, session IV
+fixed_alias!(pub RingBuffer64, 64); // streaming decryption ring buffer
+fixed_alias!(pub Salt16, 16); // PBKDF2/ACKDF salt
+fixed_alias!(pub SessionHmacTag32, 32); // session block HMAC

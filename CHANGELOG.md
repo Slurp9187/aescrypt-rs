@@ -5,74 +5,173 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - 2025-12-04
+## [Unreleased]
 
 ### Breaking Changes
-- Renamed `convert_to_v3_ext` to `convert_to_v3` (now the only conversion API).
-- Removed the old `convert_to_v3` entirely (soft-deprecated since 0.1.6).
-- Replaced all short aliases with explicit, size-tagged CamelCase names (e.g., `Aes256Key` → `Aes256Key32`, `Iv16` remains, `EncryptedSessionBlock48` unchanged).
-- Random aliases now size-tagged (e.g., `RandomAes256Key32`).
-- Public API in `lib.rs` minimized and re-exported with new names.
 
-### Added
-- Generic `SpanBuffer<const N: usize>` as secure stack buffer (alias to `secure-gate::Fixed<[u8; N]>`).
-- Strongly-typed sub-types of `SpanBuffer` for semantic clarity: `Block16`, `Trailer32`, `Trailer33`, `InitialRead48`, `Pbkdf2HashState32`, `Pbkdf2DerivedKey32`, `AckdfHashState32`.
-- Empty string (`Some("")`) now triggers random 256-bit password generation (same as `None`).
-- Generated random passwords use 1 PBKDF2 iteration; supplied passwords use full count.
+- **Minimum supported Rust version (MSRV) is now 1.85** (previously 1.75). Projects or CI pinned to older toolchains must upgrade rustc.
 
 ### Changed
-- Moved `derive_setup_key` from `encryptor/write.rs` to `encryptor/session.rs` for better cohesion.
-- Hardened ACKDF temporary hash buffer with `AckdfHashState32`.
-- Updated all internal code, tests, and benchmarks to use new alias names.
-- Consolidated conversion tests into single file (`tests/convert_tests.rs`).
 
-### Removed
-- Deprecated `convert_to_v3` and related wrappers.
-- Unused or redundant aliases (e.g., `PrevCiphertextBlock16` replaced by `Block16`).
+- **Rust edition 2024** — `edition = "2024"` in `Cargo.toml` (no source rewrites needed in this crate; `#![forbid(unsafe_code)]` and I/O `match read` patterns avoid typical edition-2024 migration hazards).
+- **`secure-gate`** updated to **`=0.9.0-rc.2`** (exact pin); refresh **`Cargo.lock`** for new transitive versions (e.g. `getrandom` 0.4, `rand` 0.10). No public API changes were required in this codebase for the 0.9 upgrade.
+- **`criterion`** (dev-dependency) held at **0.7** — **criterion 0.8.x** declares **rustc 1.86+**, which would exceed the declared MSRV 1.85. Benchmarks remain on Criterion 0.7 until MSRV is raised or criterion’s MSRV aligns.
+- **Decryption stream** (`decrypt_ciphertext_stream` / trailer): factored repeated payload HMAC verification into `verify_payload_hmac`; rewrote v1/v2 `extract_hmac_scattered` to use wrap-around ring indexing (`% 64`) like `extract_hmac_simple` instead of slice copies that relied on an implicit `tail_index` alignment invariant; clarified PKCS#7 final-block validation and trailer module comments. **No intentional on-wire or output behavior change** for valid `.aes` files.
+- **Encryption** (`encrypt`, `encrypt_stream`, `write`, `mod`): removed stale development comments from source; HMAC construction now uses explicit `.expect(...)` messages (aligned with the decryption path); removed dead commented-out `encrypt_fixed_session` stubs from `encryption/mod.rs`.
+- **Tests** (`vector_tests`): removed duplicate deterministic v3 round-trip from `roundtrip_all_versions`, dropped redundant empty-input size, tightened comments and `DeterministicVector` field visibility — same coverage, less noise.
+
+### Added
+
+- **README**: MSRV badge (shields.io) aligned with `rust-version = "1.85"`.
+
+## [0.2.0-rc.6] - 2026-03-21
+
+### Breaking Changes
+
+- Removed optional crate features `zeroize` and `rand`. The library always enables `aes`’s `zeroize` integration, always enables secure-gate `rand` and `ct-eq`, uses constant-time comparisons unconditionally, and always compiles `encrypt()` with CSPRNG-backed IV/key generation. Drop `--no-default-features` / `--features zeroize` / `--features rand` from downstream manifests.
+
+### Security
+
+- **Streaming encryption (`encrypt_stream`)**: Read plaintext in a loop until each 16-byte block is full (or EOF). A single short `Read::read` is no longer treated as end-of-file, which could have truncated ciphertext silently (AUDIT_020RC6 H1).
+- **Streaming decryption (`decrypt_cbc_loop`)**: Accumulate the 48-byte bootstrap read and each 16-byte ciphertext block the same way, so stingy readers (sockets, pipes, test adapters) no longer skip the CBC loop or mis-handle blocks (AUDIT_020RC6 H2).
+- **Header parsing**: For file versions 1–3, the reserved byte after the version must be `0x00`; non-zero values are rejected (AUDIT_020RC6 M1).
+- **Extensions**: Header extension parsing is capped at 256 extensions to bound work on malicious inputs (AUDIT_020RC6 L5).
 
 ### Fixed
-- Resolved HMAC constructor ambiguity in session extraction.
-- Fixed lifetimes and formatting in conversion tests.
 
-All tests (including 63 vectors) pass with and without `zeroize`. Benchmarks unchanged (>165 MiB/s decrypt, >160 MiB/s encrypt).
+- Unified v3 PKCS#7 padding error text to `v3: invalid PKCS#7 padding` in both validation paths (AUDIT_020RC6 L1).
+- PBKDF2 iteration count `0` is clamped to `1` consistently in `Pbkdf2Builder::with_iterations` and low-level derivation (AUDIT_020RC6 M3).
+- Documentation: `decrypt()` now documents streaming output before HMAC verification (discard output on error), empty-password behavior vs `encrypt()`, corrected `xor_blocks` documentation (panics instead of misleading UB wording), and an ACKDF note on SHA-256 state not being explicitly zeroized (AUDIT_020RC6 H3, L2, L3, L4).
+- `Cargo.toml`: inline comment documenting the pre-release `secure-gate` pin (AUDIT_020RC6 M2); removed unused direct `rand` dependency (AUDIT_020RC6 L6).
+- Typo fix in crate-level docs in `lib.rs` (AUDIT_020RC6 L8).
+- Tests: stingy-reader encrypt/decrypt round-trips, reserved-byte rejection, extension limit, and updated PKCS#7 assertion (AUDIT_020RC6 test plan).
+
+### Changed
+
+- Updated `secure-gate` dependency to v0.8.0-rc.1 and migrated all trait imports from `ExposeSecret`/`ExposeSecretMut` to `RevealSecret`/`RevealSecretMut` (secure-gate 0.8 rename). Import `ConstantTimeEq` where `.ct_eq()` is used on `Fixed` wrappers.
+- Documentation: constant-time equality is described via secure-gate’s [`ConstantTimeEq`](https://docs.rs/secure-gate/latest/secure_gate/trait.ConstantTimeEq.html) trait (`ct-eq` feature), not the removed `SecureConversionsExt` / conversions-module path.
+
+## [0.2.0-rc.1 - rc.5] - 2026-02-02
+
+**Clean slate release**: Complete API redesign focused on core encryption/decryption functionality. All non-essential features have been removed for a minimal, focused library.
+
+**Thread Safety**: All public functions are thread-safe (`Send + Sync`). The library has no shared mutable state, making all operations safe for concurrent use from multiple threads, async runtimes, and custom cancellation implementations.
+
+### Breaking Changes
+
+- **Complete removal of conversion functionality**: Deleted `convert_to_v3()` function and entire `convert` module. No migration path provided - this is a clean break.
+- **Complete removal of batch operations**: Deleted `batch_ops` module, `encrypt_batch()`, `decrypt_batch()` functions, and `batch-ops` feature. Removed `rayon` dependency.
+- **Module reorganization**: Renamed `decryptor` → `decryption`, `encryptor` → `encryption` (aligns with Rust naming conventions for process/domain modules).
+- Replaced all short aliases with explicit, size-tagged CamelCase names (e.g., `Aes256Key` → `Aes256Key32`, `Iv16` remains, `EncryptedSessionBlock48` unchanged).
+- Random aliases now size-tagged (e.g., `RandomAes256Key32`).
+- Public API in `lib.rs` completely redesigned with minimal, focused exports.
+
+### Security
+
+- **Fixed timing attack vulnerabilities**: All HMAC comparisons now use constant-time operations via `secure-gate`'s `ct_eq()` method.
+  - Session HMAC verification uses constant-time comparison.
+  - Stream HMAC verification (v0, v1/v2, v3) uses constant-time comparison.
+- **Fixed PKCS#7 padding validation timing leak**: Padding validation now always compares a fixed 16-byte block instead of variable-length slices, preventing timing attacks that could reveal padding values.
+- All constant-time operations use `secure-gate::conversions::SecureConversionsExt::ct_eq()`, which leverages `subtle::ConstantTimeEq` internally.
+
+### Added
+
+- Generic `SpanBuffer<const N: usize>` as secure stack buffer (alias to `secure-gate::Fixed<[u8; N]>`).
+- Strongly-typed sub-types of `SpanBuffer` for semantic clarity: `Block16`, `Trailer32`, `Trailer33`, `InitialRead48`, `Pbkdf2HashState32`, `Pbkdf2DerivedKey32`, `AckdfHashState32`.
+- **`Pbkdf2Builder`**: Fluent builder API for PBKDF2 key derivation with sensible defaults (300k iterations, random salt).
+- Comprehensive rust-doc documentation for all public modules and functions.
+- **Thread safety documentation**: All public functions documented as thread-safe with examples for threaded usage, async runtimes, and cancellation patterns.
+- `PBKDF2_MIN_ITER`, `PBKDF2_MAX_ITER`, `DEFAULT_PBKDF2_ITERATIONS`, and `AESCRYPT_LATEST_VERSION` constants for consistent validation and configuration.
+- Advanced API access via module paths: `decryption::extract_session_data()`, `decryption::StreamConfig`, `encryption::derive_setup_key()`, and other low-level functions for custom flows.
+- Utility functions: `utilities::utf8_to_utf16le()` for legacy password encoding, `utilities::xor_blocks()` for block operations.
+
+### Changed
+
+- **Module reorganization**: Renamed `src/decryptor/` to `src/decryption/` and `src/encryptor/` to `src/encryption/` for better alignment with Rust naming conventions.
+- Renamed `utils.rs` to `utilities.rs` and `consts.rs` to `constants.rs` for module naming consistency.
+- Moved `derive_setup_key` from `encryption/write.rs` to `encryption/session.rs` for better cohesion.
+- Hardened ACKDF temporary hash buffer with `AckdfHashState32`.
+- Updated all internal code, tests, and benchmarks to use new alias names.
+- Renamed `src/decryption/stream/utilities.rs` to `src/decryption/stream/trailer.rs` for better clarity.
+- Enhanced KDF iteration validation with consistent bounds checking using `PBKDF2_MIN_ITER` constant.
+- `Pbkdf2Builder` now uses `DEFAULT_PBKDF2_ITERATIONS` (300,000) as the default iteration count.
+- Updated `secure-gate` dependency to v0.7.0-rc.14, incorporating major breaking changes: transitioned random generation from deprecated aliases to `Fixed::from_random()` methods, updated HMAC verification to use wrapper `.ct_eq()` methods for constant-time comparisons on secure types, adapted all code for the new exposure API (existing `.expose_secret()` calls remain compatible), removed auto-`Clone` from wrappers requiring explicit `CloneableType` markers (added manual `Clone` impl to `Pbkdf2Builder`), updated import paths for `ExposeSecret`/`ExposeSecretMut` traits, and adjusted type conversions for session data copying.
+- Gated `ct_eq` operations behind the `zeroize` feature and made `rand` feature optional.
+- Moved test-only dependencies to `[dev-dependencies]`.
+- Code formatting and improved readability in encryption modules.
+- Removed all references to deprecated/removed functionality from documentation and examples.
+
+### Removed
+
+- **`convert` module**: Completely deleted. All file conversion functionality removed (`convert_to_v3()` and all related code).
+- **`batch_ops` module**: Completely deleted. All parallel batch processing functionality removed (`encrypt_batch()`, `decrypt_batch()`, and all related code).
+- **Dependencies**: Removed `pipe` and `rayon` dependencies (no longer needed).
+- **Features**: Removed `batch-ops` feature flag entirely.
+- Unused or redundant aliases (e.g., `PrevCiphertextBlock16` replaced by `Block16`).
+- `encrypt_with_fixed_session` function and associated deterministic encryption test file.
+- All test files and benchmarks related to removed functionality.
+
+### Fixed
+
+- Resolved HMAC constructor ambiguity in session extraction.
+- Fixed compiler warnings and disabled `ai_assumptions_tests`.
+- Removed useless conversions (clippy warnings).
+- Cleaned up `.gitignore` by removing redundant patterns.
+
+**Result**: Clean, minimal API focused solely on core encryption/decryption operations.
+
+**API Structure**:
+
+- **Root level**: `encrypt()`, `decrypt()`, `read_version()`, `AescryptError`, `Pbkdf2Builder`, and KDF functions (`derive_ackdf_key()`, `derive_pbkdf2_key()`)
+- **Module access**: Advanced users can access lower-level functions via `decryption::*` and `encryption::*` module paths
+- **Utilities**: `utilities::utf8_to_utf16le()`, `utilities::xor_blocks()` for custom implementations
+- **Constants**: All configuration constants available via `constants::*` module
+
+All tests (including 63 vectors) pass with and without `zeroize`. The library is now streamlined with no legacy baggage - a fresh start for v0.2.0.
 
 ## [0.1.6] - 2025-12-03
 
 ### Features
+
 - Added `convert_to_v3_ext` — supports separate old/new passwords and **256-bit random password generation**
   - `new_password = None` → generates secure 64-char hex password (256-bit entropy)
   - Uses `RandomPassword32::random_hex()` (secure-gate v0.5.10 best practice)
 
 ### Deprecations
+
 - Soft-deprecated `convert_to_v3` (since 0.1.6)
   - Still fully supported and backward compatible
   - Thin wrapper added so old code keeps compiling with a helpful warning
   - Will be removed in v1.0
 
 ### Internal
+
 - All new code uses `PasswordString` and `RandomPassword32` aliases
 - No breaking changes — safe upgrade for all users
 
 ## [0.1.5] - 2025-12-03
 
 ### Added
+
 - **Quick version detection**: New `read_version<R: Read>() -> Result<u8, AescryptError>` for header-only file checks (#17)  
   → Reads just 3–5 bytes to extract/validate version (0–3) + magic ("AES")  
   → Errors on invalid magic, short files, or bad reserved bytes  
-  → Perfect for batch validation, legacy detection, or CLI tools  
-  - No crypto/KDF deps, fully `no_std`, <1μs per file  
-  - 100% tested against all 63 official v0–v3 vectors + edges (invalid/short/malformed)  
+  → Perfect for batch validation, legacy detection, or CLI tools
+  - No crypto/KDF deps, fully `no_std`, <1μs per file
+  - 100% tested against all 63 official v0–v3 vectors + edges (invalid/short/malformed)
   - Closes #17
 
 ### Changed
+
 - **Upgraded `secure-gate` to v0.5.10 and adopted its new zero-cost random aliases** (#42)  
-  → All cryptographically secure random values (`public_iv`, `session_iv`, `session_key`) are now created with the brand-new `RandomIv16::new()` and `RandomAes256Key::new()` types introduced in secure-gate 0.5.10  
-  - Replaces the previous `Iv16::random()` / `Aes256Key::random()` calls  
-  - Zero-cost, panic-on-failure, thread-local `OsRng` (exactly the same underlying implementation)  
-  - Cleaner, more explicit intent at the call site  
+  → All cryptographically secure random values (`public_iv`, `session_iv`, `session_key`) are now created with the brand-new `RandomIv16::new()` and `RandomAes256Key::new()` types introduced in secure-gate 0.5.10
+  - Replaces the previous `Iv16::random()` / `Aes256Key::random()` calls
+  - Zero-cost, panic-on-failure, thread-local `OsRng` (exactly the same underlying implementation)
+  - Cleaner, more explicit intent at the call site
   - No allocation, no behavior change, no performance regression (benchmarks unchanged)
 
 ### Maintenance
+
 - Added the new `RandomIv16` and `RandomAes256Key` aliases to `src/aliases/mod.rs`
 - Minor import tidy-up in `encrypt.rs` – removed unused `SecureRandomExt` re-export
 
@@ -89,15 +188,18 @@ A tiny but extremely satisfying ergonomics win — the encryption path now reads
 ## [0.1.3] - 2025-11-29
 
 ### Added
+
 - **`convert_to_v3_to_vec`** – new convenience function that converts legacy v0/v1/v2 files to v3 and returns an owned `Vec<u8>`  
   This eliminates the painful `'static` mutable writer requirement that made testing and one-off conversions extremely difficult.  
   Internally uses `thread::scope` for safe, zero-cost streaming (no `Box::leak`, no `unsafe`, no extra cloning).  
   Greatly improves ergonomics for downstream crates like `encrypted-file-vault`.
 
 ### Fixed
+
 - Lifetime and borrow-checker issues when using `convert_to_v3` with stack-allocated buffers (the root cause of many test failures).
 
 ### Documentation
+
 - Added detailed comments and examples for the new `convert_to_v3_to_vec` API.
 
 Thanks to the heroic struggle against the borrow checker — this release finally makes the conversion API pleasant to use.
@@ -105,9 +207,11 @@ Thanks to the heroic struggle against the borrow checker — this release finall
 ## [0.1.2] – 2025-11-28
 
 ### Fixed
+
 - Fixed error propagation in `convert_to_v3`: decryption errors are no longer masked by the background encryption thread. Failures now surface correctly and immediately.
 
 ### Maintenance
+
 - Ran `cargo machete` and ruthlessly purged all unused dependencies. Cargo.toml is once again pristine and minimal.
 
 No experimental channels, no dead code, no wasted bytes — just a tiny but important bug fix and a cleaner dependency tree.
@@ -115,6 +219,7 @@ No experimental channels, no dead code, no wasted bytes — just a tiny but impo
 ## [0.1.1] - 2025-11-27
 
 ### Changed
+
 - **Upgraded `secure-gate` to v0.5.7** and enabled its new `rand` feature  
   → All cryptographically secure random values (`Aes256Key`, `Iv16`, salts, etc.) are now generated with `SecureRandomExt::random()` from `secure-gate`
   - Removes the duplicated RNG implementation (`src/crypto/rng.rs` → deleted)
@@ -123,9 +228,11 @@ No experimental channels, no dead code, no wasted bytes — just a tiny but impo
   - No behavior or performance regression — benchmarks remain identical (>160 MiB/s encrypt, >170 MiB/s decrypt)
 
 ### Fixed
+
 - Minor internal clean-ups and import tidy-ups after the RNG migration
 
 ### Documentation
+
 - Updated dependency list and feature explanations in `README.md` to reflect the new `secure-gate` version
 
 No breaking changes — fully backward compatible with 0.1.0.
@@ -134,6 +241,7 @@ All 100+ tests (including bit-perfect v0–v3 round-trips and deterministic vect
 ## [0.1.0] - 2025-11-27
 
 ### Added
+
 - **Initial public release** – full-featured, production-ready implementation of the AES Crypt file format (v0–v3)
 - Full **read support** for all official versions (v0, v1, v2, v3)
 - Full **write support** for modern **v3** format only (PBKDF2-SHA256, PKCS#7 padding, UTF-8 passwords, proper session key encryption)
@@ -152,6 +260,7 @@ All 100+ tests (including bit-perfect v0–v3 round-trips and deterministic vect
 - CI workflow (GitHub Actions) with full test + bench matrix
 
 ### Security
+
 - All sensitive values (keys, IVs, passwords) wrapped in `secure-gate` types
 - Automatic zeroing on drop via `zeroize` (default feature)
 - No `unsafe` code in the core encryption/decryption paths when `zeroize` is enabled
@@ -159,6 +268,7 @@ All 100+ tests (including bit-perfect v0–v3 round-trips and deterministic vect
 - Default recommended 300,000 iterations (~180 ms on i7-10510U)
 
 ### Performance
+
 - Real-world benchmarks on Intel i7-10510U (4c/8t, 16 GB RAM, Windows 11):
   - Decrypt 10 MiB → **~171 MiB/s**
   - Encrypt 10 MiB (with KDF) → **~160 MiB/s**
@@ -166,6 +276,7 @@ All 100+ tests (including bit-perfect v0–v3 round-trips and deterministic vect
 - Expect **>1 GiB/s** on modern desktop CPUs and Apple Silicon
 
 ### Notes
+
 - This release is intentionally **v3-only on write** — legacy v0–v2 formats are supported for decryption only.
 - The library is **independent** and contains **no code** from the original AES Crypt C++ implementation.
 

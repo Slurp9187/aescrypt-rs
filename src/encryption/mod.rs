@@ -1,0 +1,18 @@
+// src/core/encryption/mod.rs
+
+//! High-level encryption facade.
+//!
+//! Core API: `encrypt(&password, src, dst, iterations)?` for full file encryption.
+//! Utility: `write_octets(writer, bytes)?` for raw writes.
+
+pub(crate) mod encrypt;
+pub(crate) mod session;
+pub(crate) mod stream;
+pub(crate) mod write;
+
+pub use encrypt::encrypt;
+pub use session::{derive_setup_key, encrypt_session_block};
+pub use stream::encrypt_stream;
+pub use write::{
+    write_extensions, write_header, write_hmac, write_iterations, write_octets, write_public_iv,
+};

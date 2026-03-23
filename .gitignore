@@ -1,17 +1,18 @@
 /benches/test_data
 /code_packages
 /drafts
-/target
+/references*
 /target*
-/trash
 /trash*
-/version
-Cargo.lock
+**/.cursor/
+
+# Cargo.lock
 *.bak
 *.del
 *.draft
-# *.py
+*.errors
 
 docs/aescrypt_decryption_logic.md
 docs/stream_format_enhanced.md
-AUDIT_020RC6.md
+
+AUDIT*.md
