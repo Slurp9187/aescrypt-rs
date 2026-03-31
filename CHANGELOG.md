@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] (v0.2.0-dev in progress)
 
+## [0.2.0-rc.8] - 2026-03-30
+
 ### MSRV, edition, and `Cargo.toml` / `Cargo.lock` pins (Rust 1.70)
 
 **Policy:** `rust-version = "1.70"` and **edition 2021** in `Cargo.toml`. CI and local checks should include:

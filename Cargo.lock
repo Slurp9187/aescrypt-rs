@@ -16,7 +16,7 @@ dependencies = [
 
 [[package]]
 name = "aescrypt-rs"
-version = "0.2.0-dev"
+version = "0.2.0-rc.8"
 dependencies = [
  "aes",
  "criterion",
