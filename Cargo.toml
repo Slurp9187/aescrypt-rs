@@ -5,20 +5,36 @@
 [package]
 name = "aescrypt-rs"
 version = "0.2.0-dev"
-edition = "2024"
-rust-version = "1.85"
+edition = "2021"
+rust-version = "1.70"
 description = "AES Crypt (v0-v3) Rust encryption/decryption library"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Slurp9187/aescrypt-rs/tree/v020rc"
 documentation = "https://docs.rs/aescrypt-rs"
 keywords = ["aes", "crypt", "encryption", "decryption"]
 categories = ["cryptography"]
-include = [
-    "src/**/*.rs",
-    "CHANGELOG.md",
-    "LICENSE*",
-    "README.md",
-]
+include = ["src/**/*.rs", "CHANGELOG.md", "LICENSE*", "README.md"]
+
+# ============================================================================
+# MSRV 1.70 — pinned crates (reimplementation guide)
+# ============================================================================
+# `rust-version = "1.70"` is enforced in CI via `cargo +1.70 test --all-features`.
+# Several popular crates now declare MSRV above 1.70; without `=` pins, `cargo
+# update` can pull versions that fail on 1.70. Each pin below is duplicated in
+# CHANGELOG.md under [0.2.0-rc.7] with full rationale, transitive paths, and
+# typical compiler errors when the pin is missing.
+#
+# How to re-verify after changing pins or MSRV:
+#   rustup toolchain install 1.70 --profile minimal
+#   cargo +1.70 test --all-features
+#   cargo +1.70 bench --no-run
+#
+# How to relax pins when raising MSRV (e.g. to 1.85):
+#   1. Bump `rust-version` in [package].
+#   2. Remove or widen `=` pins from the bottom of this file upward, one group
+#      at a time; run the two commands above on the new toolchain after each step.
+#   3. Regenerate Cargo.lock (`cargo update` or targeted `cargo update -p …`).
+# ============================================================================
 
 
 # ----------------------------------------------------------------------
@@ -34,17 +50,46 @@ branch = "v020rc"
 aes = { version = "0.8", features = ["zeroize"] }
 hmac = "0.12"
 pbkdf2 = "0.12"
-# Exact pin on 0.9.0-rc.2; bump deliberately when a newer RC or stable is desired.
-secure-gate = { version = "=0.9.0-rc.3", features = ["rand", "ct-eq"] }
+# Exact pin on 0.8.0-rc.7; bump deliberately when a newer RC or stable is desired.
+secure-gate = { version = "=0.8.0-rc.7", features = ["rand", "ct-eq"] }
 sha2 = "0.10"
 thiserror = "2.0"
+# --- MSRV: proc-macro / identifier stack (unified across serde_derive, thiserror-impl, zeroize_derive, etc.) ---
+# | Crate           | Pinned   | Why |
+# |-----------------|----------|-----|
+# | quote           | 1.0.44   | 1.0.45+ → rustc 1.71+ (E0658-style package gate). |
+# | syn             | 2.0.114  | 2.0.115+ → rustc 1.71+; 2.0.117 common on fresh resolve. |
+# | unicode-ident   | 1.0.22   | 1.0.23+ → rustc 1.71+. |
+quote = "=1.0.44"
+syn = "=2.0.114"
+unicode-ident = "=1.0.22"
 
 # ----------------------------------------------------------------------
 # Dev / test / bench dependencies
 # ----------------------------------------------------------------------
 [dev-dependencies]
-# 0.8.x requires rustc 1.86+; keep 0.7 for rust-version = "1.85".
-criterion = { version = "0.7", features = ["html_reports"] }
+# --- MSRV: Criterion / CLI (dev-deps are built for every integration test crate) ---
+# | Crate     | Pinned | Why |
+# |-----------|--------|-----|
+# | criterion | 0.4.x  | 0.5+ resolves clap ^4 → clap 4.6 (edition 2024, rustc 1.85). 0.7 → rustc 1.80 + same clap issue. 0.4 uses clap 3.2.x. |
+# Feature `html_reports` unchanged; aligns with secure-gate’s own criterion 0.4 dev pin.
+criterion = { version = "0.4", features = ["html_reports"] }
+# --- MSRV: Rayon (Criterion default pulls rayon for parallel summaries) ---
+# | Crate       | Pinned   | Why |
+# |-------------|----------|-----|
+# | rayon       | 1.10.0   | 1.11.0 depends on rayon-core ^1.13.0 only. |
+# | rayon-core  | 1.12.1   | 1.13.0 → rustc 1.80+. |
+rayon = "=1.10.0"
+rayon-core = "=1.12.1"
+# --- MSRV: serde_json / Criterion / walkdir transitive leaves ---
+# | Crate        | Pinned   | Why |
+# |--------------|----------|-----|
+# | zmij         | 1.0.19   | serde_json → zmij; 1.0.20+ → rustc 1.71+. |
+# | half         | 2.4.1    | ciborium-ll → half; 2.5.0+ / 2.7.x → rustc 1.81+. |
+# | winapi-util  | 0.1.10   | walkdir → same-file → winapi-util; 0.1.11 allows windows-sys 0.61 → windows-link → rustc 1.71+. 0.1.10 caps windows-sys ≤ 0.60 (windows-targets, no windows-link). |
+zmij = "=1.0.19"
+half = "=2.4.1"
+winapi-util = "=0.1.10"
 hex = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

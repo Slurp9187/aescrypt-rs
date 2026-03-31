@@ -74,7 +74,7 @@ pub fn utf8_to_utf16le(input_utf8: &[u8]) -> Result<Vec<u8>, AescryptError> {
 /// // output now contains: [0x55; 16] (0xFF ^ 0xAA = 0x55)
 /// ```
 #[inline(always)]
-pub const fn xor_blocks(block_a: &[u8], block_b: &[u8], output: &mut [u8]) {
+pub fn xor_blocks(block_a: &[u8], block_b: &[u8], output: &mut [u8]) {
     let mut i = 0;
     while i < 16 {
         output[i] = block_a[i] ^ block_b[i];

@@ -5,7 +5,54 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Unreleased] (v0.2.0-dev in progress)
+
+### MSRV, edition, and `Cargo.toml` / `Cargo.lock` pins (Rust 1.70)
+
+**Policy:** `rust-version = "1.70"` and **edition 2021** in `Cargo.toml`. CI and local checks should include:
+
+```bash
+rustup toolchain install 1.70 --profile minimal
+cargo +1.70 test --all-features
+cargo +1.70 bench --no-run
+```
+
+**Why so many `=` pins:** Fresh `cargo update` on an unpinned tree commonly selects crate versions whose _declared_ `rust-version` is **1.71+**, **1.80+**, or **1.85+**. `cargo +1.70` then fails before or during compile with errors naming the offending package (e.g. “requires rustc 1.71 or newer”). The pins below are **direct dependencies** in `Cargo.toml` only to **force unified resolution**; they are not used in application code.
+
+#### Runtime `[dependencies]` pins
+
+| Crate           | Pinned version | Typical failure if unpinned               | Notes                                                                |
+| --------------- | -------------- | ----------------------------------------- | -------------------------------------------------------------------- |
+| `quote`         | `=1.0.44`      | `quote` 1.0.45+ → **rustc 1.71+**         | Transitive: `serde_derive`, `thiserror-impl`, `zeroize_derive`, etc. |
+| `syn`           | `=2.0.114`     | `syn` 2.0.115+ → **rustc 1.71+**          | Same proc-macro graph as `quote`.                                    |
+| `unicode-ident` | `=1.0.22`      | `unicode-ident` 1.0.23+ → **rustc 1.71+** | Pulled by `syn` / proc-macro stack.                                  |
+
+#### Dev / bench `[dev-dependencies]` pins
+
+| Crate         | Pinned version           | Typical failure if unpinned                                                                                                      | Notes                                                                                                                                                            |
+| ------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `criterion`   | `0.4` (+ `html_reports`) | **0.5+** → `clap` 4.x → **clap 4.6** (edition 2024, **rustc 1.85**). **0.7** → crate `rust-version` **1.80** + same `clap` risk. | Dev-deps are built for integration tests even when tests do not `use` Criterion. **0.4** uses **clap 3.2.x**. Matches secure-gate’s own Criterion 0.4 dev usage. |
+| `rayon`       | `=1.10.0`                | **1.11.0** requires `rayon-core` **^1.13.0** only.                                                                               | Must be paired with `rayon-core` pin.                                                                                                                            |
+| `rayon-core`  | `=1.12.1`                | **1.13.0** → **rustc 1.80+**.                                                                                                    | Criterion default features pull rayon.                                                                                                                           |
+| `zmij`        | `=1.0.19`                | **1.0.20+** → **rustc 1.71+**.                                                                                                   | Transitive: **`serde_json`** (dev).                                                                                                                              |
+| `half`        | `=2.4.1`                 | **2.5.0+** / **2.7.x** → **rustc 1.81+**.                                                                                        | Transitive: **`ciborium-ll`** ← **`criterion`**.                                                                                                                 |
+| `winapi-util` | `=0.1.10`                | **0.1.11** allows **`windows-sys` 0.61** → **`windows-link`** → **rustc 1.71+**.                                                 | Transitive: **`walkdir`** ← **`criterion`**. **0.1.10** keeps **`windows-sys` ≤ 0.60** (no `windows-link`).                                                      |
+
+**`Cargo.lock`:** After changing pins, run `cargo +1.70 update` (or targeted `cargo +1.70 update -p <crate>`) and commit the lockfile so reproducible builds match the table above.
+
+#### Source change for 1.70 (not a dependency pin)
+
+- **`utilities::xor_blocks`**: `pub const fn` → **`pub fn`** — mutable references in `const fn` for this pattern are **not** available on **rustc 1.70** (later stabilization). Behavior unchanged for callers.
+
+#### Reimplementation checklist (if pins or MSRV are edited)
+
+1. Set `[package] rust-version` and `edition` to the intended toolchain.
+2. Remove or adjust `=` lines in `Cargo.toml` in small groups (proc-macro trio → Criterion → Rayon pair → zmij / half / winapi-util).
+3. Run `cargo +<toolchain> update` and fix any resolver conflicts.
+4. Run **`cargo +<toolchain> test --all-features`** and **`cargo +<toolchain> bench --no-run`**.
+5. Update this changelog section and the banner comment in `Cargo.toml` if versions or reasons change.
+
+---
 
 ## [0.2.0-rc.7] - 2026-03-23
 
