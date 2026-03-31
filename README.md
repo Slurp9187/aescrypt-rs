@@ -1,5 +1,10 @@
 # aescrypt-rs
 
+[![Crates.io](https://img.shields.io/crates/v/aescrypt-rs.svg)](https://crates.io/crates/aescrypt-rs)
+[![Docs.rs](https://docs.rs/aescrypt-rs/badge.svg)](https://docs.rs/aescrypt-rs)
+[![MSRV](https://img.shields.io/badge/MSRV-1.70-orange)](https://releases.rs/docs/1.70.0/)
+[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
+
 **Fast, safe, streaming Rust implementation of the AES Crypt file format**
 
 - **Read**: Full compatibility with **all versions** — v0, v1, v2, and v3
@@ -9,14 +14,8 @@
 - Constant-memory streaming (64-byte ring buffer)
 - **Zero-cost secure memory & cryptographically secure RNG** via [`secure-gate`](https://github.com/Slurp9187/secure-gate)
 - **Constant-time security**: All HMAC comparisons and padding validation use constant-time operations
-- No `unsafe` code — enforced via `#![forbid(unsafe_code)]`
-- Pure Rust, no `unsafe` transitive dependencies
+- No `unsafe` in this crate — enforced via `#![forbid(unsafe_code)]` (dependencies may use `unsafe` internally, e.g. crypto backends)
 - **100% bit-perfect round-trip verified** against all 63 official v0–v3 test vectors
-
-[![Crates.io](https://img.shields.io/crates/v/aescrypt-rs.svg)](https://crates.io/crates/aescrypt-rs)
-[![Docs.rs](https://docs.rs/aescrypt-rs/badge.svg)](https://docs.rs/aescrypt-rs)
-[![MSRV](https://img.shields.io/badge/MSRV-1.85-orange)](https://releases.rs/docs/1.85.0/)
-[![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
 
 ## Support the Original Author
 
@@ -232,16 +231,18 @@ This crate defines **no optional features**. It always links `aes` with the `zer
 
 ## Installation
 
-**Requires Rust 1.85+** (edition 2024), matching `rust-version` in this crate’s `Cargo.toml`.
+**Requires Rust 1.70+**, matching **`rust-version`** in this crate’s `Cargo.toml` (Rust **edition 2021**). Verify with `cargo +1.70 test` if you pin an older toolchain.
 
 ```toml
 [dependencies]
-aescrypt-rs = "0.2.0"
+aescrypt-rs = "0.2.0-rc.8"
 ```
+
+When **0.2.0** is published to crates.io, you can switch the version requirement to `"0.2.0"` (or a caret range you prefer).
 
 ## Changelog
 
-See [CHANGELOG.md](https://github.com/Slurp9187/aescrypt-rs/blob/v020rc/CHANGELOG.md) for a list of changes.
+See [CHANGELOG.md](https://github.com/Slurp9187/aescrypt-rs/blob/main/CHANGELOG.md) for a list of changes.
 
 ## License
 
