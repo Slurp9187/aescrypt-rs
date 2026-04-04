@@ -50,8 +50,8 @@ branch = "main"
 aes = { version = "0.8", features = ["zeroize"] }
 hmac = "0.12"
 pbkdf2 = "0.12"
-# Exact pin on 0.8.0-rc.7; bump deliberately when a newer RC or stable is desired.
-secure-gate = { version = "=0.8.0-rc.7", features = ["rand", "ct-eq"] }
+# Exact pin on 0.8.0-rc.8; bump deliberately when a newer RC or stable is desired.
+secure-gate = { version = "=0.8.0-rc.8", features = ["rand", "ct-eq"] }
 sha2 = "0.10"
 thiserror = "2.0"
 # --- MSRV: proc-macro / identifier stack (unified across serde_derive, thiserror-impl, zeroize_derive, etc.) ---
