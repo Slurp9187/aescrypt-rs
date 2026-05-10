@@ -13,7 +13,7 @@ repository = "https://github.com/Slurp9187/aescrypt-rs"
 documentation = "https://docs.rs/aescrypt-rs"
 keywords = ["aes", "crypt", "encryption", "decryption"]
 categories = ["cryptography"]
-include = ["src/**/*.rs", "CHANGELOG.md", "LICENSE*", "README.md"]
+include = ["src/**/*.rs", "/CHANGELOG.md", "/LICENSE*", "/README.md"]
 
 # ============================================================================
 # MSRV 1.70 — pinned crates (reimplementation guide)
