@@ -30,6 +30,7 @@ use std::io::Write;
 /// # Panics
 ///
 /// Never panics on its own. Panics in `writer` propagate normally.
+#[doc(hidden)]
 #[inline]
 pub fn write_octets<W: Write>(writer: &mut W, data: &[u8]) -> Result<(), AescryptError> {
     writer.write_all(data).map_err(AescryptError::Io)

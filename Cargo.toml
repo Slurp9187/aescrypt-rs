@@ -41,7 +41,7 @@ include = ["src/**/*.rs", "/CHANGELOG.md", "/LICENSE*", "/README.md"]
 # docs.rs metadata
 # ----------------------------------------------------------------------
 [package.metadata.docs.rs]
-branch = "main"
+all-features = true
 
 # ----------------------------------------------------------------------
 # Runtime dependencies

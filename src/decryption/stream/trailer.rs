@@ -11,7 +11,7 @@ use std::io::Write;
 
 /// Extract 32-byte HMAC using simple wrap-around (used by v0 and v3)
 #[inline(always)]
-pub fn extract_hmac_simple(ctx: &DecryptionContext) -> Trailer32 {
+pub(crate) fn extract_hmac_simple(ctx: &DecryptionContext) -> Trailer32 {
     let mut expected = Trailer32::new([0u8; 32]);
     ctx.ring_buffer.with_secret(|ring| {
         expected.with_secret_mut(|e| {
@@ -28,7 +28,7 @@ pub fn extract_hmac_simple(ctx: &DecryptionContext) -> Trailer32 {
 /// Layout in the ring: byte 0 = modulo, bytes 1–32 = HMAC (sequential).
 /// Uses wrap-around indexing (`% 64`) matching `extract_hmac_simple`.
 #[inline(always)]
-pub fn extract_hmac_scattered(ctx: &DecryptionContext) -> (Trailer32, u8) {
+pub(crate) fn extract_hmac_scattered(ctx: &DecryptionContext) -> (Trailer32, u8) {
     let mut expected = Trailer32::new([0u8; 32]);
     let modulo_byte = ctx.ring_buffer.with_secret(|ring| {
         expected.with_secret_mut(|e| {
@@ -43,7 +43,7 @@ pub fn extract_hmac_scattered(ctx: &DecryptionContext) -> (Trailer32, u8) {
 
 /// Write final plaintext block using legacy modulo padding (v0, v1, v2)
 #[inline(always)]
-pub fn write_final_modulo<W: Write>(
+pub(crate) fn write_final_modulo<W: Write>(
     ctx: &DecryptionContext,
     output: &mut W,
     modulo: u8,
@@ -62,7 +62,7 @@ pub fn write_final_modulo<W: Write>(
 
 /// Write final plaintext block using PKCS#7 padding (v3 only)
 #[inline(always)]
-pub fn write_final_pkcs7<W: Write>(
+pub(crate) fn write_final_pkcs7<W: Write>(
     ctx: &DecryptionContext,
     output: &mut W,
 ) -> Result<(), AescryptError> {
