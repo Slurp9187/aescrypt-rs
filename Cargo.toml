@@ -4,7 +4,7 @@
 
 [package]
 name = "aescrypt-rs"
-version = "0.2.0-rc.8"
+version = "0.2.0-rc.9"
 edition = "2021"
 rust-version = "1.70"
 description = "AES Crypt (v0-v3) Rust encryption/decryption library"
@@ -51,7 +51,7 @@ aes = { version = "0.8", features = ["zeroize"] }
 hmac = "0.12"
 pbkdf2 = "0.12"
 # Exact pin on 0.8.0-rc.8; bump deliberately when a newer RC or stable is desired.
-secure-gate = { version = "=0.8.0-rc.8", features = ["rand", "ct-eq"] }
+secure-gate = { version = "=0.8.0-rc.9", features = ["rand", "ct-eq"] }
 sha2 = "0.10"
 thiserror = "2.0"
 # --- MSRV: proc-macro / identifier stack (unified across serde_derive, thiserror-impl, zeroize_derive, etc.) ---

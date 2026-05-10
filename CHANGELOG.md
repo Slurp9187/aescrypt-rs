@@ -5,7 +5,23 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] (v0.2.0-dev in progress)
+## [Unreleased]
+
+## [0.2.0-rc.9] - 2026-05-10
+
+### Changed
+
+- Bump `secure-gate` pin to `=0.8.0-rc.9`.
+- Flatten nested `with_secret_mut(|x| with_secret(|y| ...))` calls in the streaming I/O paths by introducing two `#[inline(always)]` helpers:
+  - `utilities::read_until_full` — accumulate partial `Read::read` results until the buffer is full or EOF; replaces three open-coded read loops in `encryption::stream` and `decryption::stream::context`.
+  - `DecryptionContext::write_at_head` — copy a source slice into the ring buffer at `head_index` and advance the index; replaces three copy-and-advance sites in `decrypt_cbc_loop`.
+
+No public API changes. No algorithmic changes. Continues to route normal in-crate access through `with_secret*` so the `expose_secret*` escape hatch remains FFI-only.
+
+### Added
+
+- `rust-toolchain.toml` — pins the default toolchain to 1.70 (`profile = "minimal"`, components `cargo`, `rustc`, `rust-std`, `clippy`, `rustfmt`). Bare `cargo` now uses 1.70 in this repo; use `cargo +stable …` to verify against newer toolchains.
+- `.cargo/config.toml` — sets `resolver.incompatible-rust-versions = "fallback"`. Inert on cargo 1.70 (silently ignored); becomes active on cargo 1.84+ and will let many of the `=` pins in `Cargo.toml` be relaxed once MSRV is raised past 1.84.
 
 ## [0.2.0-rc.8] - 2026-03-30
 

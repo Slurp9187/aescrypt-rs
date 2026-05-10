@@ -81,3 +81,19 @@ pub fn xor_blocks(block_a: &[u8], block_b: &[u8], output: &mut [u8]) {
         i += 1;
     }
 }
+
+#[inline(always)]
+pub(crate) fn read_until_full<R: std::io::Read>(
+    reader: &mut R,
+    buf: &mut [u8],
+) -> std::io::Result<usize> {
+    let mut total = 0;
+    while total < buf.len() {
+        match reader.read(&mut buf[total..]) {
+            Ok(0) => break,
+            Ok(k) => total += k,
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(total)
+}

@@ -5,7 +5,7 @@
 use crate::aliases::HmacSha256;
 use crate::aliases::{Aes256Key32, Block16, Iv16};
 use crate::error::AescryptError;
-use crate::utilities::xor_blocks;
+use crate::utilities::{read_until_full, xor_blocks};
 use aes::cipher::{BlockEncrypt, KeyInit};
 use aes::{Aes256Enc, Block as AesBlock};
 use hmac::Mac;
@@ -38,19 +38,10 @@ where
         // Read up to 16 bytes, accumulating partial `read()` results until the buffer is full
         // or the source returns 0 (EOF). A single `read()` may return fewer than requested even
         // when more data exist (sockets, pipes); treating that as EOF would silently truncate.
-        let (n, is_final) = plaintext_block
-            .with_secret_mut(|pb| -> Result<(usize, bool), std::io::Error> {
-                let mut bytes = 0usize;
-                while bytes < 16 {
-                    match source.read(&mut pb[bytes..]) {
-                        Ok(0) => return Ok((bytes, true)),
-                        Ok(k) => bytes += k,
-                        Err(e) => return Err(e),
-                    }
-                }
-                Ok((bytes, false))
-            })
+        let n = plaintext_block
+            .with_secret_mut(|pb| read_until_full(&mut source, pb))
             .map_err(AescryptError::Io)?;
+        let is_final = n < 16;
 
         if is_final {
             let pad = (16 - n) as u8;
