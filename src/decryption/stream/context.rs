@@ -7,7 +7,7 @@
 use crate::aliases::HmacSha256;
 use crate::aliases::{Block16, EncryptedSessionBlock48, Iv16, RingBuffer64};
 use crate::error::AescryptError;
-use crate::utilities::xor_blocks; // Note: This is crate::utilities (existing), not stream/utilities
+use crate::utilities::{read_until_full, xor_blocks}; // Note: This is crate::utilities (existing), not stream/utilities
 use aes::cipher::BlockDecrypt;
 use aes::{Aes256Dec, Block as AesBlock};
 use hmac::Mac;
@@ -33,13 +33,13 @@ use std::io::{Read, Write};
 /// - `tail_index`: Points to the start of the previous block (for CBC chaining)
 /// - `current_index`: Points to the start of the current block being decrypted
 /// - `head_index`: Points to where new data will be written
-pub struct DecryptionContext {
-    pub ring_buffer: RingBuffer64,
-    pub tail_index: usize,
-    pub current_index: usize,
-    pub head_index: usize,
-    pub plaintext_block: Block16,
-    pub need_write_plaintext: bool,
+pub(crate) struct DecryptionContext {
+    pub(crate) ring_buffer: RingBuffer64,
+    pub(crate) tail_index: usize,
+    pub(crate) current_index: usize,
+    pub(crate) head_index: usize,
+    pub(crate) plaintext_block: Block16,
+    pub(crate) need_write_plaintext: bool,
 }
 
 impl DecryptionContext {
@@ -52,7 +52,7 @@ impl DecryptionContext {
     ///
     /// * `iv` - The initialization vector for CBC mode
     #[inline(always)]
-    pub fn new_with_iv(iv: &Iv16) -> Self {
+    pub(crate) fn new_with_iv(iv: &Iv16) -> Self {
         let mut this = Self {
             ring_buffer: RingBuffer64::new([0u8; 64]),
             tail_index: 0,
@@ -66,6 +66,14 @@ impl DecryptionContext {
                 .with_secret_mut(|rb| rb[0..16].copy_from_slice(iv_bytes))
         });
         this
+    }
+
+    #[inline(always)]
+    fn write_at_head(&mut self, src: &[u8]) {
+        self.ring_buffer.with_secret_mut(|rb| {
+            rb[self.head_index..self.head_index + src.len()].copy_from_slice(src);
+        });
+        self.head_index += src.len();
     }
 
     /// Perform CBC decryption loop using the ring buffer.
@@ -90,7 +98,7 @@ impl DecryptionContext {
     ///
     /// Returns [`AescryptError::Io`] if an I/O error occurs during reading or writing.
     #[inline(always)]
-    pub fn decrypt_cbc_loop<R, W>(
+    pub(crate) fn decrypt_cbc_loop<R, W>(
         &mut self,
         input: &mut R,
         output: &mut W,
@@ -104,25 +112,9 @@ impl DecryptionContext {
         let mut initial_buffer = EncryptedSessionBlock48::new([0u8; 48]);
         // Accumulate partial `read()` results until 48 bytes or EOF (same contract as encrypt_stream).
         let bytes_read = initial_buffer
-            .with_secret_mut(|ib| -> Result<usize, std::io::Error> {
-                let mut total = 0usize;
-                while total < 48 {
-                    match input.read(&mut ib[total..]) {
-                        Ok(0) => break,
-                        Ok(k) => total += k,
-                        Err(e) => return Err(e),
-                    }
-                }
-                Ok(total)
-            })
+            .with_secret_mut(|ib| read_until_full(input, ib))
             .map_err(AescryptError::Io)?;
-        self.ring_buffer.with_secret_mut(|rb| {
-            initial_buffer.with_secret(|ib| {
-                rb[self.head_index..self.head_index + bytes_read]
-                    .copy_from_slice(&ib[..bytes_read]);
-            });
-        });
-        self.head_index += bytes_read;
+        initial_buffer.with_secret(|ib| self.write_at_head(&ib[..bytes_read]));
         if bytes_read == 48 {
             loop {
                 if self.need_write_plaintext {
@@ -157,33 +149,12 @@ impl DecryptionContext {
                 }
                 let mut next_block = Block16::new([0u8; 16]);
                 let n = next_block
-                    .with_secret_mut(|nb| -> Result<usize, std::io::Error> {
-                        let mut total = 0usize;
-                        while total < 16 {
-                            match input.read(&mut nb[total..]) {
-                                Ok(0) => break,
-                                Ok(k) => total += k,
-                                Err(e) => return Err(e),
-                            }
-                        }
-                        Ok(total)
-                    })
+                    .with_secret_mut(|nb| read_until_full(input, nb))
                     .map_err(AescryptError::Io)?;
+                next_block.with_secret(|nb| self.write_at_head(&nb[..n]));
                 if n < 16 {
-                    self.ring_buffer.with_secret_mut(|rb| {
-                        next_block.with_secret(|nb| {
-                            rb[self.head_index..self.head_index + n].copy_from_slice(&nb[..n]);
-                        });
-                    });
-                    self.head_index += n;
                     break;
                 }
-                self.ring_buffer.with_secret_mut(|rb| {
-                    next_block.with_secret(|nb| {
-                        rb[self.head_index..self.head_index + 16].copy_from_slice(nb);
-                    });
-                });
-                self.head_index += 16;
             }
         }
         Ok(())
@@ -195,7 +166,7 @@ impl DecryptionContext {
     /// making room for new data and updating the previous block reference for
     /// the next CBC operation.
     #[inline(always)]
-    pub fn advance_tail(&mut self) {
+    pub(crate) fn advance_tail(&mut self) {
         self.tail_index = (self.tail_index + 16) % 64;
     }
 
@@ -208,7 +179,7 @@ impl DecryptionContext {
     ///
     /// The number of bytes remaining in the ring buffer (0-64).
     #[inline(always)]
-    pub fn remaining(&self) -> usize {
+    pub(crate) fn remaining(&self) -> usize {
         if self.head_index >= self.tail_index {
             self.head_index - self.tail_index
         } else {

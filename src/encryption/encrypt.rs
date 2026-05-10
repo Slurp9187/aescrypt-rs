@@ -1,7 +1,6 @@
 // src/encryption/encrypt.rs
 
-//! Aescrypt encryption — secure-gate gold standard
-//! Zero secret exposure, zero-cost, auto-zeroizing
+//! High-level [`encrypt`] entry point: streams plaintext to an AES Crypt v3 file.
 
 use crate::aliases::PasswordString;
 use crate::aliases::{Aes256Key32, EncryptedSessionBlock48, HmacSha256, Iv16};
@@ -20,29 +19,84 @@ use hmac::Mac;
 use secure_gate::RevealSecret;
 use std::io::{Read, Write};
 
-/// Encrypt an Aescrypt file (v3+) — zero secret exposure, maximum security
+/// Encrypts the bytes read from `input` into a complete AES Crypt v3 file
+/// written to `output`.
 ///
-/// Encrypted files use the v3 format only, ensuring the highest level of security. The password must not be empty.
-/// The `kdf_iterations` must be between [`crate::constants::PBKDF2_MIN_ITER`] and [`crate::constants::PBKDF2_MAX_ITER`].
+/// `encrypt` consumes `input` until EOF and writes a self-contained `.aes`
+/// file: header, extensions terminator, iteration count, public IV, encrypted
+/// session block, session HMAC, ciphertext stream, and payload HMAC. The
+/// session key, session IV, and public IV are freshly generated from the
+/// [`secure-gate`] CSPRNG on every call; the same `(password, plaintext,
+/// iterations)` tuple therefore produces a different ciphertext every time.
+///
+/// # Format
+///
+/// Always v3. To produce v0/v1/v2 files, use the official `aescrypt` reference
+/// tooling — this crate intentionally does not support legacy formats on
+/// write (see the [crate-level Security Model](crate#security-model)).
+///
+/// # Errors
+///
+/// - [`AescryptError::Header`] — `password` is empty, or `kdf_iterations` is
+///   outside [`PBKDF2_MIN_ITER`](crate::constants::PBKDF2_MIN_ITER) `..=`
+///   [`PBKDF2_MAX_ITER`](crate::constants::PBKDF2_MAX_ITER).
+/// - [`AescryptError::Crypto`] — PBKDF2 setup-key derivation failed (forwarded
+///   from [`crate::derive_pbkdf2_key`]).
+/// - [`AescryptError::Io`] — `input.read` or `output.write_all` returned an
+///   error at any stage of header serialization or payload streaming.
+///
+/// # Panics
+///
+/// Never panics on valid input; the internal `expect` on `setup_key` is a
+/// 32-byte invariant that is structurally guaranteed by
+/// [`Aes256Key32`](crate::aliases::Aes256Key32).
+///
+/// # Security
+///
+/// - All secrets ([`PasswordString`], session key, session IV, setup key) live
+///   in [`secure-gate`] wrappers and zeroize on drop. Plaintext blocks
+///   transit the stack inside [`Block16`](crate::aliases::Block16) for the
+///   same reason.
+/// - The public IV doubles as the PBKDF2 salt; it is generated with
+///   `Iv16::from_random` per call and is therefore unique with overwhelming
+///   probability.
+/// - HMAC-SHA256 is computed over the encrypted session block (with the v3
+///   version byte appended) and over the ciphertext stream. Decryption verifies
+///   both with constant-time equality.
+/// - PKCS#7 padding is always applied to the final plaintext block.
+/// - `kdf_iterations` controls password-cracking cost. Use
+///   [`DEFAULT_PBKDF2_ITERATIONS`](crate::constants::DEFAULT_PBKDF2_ITERATIONS)
+///   unless you have measured your platform.
+///
+/// # Compatibility
+///
+/// - Output is byte-compatible with the official AES Crypt reference
+///   implementation for v3 files.
+/// - Files produced by this function are accepted by [`crate::decrypt()`] and
+///   by `aescrypt`'s C/.NET/Java tooling.
 ///
 /// # Thread Safety
 ///
-/// This function is **thread-safe** and can be called concurrently from multiple threads.
-/// All operations are pure (no shared mutable state), making it safe to:
-/// - Spawn in threads for parallel processing
-/// - Use with async runtimes (spawn_blocking)
-/// - Implement cancellation by wrapping in a thread and joining/detaching as needed
+/// `encrypt` is `Send` whenever its `R`/`W` are. There is no shared mutable
+/// state, so multiple threads may call `encrypt` concurrently on independent
+/// inputs/outputs. Cancellation is the caller's responsibility — spawn in a
+/// thread and abandon the join handle, or wire up an interruptible reader/writer.
 ///
-/// # Performance
+/// # Examples
 ///
-/// For large files, this operation may take significant time. In release mode, expect:
-/// - ~150 MiB/s throughput for encryption
-/// - Processing time scales linearly with file size
+/// ```no_run
+/// use aescrypt_rs::{encrypt, PasswordString, constants::DEFAULT_PBKDF2_ITERATIONS};
+/// use std::io::Cursor;
 ///
-/// Users requiring cancellation should spawn this function in a thread and implement
-/// their own cancellation mechanism (e.g., using channels or thread handles).
+/// let password = PasswordString::new("correct horse battery staple".to_string());
+/// let plaintext = b"top secret";
 ///
-/// # Example: Threaded Usage
+/// let mut ciphertext = Vec::new();
+/// encrypt(Cursor::new(plaintext), &mut ciphertext, &password, DEFAULT_PBKDF2_ITERATIONS)?;
+/// # Ok::<(), aescrypt_rs::AescryptError>(())
+/// ```
+///
+/// Threaded usage:
 ///
 /// ```no_run
 /// use aescrypt_rs::{encrypt, PasswordString};
@@ -52,20 +106,21 @@ use std::io::{Read, Write};
 /// let password = PasswordString::new("secret".to_string());
 /// let data = b"large file data...";
 ///
-/// // Spawn encryption in a thread
 /// let handle = thread::spawn(move || {
 ///     let mut encrypted = Vec::new();
-///     encrypt(
-///         Cursor::new(data),
-///         &mut encrypted,
-///         &password,
-///         300_000,
-///     )
+///     encrypt(Cursor::new(data), &mut encrypted, &password, 300_000)
 /// });
 ///
-/// // Can wait for completion or implement cancellation
-/// let result = handle.join().unwrap();
+/// let _result = handle.join().unwrap();
 /// ```
+///
+/// # See also
+///
+/// - [`crate::decrypt()`] — inverse operation.
+/// - [`crate::Pbkdf2Builder`] — convenient way to derive a PBKDF2 key for
+///   custom flows.
+///
+/// [`secure-gate`]: https://github.com/Slurp9187/secure-gate
 #[inline(always)]
 pub fn encrypt<R, W>(
     mut input: R,

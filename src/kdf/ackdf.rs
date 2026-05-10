@@ -1,5 +1,21 @@
 //! src/kdf/ackdf.rs
-//! AES Crypt v0–v2 ACKDF — out-param, zero-exposure, secure-gate
+//! AES Crypt Key Derivation Function (ACKDF) for v0–v2 files (read-only).
+//!
+//! ACKDF is the legacy KDF used by AES Crypt v0–v2: 8192 iterations of
+//! SHA-256 over the previous hash and the UTF-16-LE-encoded password,
+//! seeded with a 16-byte salt. It is exposed for callers that need to
+//! decrypt legacy files; new files always use PBKDF2-HMAC-SHA512 (see
+//! [`crate::kdf::pbkdf2`]) and are written by [`crate::encrypt()`].
+//!
+//! # Security
+//!
+//! - **Iteration count is fixed at 8192** by the AES Crypt v0–v2 spec; do not
+//!   reduce it. By modern standards 8192 SHA-256 iterations are weak; this
+//!   crate uses ACKDF only on the read path for legacy file compatibility.
+//! - The intermediate `Sha256` hasher state lives on the stack and is reset
+//!   (but not explicitly zeroized) between iterations. The 32-byte hash state
+//!   is wrapped in [`crate::aliases::AckdfHashState32`] so it does zeroize on
+//!   drop. See the inline comment in the implementation.
 
 use crate::aliases::{AckdfHashState32, Aes256Key32, PasswordString, Salt16};
 use crate::utilities::utf8_to_utf16le;
@@ -7,7 +23,12 @@ use crate::AescryptError;
 use secure_gate::{Dynamic, RevealSecret, RevealSecretMut};
 use sha2::{Digest, Sha256};
 
-/// Fixed iteration count for ACKDF as defined by AES Crypt v0–v2 specification
+/// Fixed ACKDF iteration count mandated by the AES Crypt v0–v2 file format
+/// specification.
+///
+/// The unit is **iterations** (each iteration is a SHA-256 of the previous
+/// 32-byte hash state followed by the UTF-16-LE password). This value is part
+/// of the on-wire format and cannot be changed without breaking compatibility.
 pub const ACKDF_ITERATIONS: u32 = 8192;
 
 #[inline(always)]
@@ -21,18 +42,49 @@ where
     hasher.finalize_reset().into()
 }
 
-/// Derive ACKDF key directly into caller buffer (zero-cost, zero-exposure)
+/// Derives the AES-256 setup key for AES Crypt v0–v2 files using ACKDF.
 ///
-/// - 8192 × SHA-256 iterations
-/// - UTF-16-LE password encoding
-/// - Salt must be exactly 16 bytes
+/// Performs [`ACKDF_ITERATIONS`] iterations of SHA-256 over the running
+/// 32-byte hash state and the UTF-16-LE encoded password, writing the final
+/// state into `out_key` directly (no return value, no intermediate
+/// allocation).
 ///
-/// Writes result into `out_key` — no return value, fastest possible
+/// # Format
+///
+/// `salt` is the 16-byte public IV from a v0/v1/v2 file header; the password
+/// is re-encoded UTF-8 → UTF-16-LE because the AES Crypt v0–v2 spec hashes
+/// passwords as UTF-16-LE little-endian code units.
+///
+/// # Errors
+///
+/// - [`AescryptError::Crypto`] — `password` is not valid UTF-8 (forwarded
+///   from [`crate::utilities::utf8_to_utf16le`]).
+///
+/// # Panics
+///
+/// Never panics on valid input.
+///
+/// # Security
+///
+/// - Iteration count is fixed at 8192 by the AES Crypt v0–v2 spec. ACKDF is
+///   weaker than PBKDF2-HMAC-SHA512; new files use
+///   [`crate::derive_pbkdf2_key`] instead.
+/// - `out_key` is a [`secure-gate`] alias and zeroizes on drop.
+/// - The intermediate `Sha256` hasher state holds 8 × `u32` of derived data on
+///   the stack and is `finalize_reset()`-ed between iterations, but is not
+///   explicitly zeroized when the function returns. The intermediate hash
+///   state is wrapped in [`crate::aliases::AckdfHashState32`] and does
+///   zeroize on drop.
 ///
 /// # Thread Safety
 ///
-/// This function is **thread-safe** and can be called concurrently from multiple threads.
-/// All operations are pure (no shared mutable state).
+/// Pure function with no shared state; safe to call concurrently.
+///
+/// # See also
+///
+/// - [`crate::derive_pbkdf2_key`] — modern KDF used by v3 files.
+///
+/// [`secure-gate`]: https://github.com/Slurp9187/secure-gate
 #[inline(always)]
 pub fn derive_ackdf_key(
     password: &PasswordString,

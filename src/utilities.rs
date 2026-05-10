@@ -1,38 +1,52 @@
-//! # Utility Functions
+//! Low-level utility functions used by the encryption and decryption pipelines.
 //!
-//! This module provides low-level utility functions used throughout the library
-//! for password encoding and cryptographic operations.
+//! Most callers will not need anything from this module directly; the helpers
+//! are exposed because they are useful when composing custom v0–v2 read flows
+//! ([`utf8_to_utf16le`]) or custom CBC pipelines ([`xor_blocks`]).
 
 use crate::error::AescryptError;
 
-/// Convert UTF-8 password bytes to UTF-16LE encoding.
+/// Re-encodes UTF-8 password bytes as a UTF-16-LE byte vector.
 ///
-/// This function is used for ACKDF (AES Crypt Key Derivation Function) in v0-v2 files,
-/// which require passwords to be encoded as UTF-16LE before hashing.
+/// AES Crypt v0–v2 ACKDF hashes passwords as little-endian UTF-16 code units;
+/// this helper performs the conversion inside [`crate::derive_ackdf_key`] but
+/// is also useful for callers building custom legacy decryption flows.
 ///
-/// # Arguments
-///
-/// * `input_utf8` - UTF-8 encoded password bytes
-///
-/// # Returns
-///
-/// Returns a `Vec<u8>` containing the UTF-16LE encoded password, or an error if
-/// the input is not valid UTF-8.
+/// The output `Vec<u8>` length is always twice the number of UTF-16 code units
+/// produced from `input_utf8` — i.e. **bytes**, not code units.
 ///
 /// # Errors
 ///
-/// Returns [`AescryptError::Crypto`] if the input is not valid UTF-8.
+/// - [`AescryptError::Crypto`] — `input_utf8` is not valid UTF-8.
 ///
-/// # Example
+/// # Panics
+///
+/// Never panics.
+///
+/// # Security
+///
+/// Returns a plain `Vec<u8>` (not a [`secure-gate`] alias). When this function
+/// is called from [`crate::derive_ackdf_key`] the output is immediately wrapped
+/// in `Dynamic<Vec<u8>>`. External callers that pass through real passwords
+/// should also wrap the output in a zeroizing container before letting it
+/// drop, otherwise the UTF-16-LE password copy lingers on the heap until the
+/// allocator overwrites it.
+///
+/// # Examples
 ///
 /// ```
 /// use aescrypt_rs::utilities::utf8_to_utf16le;
 ///
 /// let utf8_bytes = b"Hello";
 /// let utf16le = utf8_to_utf16le(utf8_bytes)?;
-/// // utf16le now contains: [0x48, 0x00, 0x65, 0x00, 0x6C, 0x00, 0x6C, 0x00, 0x6F, 0x00]
+/// assert_eq!(
+///     utf16le,
+///     [0x48, 0x00, 0x65, 0x00, 0x6C, 0x00, 0x6C, 0x00, 0x6F, 0x00]
+/// );
 /// # Ok::<(), aescrypt_rs::AescryptError>(())
 /// ```
+///
+/// [`secure-gate`]: https://github.com/Slurp9187/secure-gate
 #[inline(always)]
 pub fn utf8_to_utf16le(input_utf8: &[u8]) -> Result<Vec<u8>, AescryptError> {
     let utf8_str = std::str::from_utf8(input_utf8)
@@ -46,22 +60,32 @@ pub fn utf8_to_utf16le(input_utf8: &[u8]) -> Result<Vec<u8>, AescryptError> {
     Ok(output)
 }
 
-/// XOR two 16-byte blocks together, writing the result to the output buffer.
+/// XORs the first 16 bytes of `block_a` and `block_b` into the first 16 bytes
+/// of `output`.
 ///
-/// This function performs byte-wise XOR of two 16-byte blocks, which is used
-/// in CBC mode encryption/decryption for chaining blocks together.
+/// Used by both encryption and decryption paths for AES-CBC chaining. The
+/// fixed length of 16 makes this function easy to inline as a tight loop on
+/// every supported target.
 ///
-/// # Arguments
+/// # Errors
 ///
-/// * `block_a` - First 16-byte block
-/// * `block_b` - Second 16-byte block
-/// * `output` - Output buffer (must be at least 16 bytes)
+/// Infallible.
 ///
 /// # Panics
 ///
-/// Panics if `block_a`, `block_b`, or `output` are shorter than 16 bytes.
+/// Panics if any of `block_a`, `block_b`, or `output` is shorter than 16
+/// bytes (Rust's normal slice-bounds panic; this is **not** undefined
+/// behavior).
 ///
-/// # Example
+/// # Compatibility
+///
+/// This function is `pub fn`, **not** `pub const fn`, because the MSRV (1.70)
+/// does not yet stabilize mutable references in `const fn` for this access
+/// pattern. The signature is intentionally identical to the eventual `const`
+/// variant so the change can land as a non-breaking minor upgrade once MSRV
+/// is bumped. See `CHANGELOG.md` (0.2.0-rc.8) for the rationale.
+///
+/// # Examples
 ///
 /// ```
 /// use aescrypt_rs::utilities::xor_blocks;
@@ -71,7 +95,7 @@ pub fn utf8_to_utf16le(input_utf8: &[u8]) -> Result<Vec<u8>, AescryptError> {
 /// let mut output = [0u8; 16];
 ///
 /// xor_blocks(&block_a, &block_b, &mut output);
-/// // output now contains: [0x55; 16] (0xFF ^ 0xAA = 0x55)
+/// assert_eq!(output, [0x55; 16]); // 0xFF ^ 0xAA = 0x55
 /// ```
 #[inline(always)]
 pub fn xor_blocks(block_a: &[u8], block_b: &[u8], output: &mut [u8]) {
@@ -80,4 +104,20 @@ pub fn xor_blocks(block_a: &[u8], block_b: &[u8], output: &mut [u8]) {
         output[i] = block_a[i] ^ block_b[i];
         i += 1;
     }
+}
+
+#[inline(always)]
+pub(crate) fn read_until_full<R: std::io::Read>(
+    reader: &mut R,
+    buf: &mut [u8],
+) -> std::io::Result<usize> {
+    let mut total = 0;
+    while total < buf.len() {
+        match reader.read(&mut buf[total..]) {
+            Ok(0) => break,
+            Ok(k) => total += k,
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(total)
 }

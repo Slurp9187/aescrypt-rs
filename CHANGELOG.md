@@ -5,7 +5,34 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] (v0.2.0-dev in progress)
+## [Unreleased]
+
+## [0.2.0-rc.9] - 2026-05-10
+
+### Changed
+
+- Bump `secure-gate` pin to `=0.8.0-rc.9`.
+- Flatten nested `with_secret_mut(|x| with_secret(|y| ...))` calls in the streaming I/O paths by introducing two `#[inline(always)]` helpers:
+  - `utilities::read_until_full` — accumulate partial `Read::read` results until the buffer is full or EOF; replaces three open-coded read loops in `encryption::stream` and `decryption::stream::context`.
+  - `DecryptionContext::write_at_head` — copy a source slice into the ring buffer at `head_index` and advance the index; replaces three copy-and-advance sites in `decrypt_cbc_loop`.
+- **Comprehensive RustDoc audit** of every public item to make the crate ready for a clean `docs.rs` 0.2.0 build. Every public item now has a declarative first line plus structured `# Errors` / `# Panics` / `# Security` / `# Format` / `# Compatibility` / `# Thread Safety` / `# See also` sections in the canonical order:
+  - `lib.rs` crate header gains Quick Start + Supported Formats matrix + Feature Flags + MSRV (1.70) + Security Model (decrypt-then-verify caveat preserved on `decrypt()`) + Errors overview.
+  - `error.rs` gains a variant→producing-API table and per-variant trigger / message-stability notes.
+  - `header.rs`, `kdf/{ackdf,pbkdf2}.rs`, and the `encryption` / `decryption` module roots gain v0–v3 layout tables and `# Security` pointers.
+  - The previously undocumented public surface (`encryption::{write_octets, write_header, write_extensions, write_iterations, write_public_iv, write_hmac, encrypt_stream}` and `decryption::stream::versions::{decrypt_ciphertext_stream, StreamConfig}`) is fully documented.
+  - Three intra-doc-link blockers (`crate::encrypt` / `crate::decrypt` ambiguity) and a misleading "Panics on EOF" claim on `read_exact_span` are fixed.
+  - Constants get explicit units (iterations, version) and security guidance referencing `DEFAULT_PBKDF2_ITERATIONS`.
+  - `xor_blocks` records the MSRV-1.70 reason it is `pub fn`, not `pub const fn`.
+- `Cargo.toml` `[package.metadata.docs.rs]`: replace the non-functional `branch = "main"` key (not a recognized docs.rs metadata key) with `all-features = true`. Inert today (the crate defines no Cargo features) but ensures docs.rs auto-renders any feature added later.
+- Apply `#[doc(hidden)]` to `encryption::write_octets` — the only writer in the v3 header suite that does not encode AES Crypt structure (it is a thin wrapper over `Write::write_all`). The function stays `pub` for any caller already using it; only its docs.rs page is suppressed.
+- Tighten visibility of `decryption::stream::context::DecryptionContext` (struct + 6 fields + 4 methods) and `decryption::stream::trailer::{extract_hmac_simple, extract_hmac_scattered, write_final_modulo, write_final_pkcs7}` from `pub` to `pub(crate)`. These items live inside `pub(crate) mod` declarations so their effective visibility was already crate-private; the change makes the source truthful and turns any future stray `pub use` of these items into a compile error instead of a silent SemVer expansion.
+
+No public API changes. No algorithmic changes. Continues to route normal in-crate access through `with_secret*` so the `expose_secret*` escape hatch remains FFI-only.
+
+### Added
+
+- `rust-toolchain.toml` — pins the default toolchain to 1.70 (`profile = "minimal"`, components `cargo`, `rustc`, `rust-std`, `clippy`, `rustfmt`). Bare `cargo` now uses 1.70 in this repo; use `cargo +stable …` to verify against newer toolchains.
+- `.cargo/config.toml` — sets `resolver.incompatible-rust-versions = "fallback"`. Inert on cargo 1.70 (silently ignored); becomes active on cargo 1.84+ and will let many of the `=` pins in `Cargo.toml` be relaxed once MSRV is raised past 1.84.
 
 ## [0.2.0-rc.8] - 2026-03-30
 

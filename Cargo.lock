@@ -16,7 +16,7 @@ dependencies = [
 
 [[package]]
 name = "aescrypt-rs"
-version = "0.2.0-rc.8"
+version = "0.2.0-rc.9"
 dependencies = [
  "aes",
  "criterion",
@@ -599,9 +599,9 @@ dependencies = [
 
 [[package]]
 name = "secure-gate"
-version = "0.8.0-rc.8"
+version = "0.8.0-rc.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "597daecb62a40384e9ae5919975e9f6e2586319854c8264456bd134ef2f13f0b"
+checksum = "26bdedc9c26091ee3af4f3f5c94c4aa4b4637813b87e721eeacb9e9e1b2baaa5"
 dependencies = [
  "base16ct",
  "base64ct",

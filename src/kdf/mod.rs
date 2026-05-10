@@ -1,20 +1,25 @@
-//! # Key Derivation Functions (KDF)
+//! Key Derivation Functions used by AES Crypt v0–v3.
 //!
-//! This module provides key derivation functions used by AES Crypt for converting
-//! passwords into encryption keys.
+//! Two KDFs are wired in, gated by file format version:
 //!
-//! ## Modules
+//! - [`ackdf`] — AES Crypt Key Derivation Function: 8192 SHA-256 iterations
+//!   over a UTF-16-LE password and 16-byte salt, used by v0/v1/v2 files
+//!   (read-only).
+//! - [`pbkdf2`] — PBKDF2-HMAC-SHA512 with caller-controlled iteration count
+//!   (default [`crate::constants::DEFAULT_PBKDF2_ITERATIONS`]), used by v3
+//!   files (read and write).
 //!
-//! - [`ackdf`] - AES Crypt Key Derivation Function (used in v0-v2 files)
-//! - [`pbkdf2`] - PBKDF2-HMAC-SHA512 (used in v3 files)
+//! Most callers should use the high-level [`encrypt`](crate::encrypt()) and
+//! [`decrypt`](crate::decrypt()) functions, which select the right KDF
+//! automatically. These primitives are exposed for custom decryption flows,
+//! such as reading legacy files outside the full high-level API.
 //!
-//! ## Usage
+//! # Security
 //!
-//! For most use cases, you should use the high-level [`encrypt`](crate::encrypt) and
-//! [`decrypt`](crate::decrypt) functions, which handle KDF operations automatically.
-//!
-//! These low-level functions are exposed for custom decryption flows, such as reading
-//! legacy files without using the full high-level API.
+//! ACKDF is fixed at 8192 SHA-256 iterations by spec; it is weak by modern
+//! standards and exists solely for compatibility with v0–v2 files. PBKDF2
+//! iterations should never go below
+//! [`DEFAULT_PBKDF2_ITERATIONS`](crate::constants::DEFAULT_PBKDF2_ITERATIONS).
 
 pub mod ackdf;
 pub mod pbkdf2;
