@@ -1,45 +1,77 @@
-//! # Header Parsing
+//! AES Crypt file-header parsing.
 //!
-//! This module provides functions for parsing AES Crypt file headers.
-//! The header contains the magic bytes "AES", version information, and other metadata.
+//! This module exposes [`read_version`], a fast, allocation-free reader for the
+//! 3- to 5-byte fixed prefix shared by every AES Crypt file format version (v0–v3).
+//! It is the cheapest way to triage a file before deciding whether to invoke
+//! [`crate::decrypt()`].
+//!
+//! For the full header layout — including iteration count, public IV, extensions,
+//! encrypted session block, and HMAC — see [`crate::decryption::read_file_version`]
+//! (the strict version-prefix parser used by [`crate::decrypt()`]) and the
+//! per-stage table in [`crate::decryption`].
 
 use crate::error::AescryptError;
 use std::io::Read;
 
-/// Read and validate the AES Crypt file version from the header.
+/// Reads the AES Crypt format version from the head of `reader` without decrypting.
 ///
-/// This function reads the minimal header information needed to determine the file version
-/// without performing a full decryption. It's optimized for fast version detection in batch
-/// operations or file management tools.
+/// `read_version` consumes the minimum number of bytes needed to identify the
+/// format version (3 to 5 bytes depending on the version) and returns the
+/// version number `0..=3`. It is the canonical entry point for batch tools that
+/// need to triage `.aes` files before committing to a full
+/// [`crate::decrypt()`] call.
 ///
-/// # Thread Safety
+/// # Format
 ///
-/// This function is **thread-safe** and can be called concurrently from multiple threads.
-/// All operations are pure (no shared mutable state), making it ideal for parallel batch processing.
+/// All AES Crypt files start with the ASCII bytes `"AES"`. The bytes that follow
+/// disambiguate the version:
 ///
-/// # Header Format
+/// | Bytes after `"AES"` | Detected version | Notes                                   |
+/// | ------------------- | :--------------: | --------------------------------------- |
+/// | none (EOF)          | `0`              | Classic 3-byte v0 stub.                 |
+/// | `\x00` (1 byte)     | `0`              | 4-byte v0 stub.                         |
+/// | `\x00 \x00`         | `0`              | 5-byte v0 with zero modulo.             |
+/// | `\x00 X` (X any)    | `0`              | 5-byte v0; the modulo byte is ignored.  |
+/// | `\x01 \x00`         | `1`              | v1; reserved byte must be `0x00`.       |
+/// | `\x02 \x00`         | `2`              | v2; reserved byte must be `0x00`.       |
+/// | `\x03 \x00`         | `3`              | v3; reserved byte must be `0x00`.       |
 ///
-/// - **v0**: `"AES"` (3 bytes) or `"AES\x00"` (4 bytes) or `"AES\x00\x00"` (5 bytes)
-/// - **v1-v3**: `"AES"` + version byte (0x01-0x03) + reserved byte (0x00) = 5 bytes
+/// # Compatibility
 ///
-/// # Arguments
-///
-/// * `reader` - A reader that implements `Read`, positioned at the start of the file
-///
-/// # Returns
-///
-/// Returns the version number (0-3) if the header is valid, or an error if:
-/// - The magic bytes are not "AES"
-/// - The version is greater than 3
-/// - The reserved byte is invalid (for v1-v3)
-/// - An I/O error occurs
+/// This function only parses the version prefix. It does not validate extension
+/// blocks, the iteration count, the public IV, the encrypted session block, or
+/// the payload HMAC — all of which live further into the file and are validated
+/// by [`crate::decrypt()`].
 ///
 /// # Errors
 ///
-/// - [`AescryptError::Io`] - If an I/O error occurs while reading
-/// - [`AescryptError::Header`] - If the header is invalid or malformed
+/// - [`AescryptError::Io`] — the reader returned an error before the first three
+///   bytes could be read (the trailing 1–2 bytes are read with `read`, not
+///   `read_exact`, so EOF after `"AES"` is **not** an error and is reported as
+///   v0).
+/// - [`AescryptError::Header`] — the magic is not `b"AES"`, the version byte
+///   exceeds `3`, or the reserved byte after a v1/v2/v3 version is not `0x00`.
 ///
-/// # Example
+/// # Panics
+///
+/// Never panics on valid or malformed input. The internal `unreachable!` is
+/// guarded by a 2-byte buffer for which `Read::read` only returns `0..=2`.
+///
+/// # Security
+///
+/// `read_version` is deliberately permissive about the trailing v0 modulo byte
+/// (it accepts any value) because legacy AES Crypt files in the wild are not
+/// always padded with `0x00`. The reserved-byte check for v1–v3 is **strict**
+/// (must be `0x00`) to reject crafted headers that hide payload behind an
+/// otherwise-valid magic. No keys, IVs, or plaintext are touched.
+///
+/// # Thread Safety
+///
+/// `read_version` borrows the reader; it is `Send + Sync` whenever the reader is.
+/// The function holds no shared state and is safe to call concurrently on
+/// independent readers.
+///
+/// # Examples
 ///
 /// ```
 /// use aescrypt_rs::read_version;
@@ -56,6 +88,12 @@ use std::io::Read;
 /// assert_eq!(version, 0);
 /// # Ok::<(), aescrypt_rs::AescryptError>(())
 /// ```
+///
+/// # See also
+///
+/// - [`crate::decrypt()`] — full decryption pipeline.
+/// - [`crate::decryption::read_file_version`] — internal version reader used by
+///   [`crate::decrypt()`]; stricter than `read_version` (always reads 5 bytes).
 pub fn read_version<R: Read>(mut reader: R) -> Result<u8, AescryptError> {
     let mut magic = [0u8; 3];
     reader.read_exact(&mut magic).map_err(AescryptError::Io)?;

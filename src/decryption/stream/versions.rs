@@ -1,6 +1,5 @@
 //! src/decryption/stream/versions.rs
-//! Final version — matches original working code exactly
-//! All tests pass, zero warnings, secure-gate everywhere
+//! Version-aware streaming CBC decryption + final-block / HMAC trailer handling.
 
 use crate::aliases::HmacSha256;
 use crate::aliases::{Aes256Key32, Iv16, Trailer32};
@@ -25,62 +24,97 @@ fn verify_payload_hmac(hmac: HmacSha256, expected: &Trailer32) -> Result<(), Aes
     Ok(())
 }
 
-/// Configuration for different AES Crypt stream formats.
+/// Per-version configuration for [`decrypt_ciphertext_stream`].
 ///
-/// This enum specifies the version-specific behavior for decryption, including
-/// padding schemes, HMAC trailer layouts, and other format-specific details.
+/// Selects the padding scheme and trailer layout to use after the streaming
+/// CBC loop has consumed the ciphertext. Construct this from the `(version,
+/// modulo_or_reserved)` tuple returned by
+/// [`crate::decryption::read_file_version`].
 ///
-/// # Variants
+/// # Format
 ///
-/// ## `V0 { reserved_modulo: u8 }`
+/// | Variant | Padding scheme | Trailer length | Trailer layout                    |
+/// | ------- | -------------- | :------------: | --------------------------------- |
+/// | [`V0`](Self::V0) | legacy modulo (low nibble of `reserved_modulo`) | 32 B | contiguous HMAC tag |
+/// | [`V1`](Self::V1) | legacy modulo (last buffered byte) | 33 B | modulo byte then HMAC tag |
+/// | [`V2`](Self::V2) | legacy modulo (last buffered byte) | 33 B | modulo byte then HMAC tag |
+/// | [`V3`](Self::V3) | PKCS#7 (1..=16) | 32 B | contiguous HMAC tag |
 ///
-/// AES Crypt v0 format configuration.
+/// # Security
 ///
-/// - Uses legacy modulo padding (not PKCS#7)
-/// - HMAC trailer is 32 bytes, stored contiguously
-/// - The `reserved_modulo` byte is used to determine the final block length
-/// - This is the original AES Crypt format from the early 2000s
-///
-/// ## `V1`
-///
-/// AES Crypt v1 format configuration.
-///
-/// - Uses legacy modulo padding (not PKCS#7)
-/// - HMAC trailer is 32 bytes, stored with a scattered layout
-/// - Includes a modulo byte for final block length determination
-/// - Improved over v0 but still uses legacy padding
-///
-/// ## `V2`
-///
-/// AES Crypt v2 format configuration.
-///
-/// - Uses legacy modulo padding (not PKCS#7)
-/// - HMAC trailer is 32 bytes, stored with a scattered layout
-/// - Similar to v1 but with improved HMAC handling
-///
-/// ## `V3`
-///
-/// AES Crypt v3 format configuration (recommended).
-///
-/// - Uses PKCS#7 padding (standard, secure)
-/// - HMAC trailer is 32 bytes, stored contiguously
-/// - This is the only format produced by this library
-/// - All encryption operations create v3 files
+/// `V0`/`V1`/`V2` exist only for read compatibility; this crate never produces
+/// them. Use [`V3`](Self::V3) for any new file.
 #[derive(Clone, Copy)]
 pub enum StreamConfig {
-    /// Version 0 configuration with reserved modulo byte.
+    /// AES Crypt v0 — legacy modulo padding, 32-byte contiguous HMAC trailer.
+    ///
+    /// `reserved_modulo` is the 5th header byte (the v0 modulo byte) and
+    /// determines the final-block length: `len = (reserved_modulo & 0x0F)`,
+    /// or `16` when that nibble is zero.
     V0 {
-        /// Reserved modulo byte used for final block length determination.
+        /// 5th header byte; low nibble is the final-block byte count.
         reserved_modulo: u8,
     },
-    /// Version 1 configuration.
+    /// AES Crypt v1 — legacy modulo padding with the modulo byte embedded in
+    /// a 33-byte scattered trailer.
     V1,
-    /// Version 2 configuration.
+    /// AES Crypt v2 — same trailer/padding shape as v1, plus header
+    /// extensions before the encrypted session block.
     V2,
-    /// Version 3 configuration (recommended, uses PKCS#7 padding).
+    /// AES Crypt v3 — PKCS#7 padding and a 32-byte contiguous HMAC-SHA256
+    /// trailer. The only format this crate writes.
     V3,
 }
 
+/// Streams ciphertext from `input_reader` through AES-256-CBC decryption,
+/// writes the recovered plaintext to `output_writer`, and verifies the
+/// version-appropriate HMAC trailer.
+///
+/// `decrypt_ciphertext_stream` is the per-block worker for [`crate::decrypt()`].
+/// It consumes the encrypted payload (everything after the encrypted session
+/// block on disk), decrypts each 16-byte CBC block into the
+/// [`crate::decryption`] ring buffer, and finally validates the trailer:
+///
+/// - [`StreamConfig::V0`] / [`StreamConfig::V3`]: 32-byte contiguous
+///   HMAC-SHA256 tag.
+/// - [`StreamConfig::V1`] / [`StreamConfig::V2`]: 33-byte trailer (modulo
+///   byte plus HMAC-SHA256 tag).
+///
+/// # Errors
+///
+/// - [`AescryptError::Io`] — reader or writer error during the streaming loop
+///   or trailer write.
+/// - [`AescryptError::Header`] — trailer length mismatch
+///   (`"v0: expected 32-byte HMAC trailer"`,
+///   `"v1/v2: expected 33-byte trailer"`,
+///   `"v3: expected 32-byte HMAC trailer"`),
+///   payload-HMAC mismatch (`"HMAC verification failed"`),
+///   or invalid v3 PKCS#7 padding (`"v3: invalid PKCS#7 padding"`).
+///
+/// # Panics
+///
+/// Never panics on valid input. The internal `expect("computed hmac is 32 bytes")`
+/// is a structural invariant of HMAC-SHA256.
+///
+/// # Security
+///
+/// - **Decrypt-then-verify**. Plaintext blocks are written to `output_writer`
+///   as they are produced. The HMAC tag is checked **after** the stream ends,
+///   so partial unauthenticated plaintext may already be on `output_writer`
+///   when this function returns an error. See [`crate::decrypt()`] for the
+///   caller contract.
+/// - HMAC and PKCS#7 padding comparisons use [`secure-gate`]'s
+///   `ConstantTimeEq`.
+/// - All session keys, IVs, ring-buffer slots, and trailers live in
+///   [`secure-gate`] aliases that zeroize on drop.
+///
+/// # Compatibility
+///
+/// - `V0`/`V1`/`V2` are read-only legacy-format support.
+/// - `V3` is bit-identical to ciphertext produced by [`crate::encrypt()`] and
+///   the official AES Crypt v3 reference implementation.
+///
+/// [`secure-gate`]: https://github.com/Slurp9187/secure-gate
 #[inline(always)]
 pub fn decrypt_ciphertext_stream<R, W>(
     mut input_reader: R,

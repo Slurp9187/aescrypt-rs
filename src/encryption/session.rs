@@ -1,16 +1,14 @@
 // src/encryption/session.rs
 
-//! Session key + IV encryption for AES Crypt v3 format
+//! Session-block encryption for the AES Crypt v3 format.
 //!
-//! This module is the **exact mirror** of `decryption/session.rs`.
-//! It contains the logic for encrypting the 48-byte session block
-//! (session IV + session key) using the setup/master key derived from
-//! the user password and public IV.
+//! This module mirrors [`crate::decryption::session`] on the write side. It
+//! contains the password-derived setup-key derivation and the AES-256-CBC
+//! encryption of the 48-byte session block (16-byte session IV + 32-byte
+//! session key), authenticated with HMAC-SHA256.
 //!
-//! The encrypted session block is authenticated with HMAC-SHA256
-//! (the same HMAC instance used for the entire ciphertext stream).
-//!
-//! This is a pure crypto primitive — no I/O.
+//! These are pure crypto primitives — no I/O. They are exposed for advanced
+//! callers that compose their own v3-compatible encryption flow.
 
 use crate::aliases::{
     Aes256Key32, Block16, EncryptedSessionBlock48, HmacSha256, Iv16, PasswordString,
@@ -24,11 +22,34 @@ use aes::{Aes256Enc, Block as AesBlock};
 use hmac::Mac;
 use secure_gate::{RevealSecret, RevealSecretMut};
 
-/// Derive the AES-256 setup key from password + public IV using PBKDF2-HMAC-SHA512.
-/// Used to encrypt the session key/IV block.
+/// Derives the AES-256 setup key from a password and public IV using
+/// PBKDF2-HMAC-SHA512.
 ///
-/// This is the only place in the entire encrypt path where the user's password touches
-/// real cryptography — belongs next to the session block logic.
+/// The setup key is the master key used to encrypt the AES Crypt v3 session
+/// block. It is derived from the user's password and the per-file public IV
+/// (which doubles as the PBKDF2 salt). This is the only place in the v3
+/// encryption path where the password touches real cryptography; the bulk
+/// payload uses a separate, randomly generated session key.
+///
+/// # Errors
+///
+/// - [`AescryptError::Header`] — `iterations` is outside
+///   [`PBKDF2_MIN_ITER`](crate::constants::PBKDF2_MIN_ITER) `..=`
+///   [`PBKDF2_MAX_ITER`](crate::constants::PBKDF2_MAX_ITER).
+/// - [`AescryptError::Crypto`] — the underlying PBKDF2 implementation rejected
+///   its parameters (forwarded from [`crate::derive_pbkdf2_key`]).
+///
+/// # Security
+///
+/// - 32-byte output written directly into the caller-provided
+///   [`Aes256Key32`](crate::aliases::Aes256Key32) without ever materializing
+///   the key in a non-zeroizing buffer.
+/// - The public IV is reused as the PBKDF2 salt by the AES Crypt v3 spec; it
+///   **must** be unique per file (callers using [`crate::encrypt()`] get a
+///   CSPRNG-generated public IV automatically).
+/// - Iteration count is the only password-cracking-resistance knob; never go
+///   below [`DEFAULT_PBKDF2_ITERATIONS`](crate::constants::DEFAULT_PBKDF2_ITERATIONS)
+///   for new files.
 #[inline]
 pub fn derive_setup_key(
     password: &PasswordString,
@@ -42,29 +63,48 @@ pub fn derive_setup_key(
     derive_pbkdf2_key(password, public_iv, iterations, out_key)
 }
 
-/// Encrypts the 48-byte session block (session IV + session key) using
-/// AES-256-CBC with the master/setup key derived from the password.
+/// Encrypts the 48-byte session block (session IV + session key) under the
+/// setup key and feeds each ciphertext block into the running HMAC.
 ///
-/// The encryption is performed in CBC mode with the **public IV** as the
-/// initial vector. Each encrypted block is also fed into the running
-/// HMAC-SHA256 instance (used for the entire file).
+/// The session block is laid out as three 16-byte AES-CBC plaintext blocks:
 ///
-/// This function is deliberately inlined and zero-allocation — it is
-/// called exactly once per encryption operation.
+/// 1. `session_iv` (16 bytes)
+/// 2. first half of `session_key` (16 bytes)
+/// 3. second half of `session_key` (16 bytes)
 ///
-/// # Arguments
+/// CBC chains off `public_iv`. Each ciphertext block is written to `enc_block`
+/// and folded into `hmac` (which is the same HMAC instance the caller will
+/// later finalize and serialize with [`crate::encryption::write_hmac`]).
 ///
-/// * `cipher`        – AES-256 encryption initialized with the master key
-/// * `session_iv`    – Randomly generated 16-byte session IV
-/// * `session_key`   – Randomly generated 32-byte session key
-/// * `public_iv`     – 16-byte public IV from the file header
-/// * `enc_block`     – Output buffer (48 bytes) for the encrypted session block
-/// * `hmac`          – Running HMAC-SHA256 instance (updated in-place)
+/// # Errors
+///
+/// This function is currently infallible at the type level (returns
+/// `Ok(())`); the `Result` is preserved to keep the signature stable across
+/// future security-hardening changes.
+///
+/// # Panics
+///
+/// Never panics on valid input.
 ///
 /// # Security
 ///
-/// All sensitive values are wrapped in `secure-gate` fixed-size aliases
-/// with automatic zeroing on drop.
+/// - All sensitive values (`session_iv`, `session_key`, `enc_block`) are
+///   [`secure-gate`] aliases that zeroize on drop.
+/// - `public_iv` is treated as a public, unique-per-file value (it appears in
+///   the file header verbatim).
+/// - `hmac` is keyed with the setup key by the caller; this function only
+///   updates it.
+///
+/// # Arguments
+///
+/// * `cipher`      — AES-256 encryption initialized with the setup key.
+/// * `session_iv`  — Randomly generated 16-byte session IV.
+/// * `session_key` — Randomly generated 32-byte session key.
+/// * `public_iv`   — 16-byte public IV from the file header (CBC IV).
+/// * `enc_block`   — Output buffer (48 bytes) for the encrypted session block.
+/// * `hmac`        — Running HMAC-SHA256 instance, updated in place.
+///
+/// [`secure-gate`]: https://github.com/Slurp9187/secure-gate
 #[inline]
 pub fn encrypt_session_block(
     cipher: &Aes256Enc,

@@ -1,9 +1,37 @@
 // src/core/encryption/mod.rs
 
-//! High-level encryption facade.
+//! AES Crypt v3 encryption surface.
 //!
-//! Core API: `encrypt(&password, src, dst, iterations)?` for full file encryption.
-//! Utility: `write_octets(writer, bytes)?` for raw writes.
+//! This crate writes the AES Crypt v3 format only; v0–v2 are not supported on
+//! the write side. The high-level entry point is [`encrypt()`], which composes
+//! every helper exposed here into a complete `.aes` file. The lower-level
+//! pieces are public so that callers integrating with custom containers
+//! (mmap'd files, framed network protocols, etc.) can drive each stage
+//! themselves.
+//!
+//! # Layout of a v3 file
+//!
+//! ```text
+//! +----------------------------------+
+//! | "AES" 0x03 0x00                  |  write_header
+//! | extensions (0x00 0x00 to end)    |  write_extensions
+//! | iterations (4 BE bytes)          |  write_iterations
+//! | public IV (16 bytes)             |  write_public_iv
+//! | encrypted session block (48 B)   |  encrypt_session_block + write_octets
+//! | session HMAC (32 bytes)          |  write_hmac
+//! | ciphertext stream + payload HMAC |  encrypt_stream
+//! +----------------------------------+
+//! ```
+//!
+//! # Security
+//!
+//! See the [crate-level Security Model](crate#security-model) for the
+//! full primitive list. Briefly: AES-256-CBC + HMAC-SHA256 over the encrypted
+//! session block and ciphertext, PBKDF2-HMAC-SHA512 for password hardening,
+//! [`secure-gate`]-managed memory for every secret. Random IVs and session
+//! keys come from the [`secure-gate`] CSPRNG.
+//!
+//! [`secure-gate`]: https://github.com/Slurp9187/secure-gate
 
 pub(crate) mod encrypt;
 pub(crate) mod session;

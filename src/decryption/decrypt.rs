@@ -1,5 +1,5 @@
 //! src/core/decryption/decrypt.rs
-//! Aescrypt decryption — secure-gate perfection
+//! High-level [`decrypt`] entry point: streams an AES Crypt v0–v3 file to plaintext.
 
 use crate::decryption::read::{
     consume_all_extensions, read_exact_span, read_file_version, read_kdf_iterations,
@@ -12,19 +12,56 @@ use crate::error::AescryptError;
 use crate::{derive_ackdf_key, derive_pbkdf2_key};
 use std::io::{Read, Write};
 
-/// Decrypt an Aescrypt file (v0–v3) — zero secret exposure, maximum security
+/// Decrypts an AES Crypt v0–v3 file streamed from `input` and writes the
+/// recovered plaintext to `output`.
 ///
-/// # Warning — Plaintext written before final payload authentication
+/// `decrypt` parses the header (auto-detecting the format version), derives
+/// the setup key (PBKDF2-HMAC-SHA512 for v3, ACKDF-SHA-256 for v0/v1/v2),
+/// recovers the session IV/key, and runs the version-appropriate streaming
+/// CBC loop. Only the version dispatched at the top of the function is
+/// observable on output — the internal `StreamConfig` mapping is mediated by
+/// [`crate::decryption::decrypt_ciphertext_stream`].
 ///
-/// For payloads larger than roughly two AES blocks (~32 bytes of ciphertext after the
-/// session block), decrypted data is written to `output` **incrementally** as blocks are
-/// processed. The payload HMAC (and v3 PKCS#7 validation) runs only after the ciphertext
-/// stream has been read.
+/// # Format
 ///
-/// If this function returns an error—for example `"HMAC verification failed"` or a v3
-/// padding error—`output` may already contain **partial, unauthenticated plaintext**.
-/// Callers **must** discard or overwrite `output` on error and must not treat its
-/// contents as secret or trustworthy.
+/// - v0: legacy modulo padding, 32-byte trailing HMAC, ACKDF setup key.
+/// - v1/v2: scattered modulo + 32-byte HMAC, ACKDF setup key.
+/// - v3: PKCS#7 padding, 32-byte HMAC, PBKDF2-HMAC-SHA512 setup key, version
+///   byte folded into the session HMAC.
+///
+/// See [`crate::decryption`] for the full per-stage compatibility matrix.
+///
+/// # Errors
+///
+/// - [`AescryptError::Io`] — `input.read` or `output.write_all` returned an
+///   I/O error.
+/// - [`AescryptError::Header`] — invalid magic, non-zero v1–v3 reserved byte,
+///   too many extensions, malformed iteration count, session-HMAC mismatch
+///   (`"session data corrupted or tampered"`), payload-HMAC mismatch
+///   (`"HMAC verification failed"`), or invalid v3 PKCS#7 padding.
+/// - [`AescryptError::UnsupportedVersion`] — version byte is `> 3`.
+/// - [`AescryptError::Crypto`] — KDF failure (PBKDF2 or ACKDF, including
+///   non-UTF-8 password bytes for v0–v2).
+///
+/// # Panics
+///
+/// Never panics on valid or malformed input. The internal `unreachable!` is
+/// guarded by [`crate::decryption::read_file_version`], which clamps the
+/// version to `0..=3`.
+///
+/// # Security
+///
+/// **Decrypt-then-verify**. For payloads larger than roughly two AES blocks
+/// (≈32 bytes of ciphertext after the session block), decrypted data is
+/// written to `output` **incrementally** as blocks are processed. The payload
+/// HMAC and v3 PKCS#7 validation run only after the ciphertext stream has been
+/// read.
+///
+/// If this function returns an error — for example
+/// `"HMAC verification failed"` or a v3 padding error — `output` may already
+/// contain **partial, unauthenticated plaintext**. Callers **must** discard or
+/// overwrite `output` on error and must not treat its contents as secret or
+/// trustworthy.
 ///
 /// ```no_run
 /// use aescrypt_rs::{decrypt, PasswordString};
@@ -38,31 +75,48 @@ use std::io::{Read, Write};
 /// }
 /// ```
 ///
-/// # Note — Empty password
+/// Other security properties:
 ///
-/// Unlike [`encrypt`](crate::encrypt), this function does not reject an empty password.
-/// An empty password against a file encrypted with a non-empty password will fail at HMAC
-/// verification. This asymmetry is intentional: third-party AES Crypt tools may produce
-/// files encrypted with an empty password, and `decrypt` must be able to handle them.
+/// - Setup, session, and intermediate keys live in [`secure-gate`] aliases and
+///   zeroize on drop. The [`PasswordString`] never appears in plain form
+///   outside scoped reveals.
+/// - HMAC and PKCS#7 padding are compared in constant time
+///   (`secure-gate`'s `ConstantTimeEq`).
+/// - Pre-authentication parsing is bounded: the header has fixed sizes,
+///   extensions are capped at 256 entries, and the iteration count is clamped
+///   to [`PBKDF2_MAX_ITER`](crate::constants::PBKDF2_MAX_ITER).
+///
+/// # Compatibility — empty password
+///
+/// Unlike [`crate::encrypt()`], this function does not reject an empty
+/// password. An empty password against a file encrypted with a non-empty
+/// password will fail at HMAC verification. This asymmetry is intentional:
+/// third-party AES Crypt tools may produce files encrypted with an empty
+/// password, and `decrypt` must be able to handle them.
 ///
 /// # Thread Safety
 ///
-/// This function is **thread-safe** and can be called concurrently from multiple threads.
-/// All operations are pure (no shared mutable state), making it safe to:
-/// - Spawn in threads for parallel processing
-/// - Use with async runtimes (spawn_blocking)
-/// - Implement cancellation by wrapping in a thread and joining/detaching as needed
+/// `decrypt` is `Send` whenever its `R`/`W` are. There is no shared mutable
+/// state, so multiple threads may call `decrypt` concurrently on independent
+/// inputs/outputs.
 ///
-/// # Performance
+/// # Examples
 ///
-/// For large files, this operation may take significant time. In release mode, expect:
-/// - ~158 MiB/s throughput for decryption
-/// - Processing time scales linearly with file size
+/// ```no_run
+/// use aescrypt_rs::{decrypt, PasswordString};
+/// use std::io::Cursor;
 ///
-/// Users requiring cancellation should spawn this function in a thread and implement
-/// their own cancellation mechanism (e.g., using channels or thread handles).
+/// let password = PasswordString::new("secret".to_string());
+/// let ciphertext: &[u8] = b""; // contents of a .aes file
 ///
-/// # Example: Threaded Usage
+/// let mut plaintext = Vec::new();
+/// match decrypt(Cursor::new(ciphertext), &mut plaintext, &password) {
+///     Ok(()) => { /* plaintext is now authenticated */ }
+///     Err(_) => plaintext.clear(),
+/// }
+/// ```
+///
+/// Threaded usage:
 ///
 /// ```no_run
 /// use aescrypt_rs::{decrypt, PasswordString};
@@ -72,15 +126,21 @@ use std::io::{Read, Write};
 /// let password = PasswordString::new("secret".to_string());
 /// let encrypted = b"encrypted data...";
 ///
-/// // Spawn decryption in a thread
 /// let handle = thread::spawn(move || {
 ///     let mut plaintext = Vec::new();
 ///     decrypt(Cursor::new(encrypted), &mut plaintext, &password)
 /// });
 ///
-/// // Can wait for completion or implement cancellation
-/// let result = handle.join().unwrap();
+/// let _result = handle.join().unwrap();
 /// ```
+///
+/// # See also
+///
+/// - [`crate::encrypt()`] — inverse operation.
+/// - [`crate::read_version`] — header-only version triage.
+///
+/// [`secure-gate`]: https://github.com/Slurp9187/secure-gate
+/// [`PasswordString`]: crate::PasswordString
 #[inline(always)]
 pub fn decrypt<R, W>(
     mut input: R,

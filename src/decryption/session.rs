@@ -1,8 +1,11 @@
 //! src/decryption/session.rs
-//! Session data extraction — zero secret exposure, secure-gate gold standard
+//! Session-block recovery for the AES Crypt v0–v3 read path.
 //!
-//! Maximum overkill: every buffer that ever touches ciphertext, IV, or key is auto-zeroized.
-//! Because in crypto, we wipe everything that ever touched the stack.
+//! Every buffer that touches ciphertext, IV, or key material is wrapped in a
+//! [`secure-gate`] auto-zeroizing alias — including the ciphertext and HMAC
+//! tag read from disk — so no plaintext key bytes survive the call frame.
+//!
+//! [`secure-gate`]: https://github.com/Slurp9187/secure-gate
 
 use crate::aliases::{Aes256Key32, Block16, EncryptedSessionBlock48, Iv16, SessionHmacTag32};
 use crate::decryption::read_exact_span;
@@ -13,12 +16,42 @@ use hmac::Mac;
 use secure_gate::{ConstantTimeEq, RevealSecret, RevealSecretMut};
 use std::io::Read;
 
-/// Extract session IV + key — secure from first byte
+/// Recovers the session IV and session key from the file header into the
+/// caller's pre-allocated [`secure-gate`] buffers.
 ///
-/// - No raw buffers ever hold secrets
-/// - Zero exposure window
-/// - Full auto-zeroizing (even ciphertext & HMAC tags)
-/// - Maximum performance
+/// The behavior depends on `file_version`:
+///
+/// - **v0**: the setup key *is* the session key; `session_iv_out` is set to
+///   `public_iv`, `session_key_out` to `setup_key`. No HMAC, no decryption.
+/// - **v1/v2**: reads a 48-byte AES-256-CBC encrypted session block plus a
+///   32-byte HMAC-SHA256 tag, verifies the tag with constant-time equality,
+///   then CBC-decrypts the block under `setup_key` chained off `public_iv`.
+/// - **v3**: same as v1/v2, but the version byte (`0x03`) is folded into the
+///   session HMAC after the encrypted block, matching the v3 spec.
+///
+/// # Errors
+///
+/// - [`AescryptError::Io`] — reader error while consuming the encrypted block
+///   or HMAC tag.
+/// - [`AescryptError::Header`] — session HMAC mismatch
+///   (`"session data corrupted or tampered (HMAC mismatch)"`).
+///
+/// # Panics
+///
+/// Never panics on valid input. The internal `expect` calls on `setup_key`
+/// (`"setup_key is always 32 bytes"`) and on `computed_hmac`
+/// (`"computed hmac is 32 bytes"`) are structural invariants of
+/// [`Aes256Key32`](crate::aliases::Aes256Key32) and HMAC-SHA256.
+///
+/// # Security
+///
+/// - HMAC verification uses [`secure-gate`]'s `ConstantTimeEq`.
+/// - Encrypted session block, HMAC tag, and CBC working buffers are all
+///   [`secure-gate`] aliases that zeroize on drop.
+/// - For `file_version == 0`, `session_key_out` is overwritten with a copy of
+///   `setup_key`; both buffers continue to zeroize independently.
+///
+/// [`secure-gate`]: https://github.com/Slurp9187/secure-gate
 #[inline(always)]
 pub fn extract_session_data<R>(
     reader: &mut R,
