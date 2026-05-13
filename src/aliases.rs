@@ -24,6 +24,7 @@
 //! - [`Aes256Key32`] - 32-byte AES-256 key
 //! - [`EncryptedSessionBlock48`] - 48-byte encrypted session block
 //! - [`Iv16`] - 16-byte initialization vector
+//! - [`Pbkdf2DerivedKey32`] - 32-byte PBKDF2-derived setup key
 //! - [`RingBuffer64`] - 64-byte ring buffer for streaming decryption
 //! - [`Salt16`] - 16-byte salt for KDF operations
 //! - [`SessionHmacTag32`] - 32-byte session block HMAC tag
@@ -79,6 +80,7 @@ dynamic_alias!(pub PasswordString, String);
 fixed_alias!(pub Aes256Key32, 32); // session key, HMAC key
 fixed_alias!(pub EncryptedSessionBlock48, 48); // encrypted session IV + key
 fixed_alias!(pub Iv16, 16); // public IV, session IV
+fixed_alias!(pub Pbkdf2DerivedKey32, 32); // PBKDF2-derived v3 setup key
 fixed_alias!(pub RingBuffer64, 64); // streaming decryption ring buffer
 fixed_alias!(pub Salt16, 16); // PBKDF2/ACKDF salt
 fixed_alias!(pub SessionHmacTag32, 32); // session block HMAC
