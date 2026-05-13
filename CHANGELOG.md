@@ -238,7 +238,7 @@ All tests (including 63 vectors) pass with and without `zeroize`. The library is
 - **Quick version detection**: New `read_version<R: Read>() -> Result<u8, AescryptError>` for header-only file checks (#17)  
   → Reads just 3–5 bytes to extract/validate version (0–3) + magic ("AES")  
   → Errors on invalid magic, short files, or bad reserved bytes  
-  → Perfect for batch validation, legacy detection, or CLI tools
+  → Useful for batch validation, legacy detection, or CLI tools
   - No crypto/KDF deps, fully `no_std`, <1μs per file
   - 100% tested against all 63 official v0–v3 vectors + edges (invalid/short/malformed)
   - Closes #17
@@ -257,8 +257,6 @@ All tests (including 63 vectors) pass with and without `zeroize`. The library is
 - Added the new `RandomIv16` and `RandomAes256Key` aliases to `src/aliases/mod.rs`
 - Minor import tidy-up in `encrypt.rs` – removed unused `SecureRandomExt` re-export
 
-A tiny but extremely satisfying ergonomics win — the encryption path now reads like pure intent while staying 100% locked down with secure-gate’s gold-standard memory safety.
-
 ## [0.1.4] – 2025-11-29
 
 ### Security
@@ -272,7 +270,7 @@ A tiny but extremely satisfying ergonomics win — the encryption path now reads
 ### Added
 
 - **`convert_to_v3_to_vec`** – new convenience function that converts legacy v0/v1/v2 files to v3 and returns an owned `Vec<u8>`  
-  This eliminates the painful `'static` mutable writer requirement that made testing and one-off conversions extremely difficult.  
+  This removes the prior `'static` mutable writer requirement, which complicated testing and one-off conversions.  
   Internally uses `thread::scope` for safe, zero-cost streaming (no `Box::leak`, no `unsafe`, no extra cloning).  
   Greatly improves ergonomics for downstream crates like `encrypted-file-vault`.
 
@@ -284,8 +282,6 @@ A tiny but extremely satisfying ergonomics win — the encryption path now reads
 
 - Added detailed comments and examples for the new `convert_to_v3_to_vec` API.
 
-Thanks to the heroic struggle against the borrow checker — this release finally makes the conversion API pleasant to use.
-
 ## [0.1.2] – 2025-11-28
 
 ### Fixed
@@ -294,9 +290,7 @@ Thanks to the heroic struggle against the borrow checker — this release finall
 
 ### Maintenance
 
-- Ran `cargo machete` and ruthlessly purged all unused dependencies. Cargo.toml is once again pristine and minimal.
-
-No experimental channels, no dead code, no wasted bytes — just a tiny but important bug fix and a cleaner dependency tree.
+- Ran `cargo machete` and removed unused dependencies.
 
 ## [0.1.1] - 2025-11-27
 
@@ -318,7 +312,7 @@ No experimental channels, no dead code, no wasted bytes — just a tiny but impo
 - Updated dependency list and feature explanations in `README.md` to reflect the new `secure-gate` version
 
 No breaking changes — fully backward compatible with 0.1.0.
-All 100+ tests (including bit-perfect v0–v3 round-trips and deterministic vectors) continue to pass.
+All 100+ tests (including v0–v3 round-trips and deterministic vectors) continue to pass.
 
 ## [0.1.0] - 2025-11-27
 

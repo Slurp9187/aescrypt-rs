@@ -10,7 +10,7 @@
 //!
 //! For a more ergonomic builder API see [`crate::Pbkdf2Builder`].
 
-use crate::aliases::{Aes256Key32, PasswordString, Salt16};
+use crate::aliases::{PasswordString, Pbkdf2DerivedKey32, Salt16};
 use crate::AescryptError;
 
 use hmac::Hmac;
@@ -22,7 +22,7 @@ use sha2::Sha512;
 /// PBKDF2-HMAC-SHA512 and writes it into `out_key`.
 ///
 /// Output is written directly into the caller-provided
-/// [`crate::aliases::Aes256Key32`] — no intermediate allocation, no
+/// [`crate::aliases::Pbkdf2DerivedKey32`] — no intermediate allocation, no
 /// plaintext key bytes on a non-zeroizing buffer.
 ///
 /// # Errors
@@ -60,12 +60,12 @@ use sha2::Sha512;
 ///
 /// ```
 /// use aescrypt_rs::kdf::pbkdf2::derive_pbkdf2_key;
-/// use aescrypt_rs::aliases::{PasswordString, Salt16, Aes256Key32};
+/// use aescrypt_rs::aliases::{PasswordString, Salt16, Pbkdf2DerivedKey32};
 ///
 /// let password = PasswordString::new("my-secret-password".to_string());
 /// // In production, prefer `Salt16::from_random()` or `Pbkdf2Builder`.
 /// let salt = Salt16::from([0x42; 16]);
-/// let mut key = Aes256Key32::new([0u8; 32]);
+/// let mut key = Pbkdf2DerivedKey32::new([0u8; 32]);
 ///
 /// derive_pbkdf2_key(&password, &salt, 300_000, &mut key)?;
 /// # Ok::<(), aescrypt_rs::AescryptError>(())
@@ -82,7 +82,7 @@ pub fn derive_pbkdf2_key(
     password: &PasswordString,
     salt: &Salt16,
     iterations: u32,
-    out_key: &mut Aes256Key32,
+    out_key: &mut Pbkdf2DerivedKey32,
 ) -> Result<(), AescryptError> {
     // Clamp 0 to 1 — consistent with `Pbkdf2Builder::with_iterations`.
     let iterations = iterations.max(1);

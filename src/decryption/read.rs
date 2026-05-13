@@ -17,7 +17,7 @@
 //!
 //! [`secure-gate`]: https://github.com/Slurp9187/secure-gate
 
-use crate::aliases::SpanBuffer;
+use crate::aliases::{ExtensionChunk256, SpanBuffer};
 use crate::error::AescryptError;
 use secure_gate::{RevealSecret, RevealSecretMut};
 use std::io::Read;
@@ -158,14 +158,13 @@ where
             break; // end of extensions
         }
 
-        // Safe skip — no allocation needed
-        let mut discard = [0u8; 256]; // reuse buffer for small extensions
+        let mut chunk = ExtensionChunk256::new([0u8; 256]);
         let mut remaining = len as usize;
 
         while remaining > 0 {
-            let to_read = remaining.min(discard.len());
-            reader
-                .read_exact(&mut discard[..to_read])
+            let to_read = remaining.min(256);
+            chunk
+                .with_secret_mut(|d| reader.read_exact(&mut d[..to_read]))
                 .map_err(AescryptError::Io)?;
             remaining -= to_read;
         }
