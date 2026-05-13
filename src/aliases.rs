@@ -21,10 +21,11 @@
 //! - [`PasswordString`] - Secure password string wrapper
 //!
 //! ### Fixed-Size Secrets
+//! - [`AckdfDerivedKey32`] - 32-byte ACKDF-derived setup key (v0/v1/v2)
 //! - [`Aes256Key32`] - 32-byte AES-256 key
 //! - [`EncryptedSessionBlock48`] - 48-byte encrypted session block
 //! - [`Iv16`] - 16-byte initialization vector
-//! - [`Pbkdf2DerivedKey32`] - 32-byte PBKDF2-derived setup key
+//! - [`Pbkdf2DerivedKey32`] - 32-byte PBKDF2-derived setup key (v3)
 //! - [`RingBuffer64`] - 64-byte ring buffer for streaming decryption
 //! - [`Salt16`] - 16-byte salt for KDF operations
 //! - [`SessionHmacTag32`] - 32-byte session block HMAC tag
@@ -77,6 +78,7 @@ dynamic_alias!(pub PasswordString, String);
 // ─────────────────────────────────────────────────────────────────────────────
 // Fixed-size concrete secrets — alphabetical order
 // ─────────────────────────────────────────────────────────────────────────────
+fixed_alias!(pub AckdfDerivedKey32, 32); // ACKDF-derived v0/v1/v2 setup key
 fixed_alias!(pub Aes256Key32, 32); // session key, HMAC key
 fixed_alias!(pub EncryptedSessionBlock48, 48); // encrypted session IV + key
 fixed_alias!(pub Iv16, 16); // public IV, session IV

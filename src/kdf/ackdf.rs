@@ -17,7 +17,7 @@
 //!   is wrapped in [`crate::aliases::AckdfHashState32`] so it does zeroize on
 //!   drop. See the inline comment in the implementation.
 
-use crate::aliases::{AckdfHashState32, Aes256Key32, PasswordString, Salt16};
+use crate::aliases::{AckdfDerivedKey32, AckdfHashState32, PasswordString, Salt16};
 use crate::utilities::utf8_to_utf16le;
 use crate::AescryptError;
 use secure_gate::{Dynamic, RevealSecret, RevealSecretMut};
@@ -89,7 +89,7 @@ where
 pub fn derive_ackdf_key(
     password: &PasswordString,
     salt: &Salt16,
-    out_key: &mut Aes256Key32,
+    out_key: &mut AckdfDerivedKey32,
 ) -> Result<(), AescryptError> {
     let password_utf16le_result = password.with_secret(|pw| utf8_to_utf16le(pw.as_bytes()));
     let password_utf16le: Dynamic<Vec<u8>> = Dynamic::new(password_utf16le_result?);
