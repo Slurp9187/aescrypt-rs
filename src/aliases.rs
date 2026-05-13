@@ -33,6 +33,17 @@
 //!
 //! All secure types require scoped `.with_secret()` or `.with_secret_mut()` to access
 //! the underlying data, ensuring no accidental secret exposure.
+//!
+//! ## Type Identity
+//!
+//! Every alias in this module — including those produced by `fixed_alias!` —
+//! expands to a plain `pub type` alias for `secure_gate::Fixed<[u8; N]>`. They
+//! are **not nominal newtypes**: any two size-equal aliases (`Aes256Key32` and
+//! `Salt16` differ in size and so are not interchangeable, but `Aes256Key32`,
+//! `SessionHmacTag32`, `Trailer32`, and `SpanBuffer<32>` all resolve to the
+//! same type and are freely assignable to each other). The names exist for
+//! readability and auditability, not for compile-time enforcement. Any
+//! genuine type-level separation requires hand-rolled wrapper structs.
 
 use secure_gate::dynamic_alias;
 use secure_gate::fixed_alias;
@@ -51,7 +62,9 @@ pub type HmacSha512 = Hmac<Sha512>;
 // ─────────────────────────────────────────────────────────────────────────────
 pub type SpanBuffer<const N: usize> = secure_gate::Fixed<[u8; N]>;
 
-// Semantic sub-types — compile-time safe
+// Semantic sub-types — readability aliases for `SpanBuffer<N>`. Not nominally
+// distinct: same-size aliases resolve to the same `Fixed<[u8; N]>` type and
+// are freely assignable to each other.
 pub type AckdfHashState32 = SpanBuffer<32>;
 pub type Block16 = SpanBuffer<16>; // one AES block
 pub type ExtensionChunk256 = SpanBuffer<256>; // v2/v3 extension payload chunk
