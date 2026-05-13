@@ -15,7 +15,7 @@
 - **Zero-cost secure memory & cryptographically secure RNG** via [`secure-gate`](https://github.com/Slurp9187/secure-gate)
 - **Constant-time security**: All HMAC comparisons and padding validation use constant-time operations
 - No `unsafe` in this crate — enforced via `#![forbid(unsafe_code)]` (dependencies may use `unsafe` internally, e.g. crypto backends)
-- **100% bit-perfect round-trip verified** against all 63 official v0–v3 test vectors
+- Round-trip verified against all 63 official v0–v3 test vectors
 
 ## Support the Original Author
 
