@@ -239,7 +239,7 @@ All tests (including 63 vectors) pass with and without `zeroize`. The library is
   → Reads just 3–5 bytes to extract/validate version (0–3) + magic ("AES")  
   → Errors on invalid magic, short files, or bad reserved bytes  
   → Useful for batch validation, legacy detection, or CLI tools
-  - No crypto/KDF deps, fully `no_std`, <1μs per file
+  - No crypto/KDF deps, <1μs per file
   - 100% tested against all 63 official v0–v3 vectors + edges (invalid/short/malformed)
   - Closes #17
 
@@ -299,7 +299,7 @@ All tests (including 63 vectors) pass with and without `zeroize`. The library is
 - **Upgraded `secure-gate` to v0.5.7** and enabled its new `rand` feature  
   → All cryptographically secure random values (`Aes256Key`, `Iv16`, salts, etc.) are now generated with `SecureRandomExt::random()` from `secure-gate`
   - Removes the duplicated RNG implementation (`src/crypto/rng.rs` → deleted)
-  - Zero-cost, thread-local `OsRng`, lazy-initialized, fully `no_std`-compatible
+  - Zero-cost, thread-local `OsRng`, lazy-initialized
   - Panics on RNG failure (high-assurance crypto standard)
   - No behavior or performance regression — benchmarks remain identical (>160 MiB/s encrypt, >170 MiB/s decrypt)
 
@@ -331,7 +331,6 @@ All 100+ tests (including v0–v3 round-trips and deterministic vectors) continu
   - Deterministic v3 test vectors with known public IV, session IV, and session key
   - KDF edge-case tests (ACKDF, PBKDF2, unicode passwords, empty inputs)
 - Benchmark suite using Criterion.rs (`cargo bench`) with realistic 1 KiB → 10 MiB workloads
-- `#![no_std]`-compatible core (only `std` feature adds convenience wrappers)
 - Detailed documentation and examples in `README.md`
 - CI workflow (GitHub Actions) with full test + bench matrix
 
