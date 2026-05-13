@@ -137,7 +137,7 @@ fn version_boundary_values() {
         (b"AES\x02\x00".as_slice(), 2u8),
         (b"AES\x03\x00".as_slice(), 3u8),
     ];
-    
+
     for (data, expected) in valid_versions {
         assert_eq!(
             read_version(Cursor::new(data)).unwrap(),
@@ -152,7 +152,7 @@ fn version_boundary_values() {
 fn unsupported_version_boundary_values() {
     // Test versions > 3
     let unsupported_versions = [4u8, 5u8, 10u8, 255u8];
-    
+
     for version in unsupported_versions {
         let data = [b'A', b'E', b'S', version, 0x00];
         let err = read_version(Cursor::new(&data)).unwrap_err();
@@ -167,7 +167,7 @@ fn unsupported_version_boundary_values() {
 fn io_error_on_short_magic_read() {
     // Test I/O error when magic read fails (short read)
     use std::io::{self, Read};
-    
+
     struct ShortReader;
     impl Read for ShortReader {
         fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
@@ -181,11 +181,11 @@ fn io_error_on_short_magic_read() {
             }
         }
     }
-    
+
     let err = read_version(ShortReader).unwrap_err();
     // Should be I/O error from read_exact
     match err {
-        aescrypt_rs::AescryptError::Io(_) => {},
+        aescrypt_rs::AescryptError::Io(_) => {}
         e => panic!("Expected I/O error, got: {:?}", e),
     }
 }
@@ -239,7 +239,7 @@ fn all_version_combinations() {
         (b"AES\x02\x00".as_slice(), 2u8),
         (b"AES\x03\x00".as_slice(), 3u8),
     ];
-    
+
     for (data, expected) in cases {
         assert_eq!(
             read_version(Cursor::new(data)).unwrap(),

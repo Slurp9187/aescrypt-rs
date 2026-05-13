@@ -157,7 +157,7 @@ where
     let kdf_iterations = read_kdf_iterations(&mut input, file_version)?;
 
     // Public IV — secure from the start
-    let public_iv: Iv16 = Iv16::from(read_exact_span(&mut input)?);
+    let public_iv: Iv16 = read_exact_span(&mut input)?;
 
     // Setup key — secure buffer from birth
     let mut setup_key = Aes256Key32::new([0u8; 32]);

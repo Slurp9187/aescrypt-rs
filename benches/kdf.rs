@@ -23,8 +23,7 @@ fn kdf_benches(c: &mut Criterion) {
         group.bench_with_input(id, &iters, |b, &iters| {
             b.iter(|| {
                 let mut key = Key32::new([0u8; 32]);
-                derive_pbkdf2_key(black_box(&pw), black_box(&salt), iters, &mut key)
-                    .unwrap();
+                derive_pbkdf2_key(black_box(&pw), black_box(&salt), iters, &mut key).unwrap();
                 black_box(key);
             });
         });

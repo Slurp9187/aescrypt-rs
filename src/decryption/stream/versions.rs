@@ -16,8 +16,7 @@ use std::io::{Read, Write};
 
 fn verify_payload_hmac(hmac: HmacSha256, expected: &Trailer32) -> Result<(), AescryptError> {
     let computed = hmac.finalize().into_bytes();
-    let computed_fixed =
-        Trailer32::try_from(computed.as_ref()).expect("computed hmac is 32 bytes");
+    let computed_fixed = Trailer32::try_from(computed.as_ref()).expect("computed hmac is 32 bytes");
     if !computed_fixed.ct_eq(expected) {
         return Err(AescryptError::Header("HMAC verification failed".into()));
     }
