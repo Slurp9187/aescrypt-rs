@@ -15,6 +15,7 @@
 //! ### Semantic Fixed-Size Types
 //! - [`AckdfHashState32`] - 32-byte ACKDF hash state
 //! - [`Block16`] - 16-byte AES block
+//! - [`ExtensionChunk256`] - 256-byte v2/v3 extension payload chunk
 //! - [`Trailer32`] - 32-byte HMAC trailer (v0/v3)
 //!
 //! ### Dynamic Secrets
@@ -53,6 +54,7 @@ pub type SpanBuffer<const N: usize> = secure_gate::Fixed<[u8; N]>;
 // Semantic sub-types — compile-time safe
 pub type AckdfHashState32 = SpanBuffer<32>;
 pub type Block16 = SpanBuffer<16>; // one AES block
+pub type ExtensionChunk256 = SpanBuffer<256>; // v2/v3 extension payload chunk
 pub type Trailer32 = SpanBuffer<32>; // v0/v3 HMAC trailer
 
 // ─────────────────────────────────────────────────────────────────────────────
