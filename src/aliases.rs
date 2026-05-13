@@ -7,7 +7,6 @@
 //!
 //! ### HMAC Primitives
 //! - [`HmacSha256`] - HMAC-SHA256 for session block and payload authentication
-//! - [`HmacSha512`] - HMAC-SHA512 for PBKDF2 key derivation
 //!
 //! ### Generic Secure Buffers
 //! - [`SpanBuffer<N>`] - Generic secure stack buffer for any size `N`
@@ -52,10 +51,9 @@ use secure_gate::fixed_alias;
 // HMAC primitives — available via `aliases::*`
 // ─────────────────────────────────────────────────────────────────────────────
 use hmac::Hmac;
-use sha2::{Sha256, Sha512};
+use sha2::Sha256;
 
 pub type HmacSha256 = Hmac<Sha256>;
-pub type HmacSha512 = Hmac<Sha512>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SpanBuffer — generic secure stack buffer (direct alias to secure-gate's Fixed)
