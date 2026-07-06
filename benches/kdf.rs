@@ -24,7 +24,7 @@ fn kdf_benches(c: &mut Criterion) {
             b.iter(|| {
                 let mut key = Key32::new([0u8; 32]);
                 derive_pbkdf2_key(black_box(&pw), black_box(&salt), iters, &mut key).unwrap();
-                black_box(key);
+                let _ = black_box(key);
             });
         });
     }
@@ -34,7 +34,7 @@ fn kdf_benches(c: &mut Criterion) {
         b.iter(|| {
             let mut key = Key32::new([0u8; 32]);
             let _ = derive_ackdf_key(black_box(&pw), black_box(&salt), &mut key);
-            black_box(key);
+            let _ = black_box(key);
         });
     });
 
