@@ -28,7 +28,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: rustup toolchain install nightly --profile minimal
-      - run: cargo install cargo-fuzz --locked
+      - run: rustup toolchain install stable --profile minimal
+      # Install/run cargo-fuzz with an explicit toolchain: the repo's
+      # rust-toolchain.toml pins 1.70, and a bare `cargo` here would use it —
+      # but 1.70's cargo cannot even parse cargo-fuzz's v4 lock file. Build the
+      # tool on stable; the fuzzers themselves still need nightly.
+      - run: cargo +stable install cargo-fuzz --locked
       - run: cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=180 -timeout=10 -max_len=4096 -rss_limit_mb=4096
       - uses: actions/upload-artifact@v4
         if: failure()
