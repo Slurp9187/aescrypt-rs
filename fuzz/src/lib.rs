@@ -159,11 +159,71 @@ pub fn build_legacy_file(
 // Fuzz entry points
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Largest PBKDF2 iteration count the `decrypt_raw` harness lets through. Real
+/// v3 files may request up to 5_000_000 (the crate's DoS ceiling), but grinding
+/// that many iterations under the sanitizer takes tens of seconds and trips
+/// libFuzzer's per-exec timeout on an input that is *intentionally* expensive,
+/// not buggy. Capping keeps execs fast; the KDF loop runs identical code at any
+/// count, so no parser/stream/crypto coverage is lost.
+const FUZZ_MAX_ITERS: u32 = 4096;
+
+/// If `data` is a v3 file, return the byte offset of its 4-byte big-endian
+/// iteration field. The field follows the 5-byte header and the
+/// variable-length extension section (`u16` length + payload, terminated by a
+/// zero-length entry), mirroring the crate's read order. Returns `None` for
+/// non-v3 or malformed input — those fail before any KDF work anyway, so they
+/// are already fast.
+fn v3_iter_offset(data: &[u8]) -> Option<usize> {
+    if data.len() < 5 || &data[..3] != b"AES" || data[3] != 3 || data[4] != 0 {
+        return None;
+    }
+    let mut pos = 5usize;
+    loop {
+        let end = pos.checked_add(2)?;
+        if end > data.len() {
+            return None;
+        }
+        let len = u16::from_be_bytes([data[pos], data[pos + 1]]) as usize;
+        pos = end;
+        if len == 0 {
+            break; // end of extensions; the iteration field starts here
+        }
+        pos = pos.checked_add(len)?;
+        if pos > data.len() {
+            return None;
+        }
+    }
+    if pos.checked_add(4)? <= data.len() {
+        Some(pos)
+    } else {
+        None
+    }
+}
+
 /// Target 1: raw adversarial bytes → `decrypt()`. Oracle: no panic, no OOM.
 pub fn fuzz_decrypt_raw(data: &[u8]) {
     let password = PasswordString::new("fuzz-password".to_string());
+
+    // Clamp a v3 file's iteration count so the fuzzer spends its budget finding
+    // defects rather than grinding the intentional PBKDF2 DoS ceiling. Only the
+    // iteration bytes change, and only when they exceed the cap; everything else
+    // stays adversarial, and small/zero counts (their own code paths) pass
+    // through untouched.
+    let mut owned;
+    let input: &[u8] = match v3_iter_offset(data) {
+        Some(off)
+            if u32::from_be_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]])
+                > FUZZ_MAX_ITERS =>
+        {
+            owned = data.to_vec();
+            owned[off..off + 4].copy_from_slice(&FUZZ_MAX_ITERS.to_be_bytes());
+            &owned
+        }
+        _ => data,
+    };
+
     let mut out = Vec::new();
-    let _ = decrypt(Cursor::new(data), &mut out, &password);
+    let _ = decrypt(Cursor::new(input), &mut out, &password);
 }
 
 /// Target 5: pure header parsers on raw bytes. Oracle: no panic.
@@ -424,6 +484,36 @@ mod tests {
             fuzz_decrypt_raw(inp);
             fuzz_parsers(inp);
         }
+    }
+
+    #[test]
+    fn smoke_v3_iter_offset_and_clamp() {
+        // Empty-extension v3 header: the iteration field sits right after the
+        // 0x00 0x00 terminator, at offset 7.
+        let hdr = b"AES\x03\x00\x00\x00\x00\x00\x00\x01".to_vec();
+        let off = v3_iter_offset(&hdr).expect("v3 offset");
+        assert_eq!(off, 7);
+        assert_eq!(&hdr[off..off + 4], &[0, 0, 0, 1]);
+
+        // A real v3 file (whatever extension section the encryptor writes) must
+        // still have a locatable iteration field equal to the requested count.
+        let pw = PasswordString::new("fuzz-password".to_string());
+        let file = build_v3_file(&pw, b"x", 1234);
+        let off = v3_iter_offset(&file).expect("real v3 offset");
+        let got = u32::from_be_bytes([file[off], file[off + 1], file[off + 2], file[off + 3]]);
+        assert_eq!(got, 1234, "located the wrong iteration field");
+
+        // Non-v3 / malformed → None (fast path, nothing to clamp).
+        assert_eq!(v3_iter_offset(b"AES\x02\x00"), None);
+        assert_eq!(v3_iter_offset(b"not aes at all"), None);
+        assert_eq!(v3_iter_offset(b"AES\x03\x00\x00"), None); // truncated ext length
+
+        // The clamp must let a 5M-iteration header return quickly without a
+        // panic (a bounded run instead of tens of seconds of PBKDF2).
+        let mut huge = b"AES\x03\x00\x00\x00".to_vec(); // header + empty-ext terminator
+        huge.extend_from_slice(&5_000_000u32.to_be_bytes()); // iterations = 5_000_000
+        huge.extend_from_slice(&[0u8; 16]); // public IV so decrypt reaches the KDF
+        fuzz_decrypt_raw(&huge);
     }
 
     #[test]
