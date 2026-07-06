@@ -200,6 +200,21 @@ fn v3_iter_offset(data: &[u8]) -> Option<usize> {
     }
 }
 
+/// Clamp a v3 file's 4-byte big-endian iteration field to [`FUZZ_MAX_ITERS`] in
+/// place, but only when it exceeds the cap. No-op for non-v3 / malformed input
+/// (which fails before any KDF work) and for already-small counts (their own
+/// code paths stay untouched). The v3 iteration count is unauthenticated, so
+/// lowering it never masks an auth bypass — it only bounds the PBKDF2 work an
+/// *intentionally* expensive count would otherwise cost per exec.
+fn clamp_v3_iters(buf: &mut [u8]) {
+    if let Some(off) = v3_iter_offset(buf) {
+        let stored = u32::from_be_bytes([buf[off], buf[off + 1], buf[off + 2], buf[off + 3]]);
+        if stored > FUZZ_MAX_ITERS {
+            buf[off..off + 4].copy_from_slice(&FUZZ_MAX_ITERS.to_be_bytes());
+        }
+    }
+}
+
 /// Target 1: raw adversarial bytes → `decrypt()`. Oracle: no panic, no OOM.
 pub fn fuzz_decrypt_raw(data: &[u8]) {
     let password = PasswordString::new("fuzz-password".to_string());
@@ -216,7 +231,7 @@ pub fn fuzz_decrypt_raw(data: &[u8]) {
                 > FUZZ_MAX_ITERS =>
         {
             owned = data.to_vec();
-            owned[off..off + 4].copy_from_slice(&FUZZ_MAX_ITERS.to_be_bytes());
+            clamp_v3_iters(&mut owned);
             &owned
         }
         _ => data,
@@ -297,6 +312,12 @@ pub fn fuzz_roundtrip_v3(case: &V3Case) {
             changed = true;
         }
     }
+
+    // A mutation that lands in the (unauthenticated) iteration field can inflate
+    // the built count of ≤256 up to the millions, making decrypt grind PBKDF2
+    // before the wrong-key HMAC check rejects the file — an intentional-DoS
+    // timeout, not a bug, and never an auth bypass. Clamp it like `decrypt_raw`.
+    clamp_v3_iters(&mut tampered);
 
     let mut out = Vec::new();
     let result = decrypt(Cursor::new(&tampered), &mut out, &password);
@@ -503,6 +524,24 @@ mod tests {
         let got = u32::from_be_bytes([file[off], file[off + 1], file[off + 2], file[off + 3]]);
         assert_eq!(got, 1234, "located the wrong iteration field");
 
+        // `clamp_v3_iters` caps an inflated field in place but leaves small
+        // counts alone.
+        let mut inflated = build_v3_file(&pw, b"x", 7);
+        let ioff = v3_iter_offset(&inflated).expect("offset");
+        inflated[ioff] = 0x7F; // top big-endian byte → count ≈ 2.1e9
+        clamp_v3_iters(&mut inflated);
+        let capped = u32::from_be_bytes([
+            inflated[ioff],
+            inflated[ioff + 1],
+            inflated[ioff + 2],
+            inflated[ioff + 3],
+        ]);
+        assert_eq!(capped, FUZZ_MAX_ITERS, "clamp must cap an inflated field");
+        let small = build_v3_file(&pw, b"x", 9);
+        let mut small_clamped = small.clone();
+        clamp_v3_iters(&mut small_clamped);
+        assert_eq!(small_clamped, small, "clamp must not touch a small count");
+
         // Non-v3 / malformed → None (fast path, nothing to clamp).
         assert_eq!(v3_iter_offset(b"AES\x02\x00"), None);
         assert_eq!(v3_iter_offset(b"not aes at all"), None);
@@ -514,6 +553,30 @@ mod tests {
         huge.extend_from_slice(&5_000_000u32.to_be_bytes()); // iterations = 5_000_000
         huge.extend_from_slice(&[0u8; 16]); // public IV so decrypt reaches the KDF
         fuzz_decrypt_raw(&huge);
+    }
+
+    #[test]
+    fn smoke_v3_roundtrip_iter_tamper_bounded() {
+        // Regression for the CI `roundtrip_v3` timeout: one tamper mutation on the
+        // (unauthenticated) iteration field inflated the built count of ≤256 into
+        // the millions, so `decrypt` ground through PBKDF2 before the wrong-key
+        // HMAC rejected the file. The harness now clamps the field first, so this
+        // case must complete quickly without panicking.
+        let pw = PasswordString::new("p".to_string());
+        let file = build_v3_file(&pw, b"regression", 7);
+        let off = v3_iter_offset(&file).expect("v3 iteration offset");
+        // `V3Case` mutation offsets are taken mod the file length; `off` fits in a
+        // u16 for any file the fuzzer builds, so the XOR lands on the field's top
+        // big-endian byte, driving the stored count to ≈ 2.1e9.
+        assert!(off <= usize::from(u16::MAX));
+        let case = V3Case {
+            password: "p".to_string(),
+            plaintext: b"regression".to_vec(),
+            iterations_sel: 6, // 1 + 6 = 7
+            mutations: vec![(off as u16, 0x7F)],
+            truncate_tail: None,
+        };
+        fuzz_roundtrip_v3(&case);
     }
 
     #[test]
