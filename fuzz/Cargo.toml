@@ -1,0 +1,66 @@
+[package]
+name = "aescrypt-rs-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[features]
+# `fuzzing` gates libfuzzer-sys (nightly-only) so the harness library and its
+# smoke tests build on the stable / MSRV toolchain:
+#   cargo test --no-default-features --manifest-path fuzz/Cargo.toml
+default = ["fuzzing"]
+fuzzing = ["dep:libfuzzer-sys"]
+
+[dependencies]
+aescrypt-rs = { path = ".." }
+arbitrary = { version = "1", features = ["derive"] }
+libfuzzer-sys = { version = "0.4", optional = true }
+# The legacy-file builder mirrors the v0-v2 wire format with the same
+# primitive crates (and versions) the parent uses.
+secure-gate = { version = "=0.8.0-rc.10", features = ["rand", "ct-eq"] }
+aes = "0.8"
+hmac = "0.12"
+sha2 = "0.10"
+
+[[bin]]
+name = "decrypt_raw"
+path = "fuzz_targets/decrypt_raw.rs"
+test = false
+doc = false
+bench = false
+required-features = ["fuzzing"]
+
+[[bin]]
+name = "roundtrip_v3"
+path = "fuzz_targets/roundtrip_v3.rs"
+test = false
+doc = false
+bench = false
+required-features = ["fuzzing"]
+
+[[bin]]
+name = "roundtrip_legacy"
+path = "fuzz_targets/roundtrip_legacy.rs"
+test = false
+doc = false
+bench = false
+required-features = ["fuzzing"]
+
+[[bin]]
+name = "stream_decrypt"
+path = "fuzz_targets/stream_decrypt.rs"
+test = false
+doc = false
+bench = false
+required-features = ["fuzzing"]
+
+[[bin]]
+name = "parsers"
+path = "fuzz_targets/parsers.rs"
+test = false
+doc = false
+bench = false
+required-features = ["fuzzing"]
