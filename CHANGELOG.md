@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Known residual: the `Sha256` hasher's internal chaining state and block buffer cannot be explicitly wiped (`sha2` 0.10 exposes no zeroize hook; reset re-initializes but does not erase the block buffer). Documented on `derive_ackdf_key`.
 - **Docs**: document the v0–v2 final-block-length ("modulo") byte as unauthenticated — inherent to the legacy AES Crypt wire format (the payload HMAC covers ciphertext only), so a tampered legacy file can silently gain or lose up to 15 trailing plaintext bytes. Noted in the crate-level Security Model, on `decrypt()`, and on `StreamConfig`. v3 is unaffected (plaintext length is recovered from PKCS#7 padding inside the authenticated ciphertext).
 
+### Added
+
+- **Fuzz suite** (`fuzz/`): five cargo-fuzz (libFuzzer) targets — `decrypt_raw` (adversarial bytes → `decrypt()`), `roundtrip_v3` (valid file + mutations with an authentication oracle: any accepted output must equal the original plaintext), `roundtrip_legacy` (hand-built v0–v2 files continuously differential-tested against the read path; the tamper oracle tolerates the format's unauthenticated modulo byte — length may drift ≤ 15 bytes but the decrypted prefix may not), `stream_decrypt` (ring-buffer / trailer / PKCS#7 hammering), and `parsers` (header chain). Harness logic lives in a stable-compilable library with smoke tests (`cargo test --no-default-features --manifest-path fuzz/Cargo.toml`), so the wire-format builders are validated on any toolchain including the pinned 1.70; seed corpora are committed; a weekly + PR-triggered CI job (`.github/workflows/fuzz.yml`, also manually dispatchable) runs the campaign on Linux. The fuzz package is standalone with its own `Cargo.lock` and requires no changes to the root crate (all APIs it exercises are already public).
+
 ## [0.2.0-rc.9] - 2026-05-10
 
 ### Changed

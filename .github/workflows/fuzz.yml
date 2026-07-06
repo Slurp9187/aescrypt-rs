@@ -1,0 +1,37 @@
+name: fuzz
+
+on:
+  workflow_dispatch: {}        # manual trigger
+  schedule:
+    - cron: "0 6 * * 1"        # weekly, Monday 06:00 UTC
+  pull_request:
+    paths:
+      - "fuzz/**"
+      - "src/**"
+
+jobs:
+  # Fast, toolchain-agnostic validation of the harness itself (no nightly, no
+  # libFuzzer). Catches legacy-builder / wire-format regressions on every PR.
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal
+      - run: cargo +stable test --no-default-features --manifest-path fuzz/Cargo.toml
+
+  fuzz:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [decrypt_raw, roundtrip_v3, roundtrip_legacy, stream_decrypt, parsers]
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install nightly --profile minimal
+      - run: cargo install cargo-fuzz --locked
+      - run: cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=180 -timeout=10 -max_len=4096 -rss_limit_mb=4096
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: fuzz-artifacts-${{ matrix.target }}
+          path: fuzz/artifacts
