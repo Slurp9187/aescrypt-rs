@@ -85,6 +85,14 @@ use std::io::{Read, Write};
 /// - Pre-authentication parsing is bounded: the header has fixed sizes,
 ///   extensions are capped at 256 entries, and the iteration count is clamped
 ///   to [`PBKDF2_MAX_ITER`](crate::constants::PBKDF2_MAX_ITER).
+/// - **v0–v2 length malleability (inherent to the legacy format)**: the
+///   final-block length ("modulo") byte — the 5th header byte for v0, the
+///   trailer byte for v1/v2 — is **not** covered by any HMAC in the original
+///   AES Crypt wire format, so this crate cannot authenticate it. An attacker
+///   who alters that byte can silently truncate or extend the final plaintext
+///   block by up to 15 bytes without failing verification. v3 is immune: its
+///   plaintext length comes from PKCS#7 padding inside the authenticated
+///   ciphertext.
 ///
 /// # Compatibility — empty password
 ///

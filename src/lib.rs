@@ -92,6 +92,13 @@
 //!   is verified **after** the ciphertext stream is decrypted. [`decrypt()`] therefore
 //!   may write partial unauthenticated plaintext to its `output` before returning an
 //!   error — see [`decrypt()`] for the mandatory caller contract.
+//! - **Legacy v0–v2 length malleability**: the final-block length ("modulo") byte —
+//!   the 5th header byte for v0, the trailer byte for v1/v2 — is not covered by any
+//!   HMAC. This is inherent to the original AES Crypt v0–v2 wire format and cannot be
+//!   fixed by a conforming reader: a tampered legacy file can silently gain or lose up
+//!   to 15 trailing plaintext bytes and still verify. v3 is not affected (plaintext
+//!   length is recovered from PKCS#7 padding inside the authenticated ciphertext);
+//!   re-encrypt legacy files as v3 if this matters to you.
 //! - **PBKDF2 iteration bounds**: enforced by the encryption path to
 //!   `[`PBKDF2_MIN_ITER`](constants::PBKDF2_MIN_ITER) ..= [`PBKDF2_MAX_ITER`](constants::PBKDF2_MAX_ITER)`.
 //!   Lowering iterations weakens password resistance; do not go below

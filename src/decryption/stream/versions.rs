@@ -43,6 +43,12 @@ fn verify_payload_hmac(hmac: HmacSha256, expected: &Trailer32) -> Result<(), Aes
 ///
 /// `V0`/`V1`/`V2` exist only for read compatibility; this crate never produces
 /// them. Use [`V3`](Self::V3) for any new file.
+///
+/// The v0–v2 final-block length ("modulo") byte is **not covered by the
+/// payload HMAC** — inherent to the legacy wire format — so the last plaintext
+/// block's length is malleable by up to 15 bytes without failing verification.
+/// v3 recovers the length from PKCS#7 padding inside the authenticated
+/// ciphertext and is not affected.
 #[derive(Clone, Copy)]
 pub enum StreamConfig {
     /// AES Crypt v0 — legacy modulo padding, 32-byte contiguous HMAC trailer.
