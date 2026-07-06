@@ -130,15 +130,16 @@ impl DecryptionContext {
                         bb.copy_from_slice(&rb[self.current_index..self.current_index + 16]);
                     });
                 });
-                let mut aes_block = block_bytes.with_secret(|bb| AesBlock::from(*bb));
-                cipher.decrypt_block(&mut aes_block);
+                // Decrypt in place inside the secure-gate wrapper (borrowed as a
+                // GenericArray): the plaintext-equivalent bytes never exist outside
+                // it, and the wrapper zeroizes on drop.
+                block_bytes
+                    .with_secret_mut(|bb| cipher.decrypt_block(AesBlock::from_mut_slice(bb)));
                 self.ring_buffer.with_secret(|rb| {
                     self.plaintext_block.with_secret_mut(|pb| {
-                        xor_blocks(
-                            aes_block.as_ref(),
-                            &rb[self.tail_index..self.tail_index + 16],
-                            pb,
-                        );
+                        block_bytes.with_secret(|bb| {
+                            xor_blocks(bb, &rb[self.tail_index..self.tail_index + 16], pb)
+                        });
                     });
                 });
                 self.need_write_plaintext = true;

@@ -117,36 +117,41 @@ pub fn encrypt_session_block(
     let mut prev_block = public_iv.with_secret(|iv| Block16::new(*iv));
     let mut block = Block16::new([0u8; 16]);
 
+    // Each block is XORed and encrypted in place inside the secure-gate
+    // wrapper (borrowed as a GenericArray), so the pre-encryption XOR output
+    // never exists outside a zeroize-on-drop buffer.
+
     // === Block 1: session IV (16 bytes) ===
     session_iv.with_secret(|siv| {
         prev_block.with_secret(|pb| block.with_secret_mut(|b| xor_blocks(siv, pb, b)))
     });
-    let mut aes_block = block.with_secret(|b| AesBlock::from(*b));
-    cipher.encrypt_block(&mut aes_block);
-    enc_block.with_secret_mut(|eb| eb[0..16].copy_from_slice(aes_block.as_ref()));
-    hmac.update(aes_block.as_ref());
-    let temp_block = Block16::new(*aes_block.as_ref());
-    prev_block = temp_block;
+    block.with_secret_mut(|b| cipher.encrypt_block(AesBlock::from_mut_slice(b)));
+    block.with_secret(|ct| {
+        enc_block.with_secret_mut(|eb| eb[0..16].copy_from_slice(ct));
+        hmac.update(ct);
+    });
+    prev_block = block.with_secret(|ct| Block16::new(*ct));
 
     // === Block 2: first half of session key (16 bytes) ===
     session_key.with_secret(|sk| {
         prev_block.with_secret(|pb| block.with_secret_mut(|b| xor_blocks(&sk[0..16], pb, b)))
     });
-    aes_block = block.with_secret(|b| AesBlock::from(*b));
-    cipher.encrypt_block(&mut aes_block);
-    enc_block.with_secret_mut(|eb| eb[16..32].copy_from_slice(aes_block.as_ref()));
-    hmac.update(aes_block.as_ref());
-    let temp_block = Block16::new(*aes_block.as_ref());
-    prev_block = temp_block;
+    block.with_secret_mut(|b| cipher.encrypt_block(AesBlock::from_mut_slice(b)));
+    block.with_secret(|ct| {
+        enc_block.with_secret_mut(|eb| eb[16..32].copy_from_slice(ct));
+        hmac.update(ct);
+    });
+    prev_block = block.with_secret(|ct| Block16::new(*ct));
 
     // === Block 3: second half of session key (16 bytes) ===
     session_key.with_secret(|sk| {
         prev_block.with_secret(|pb| block.with_secret_mut(|b| xor_blocks(&sk[16..32], pb, b)))
     });
-    aes_block = block.with_secret(|b| AesBlock::from(*b));
-    cipher.encrypt_block(&mut aes_block);
-    enc_block.with_secret_mut(|eb| eb[32..48].copy_from_slice(aes_block.as_ref()));
-    hmac.update(aes_block.as_ref());
+    block.with_secret_mut(|b| cipher.encrypt_block(AesBlock::from_mut_slice(b)));
+    block.with_secret(|ct| {
+        enc_block.with_secret_mut(|eb| eb[32..48].copy_from_slice(ct));
+        hmac.update(ct);
+    });
 
     Ok(())
 }

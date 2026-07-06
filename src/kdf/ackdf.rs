@@ -12,16 +12,18 @@
 //! - **Iteration count is fixed at 8192** by the AES Crypt v0–v2 spec; do not
 //!   reduce it. By modern standards 8192 SHA-256 iterations are weak; this
 //!   crate uses ACKDF only on the read path for legacy file compatibility.
-//! - The intermediate `Sha256` hasher state lives on the stack and is reset
-//!   (but not explicitly zeroized) between iterations. The 32-byte hash state
-//!   is wrapped in [`crate::aliases::AckdfHashState32`] so it does zeroize on
-//!   drop. See the inline comment in the implementation.
+//! - The running 32-byte hash state is wrapped in
+//!   [`crate::aliases::AckdfHashState32`] and each iteration finalizes
+//!   directly into it (`finalize_into_reset`) — no unwrapped intermediate
+//!   copies. The `Sha256` hasher's *internal* state (chaining variables and
+//!   block buffer) cannot be explicitly zeroized through `sha2`'s public API;
+//!   see the inline comment in the implementation.
 
 use crate::aliases::{AckdfDerivedKey32, AckdfHashState32, PasswordString, Salt16};
 use crate::utilities::utf8_to_utf16le;
 use crate::AescryptError;
 use secure_gate::{Dynamic, RevealSecret, RevealSecretMut};
-use sha2::{Digest, Sha256};
+use sha2::{digest::Output, Digest, Sha256};
 
 /// Fixed ACKDF iteration count mandated by the AES Crypt v0–v2 file format
 /// specification.
@@ -30,17 +32,6 @@ use sha2::{Digest, Sha256};
 /// 32-byte hash state followed by the UTF-16-LE password). This value is part
 /// of the on-wire format and cannot be changed without breaking compatibility.
 pub const ACKDF_ITERATIONS: u32 = 8192;
-
-#[inline(always)]
-fn hash_once<F1, F2>(hasher: &mut Sha256, update_prev: F1, update_pw: F2) -> [u8; 32]
-where
-    F1: FnOnce(&mut Sha256),
-    F2: FnOnce(&mut Sha256),
-{
-    update_prev(hasher);
-    update_pw(hasher);
-    hasher.finalize_reset().into()
-}
 
 /// Derives the AES-256 setup key for AES Crypt v0–v2 files using ACKDF.
 ///
@@ -70,11 +61,12 @@ where
 ///   weaker than PBKDF2-HMAC-SHA512; new files use
 ///   [`crate::derive_pbkdf2_key`] instead.
 /// - `out_key` is a [`secure-gate`] alias and zeroizes on drop.
-/// - The intermediate `Sha256` hasher state holds 8 × `u32` of derived data on
-///   the stack and is `finalize_reset()`-ed between iterations, but is not
-///   explicitly zeroized when the function returns. The intermediate hash
-///   state is wrapped in [`crate::aliases::AckdfHashState32`] and does
-///   zeroize on drop.
+/// - Each iteration finalizes directly into the [`secure-gate`]-wrapped hash
+///   state ([`crate::aliases::AckdfHashState32`], zeroized on drop) via
+///   `finalize_into_reset`; no unwrapped copy of the running hash is made.
+///   The `Sha256` hasher's internal chaining state and block buffer are
+///   re-initialized between iterations but cannot be explicitly zeroized
+///   through `sha2`'s public API.
 ///
 /// # Thread Safety
 ///
@@ -94,12 +86,12 @@ pub fn derive_ackdf_key(
     let password_utf16le_result = password.with_secret(|pw| utf8_to_utf16le(pw.as_bytes()));
     let password_utf16le: Dynamic<Vec<u8>> = Dynamic::new(password_utf16le_result?);
 
-    // Note: `Sha256` holds internal chaining state (8 × u32) on the stack and is not wrapped
-    // in a secure-gate type. The intermediate SHA-256 state derived from the password will
-    // persist on the stack until the frame is reused. `finalize_reset()` clears the hasher
-    // back to its IV after each iteration, so only the most recent state survives, but it
-    // is not explicitly zeroized on function exit. The output `hash` is auto-zeroized via
-    // secure-gate on drop.
+    // Note: `Sha256` holds internal chaining state (8 × u32) and a 64-byte block buffer on
+    // the stack, neither wrapped in a secure-gate type. `finalize_into_reset()` re-initializes
+    // the chaining state to the SHA-256 IV after each iteration, but the block buffer is only
+    // position-reset, so password-derived bytes may linger there until the frame is reused —
+    // `sha2` 0.10 exposes no zeroize hook for hasher internals. The running `hash` state is
+    // auto-zeroized via secure-gate on drop.
     let mut hasher = Sha256::new();
     let mut hash = AckdfHashState32::new([0u8; 32]); // ← semantic, zero-cost, auto-zeroized
 
@@ -109,11 +101,10 @@ pub fn derive_ackdf_key(
     });
 
     for _ in 0..ACKDF_ITERATIONS {
-        hash = AckdfHashState32::new(hash_once(
-            &mut hasher,
-            |hasher| hash.with_secret(|h| hasher.update(h)),
-            |hasher| password_utf16le.with_secret(|p| hasher.update(p)),
-        ));
+        hash.with_secret(|h| hasher.update(h));
+        password_utf16le.with_secret(|p| hasher.update(p));
+        // Finalize straight into the wrapped state — no unwrapped [u8; 32] copy.
+        hash.with_secret_mut(|h| hasher.finalize_into_reset(Output::<Sha256>::from_mut_slice(h)));
     }
 
     hash.with_secret(|h| {

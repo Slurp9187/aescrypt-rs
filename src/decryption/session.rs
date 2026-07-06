@@ -103,25 +103,25 @@ where
     encrypted_block.with_secret(|encrypted| {
         for (i, chunk) in encrypted.chunks_exact(16).enumerate() {
             let chunk_array: [u8; 16] = chunk.try_into().expect("chunk is exactly 16 bytes");
-            let chunk_block = Block16::from(chunk_array);
-            chunk_block.with_secret(|cb| {
-                let mut block = AesBlock::from(*cb);
-                cipher.decrypt_block(&mut block);
 
-                let xor_pb = previous_block.with_secret(|pb| *pb);
-                match i {
-                    0 => session_iv_out
-                        .with_secret_mut(|siv| xor_blocks(block.as_ref(), &xor_pb, siv)),
-                    1 => session_key_out
-                        .with_secret_mut(|sk| xor_blocks(block.as_ref(), &xor_pb, &mut sk[0..16])),
-                    2 => session_key_out
-                        .with_secret_mut(|sk| xor_blocks(block.as_ref(), &xor_pb, &mut sk[16..32])),
-                    _ => return,
-                };
+            // Decrypt a working copy in place inside a secure-gate wrapper
+            // (borrowed as a GenericArray): the recovered session IV/key
+            // material never exists outside it, and the wrapper zeroizes on
+            // drop. `chunk_array` itself keeps the (public) ciphertext for
+            // CBC chaining below.
+            let mut work = Block16::from(chunk_array);
+            work.with_secret_mut(|b| cipher.decrypt_block(AesBlock::from_mut_slice(b)));
 
-                // Update previous ciphertext block for next iteration
-                previous_block = chunk_block.with_secret(|cb| Block16::new(*cb));
+            let xor_pb = previous_block.with_secret(|pb| *pb);
+            work.with_secret(|b| match i {
+                0 => session_iv_out.with_secret_mut(|siv| xor_blocks(b, &xor_pb, siv)),
+                1 => session_key_out.with_secret_mut(|sk| xor_blocks(b, &xor_pb, &mut sk[0..16])),
+                2 => session_key_out.with_secret_mut(|sk| xor_blocks(b, &xor_pb, &mut sk[16..32])),
+                _ => {}
             });
+
+            // Update previous ciphertext block for next iteration
+            previous_block = Block16::from(chunk_array);
         }
     });
 

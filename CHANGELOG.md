@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Security hardening — transient buffer hygiene** (no output changes; covered by the ACKDF known-answer and v0–v3 round-trip tests):
+  - All AES block-cipher calls (`encrypt_block` / `decrypt_block`) now operate **in place inside secure-gate wrappers**, borrowing the wrapped buffer as a `GenericArray` via `from_mut_slice` instead of round-tripping block contents through unwrapped `aes::Block` stack copies. Decrypted plaintext-equivalent bytes and pre-encryption XOR blocks therefore never exist outside a zeroize-on-drop buffer, on any code path. Touches `encrypt_stream`, `encrypt_session_block`, `DecryptionContext::decrypt_cbc_loop`, and `extract_session_data`. No new dependencies.
+  - `derive_ackdf_key` now finalizes each SHA-256 iteration directly into the secure-gate-wrapped hash state via `finalize_into_reset`, removing the per-iteration unwrapped `[u8; 32]` stack copies made by the former `hash_once` helper (helper deleted).
+  - Known residual: the `Sha256` hasher's internal chaining state and block buffer cannot be explicitly wiped (`sha2` 0.10 exposes no zeroize hook; reset re-initializes but does not erase the block buffer). Documented on `derive_ackdf_key`.
+- **Docs**: document the v0–v2 final-block-length ("modulo") byte as unauthenticated — inherent to the legacy AES Crypt wire format (the payload HMAC covers ciphertext only), so a tampered legacy file can silently gain or lose up to 15 trailing plaintext bytes. Noted in the crate-level Security Model, on `decrypt()`, and on `StreamConfig`. v3 is unaffected (plaintext length is recovered from PKCS#7 padding inside the authenticated ciphertext).
+
 ## [0.2.0-rc.9] - 2026-05-10
 
 ### Changed

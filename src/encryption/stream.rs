@@ -40,8 +40,8 @@ use std::io::{Read, Write};
 ///
 /// # Panics
 ///
-/// Never panics on valid input. The internal `try_into().unwrap()` is over a
-/// slice that is always exactly 16 bytes by construction.
+/// Never panics on valid input. The internal `GenericArray::from_mut_slice`
+/// is over a buffer that is always exactly 16 bytes by construction.
 ///
 /// # Security
 ///
@@ -102,17 +102,18 @@ where
                 .with_secret(|pb_prev| xor_output.with_secret_mut(|xo| xor_blocks(pb, pb_prev, xo)))
         });
 
-        // Encrypt
-        let mut aes_block = xor_output.with_secret(|xo| AesBlock::from(*xo));
-        cipher.encrypt_block(&mut aes_block);
-        let ct_slice = aes_block.as_ref(); // &[u8]
+        // Encrypt in place inside the secure-gate wrapper (borrowed as a
+        // GenericArray); afterwards `xor_output` holds the ciphertext block.
+        xor_output.with_secret_mut(|xo| cipher.encrypt_block(AesBlock::from_mut_slice(xo)));
 
         // HMAC + write ciphertext
-        hmac.update(ct_slice);
-        destination.write_all(ct_slice)?;
+        xor_output.with_secret(|ct| {
+            hmac.update(ct);
+            destination.write_all(ct)
+        })?;
 
         // Update previous block for next iteration
-        prev_block = Block16::new(ct_slice.try_into().unwrap());
+        prev_block = xor_output;
 
         if is_final {
             break;
