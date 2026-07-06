@@ -27,14 +27,19 @@ Longer campaign with a memory cap:
 cargo +nightly fuzz run decrypt_raw -- -max_total_time=600 -timeout=10 -max_len=4096 -rss_limit_mb=4096
 ```
 
-### Why `-timeout` matters for `decrypt_raw`
+### Iteration clamping in `decrypt_raw`
 
 A v3 header can legally request up to 5 000 000 PBKDF2-HMAC-SHA512 iterations
-(the crate's DoS ceiling). That is *seconds* of work per exec, so a crafted
-header can legitimately stall a single run. `-timeout=10` lets libFuzzer flag a
-genuinely stuck input without treating the intentional 5M cap as a bug — the cap
-is the crate's defense, not a defect. The structured targets sidestep this by
-building inputs with tiny iteration counts.
+(the crate's DoS ceiling). Deriving that key is *seconds* of work per exec —
+legitimate, but under the sanitizer it trips libFuzzer's per-exec `-timeout` on
+an input that is intentionally expensive, not buggy. To keep the campaign fast,
+`fuzz_decrypt_raw` locates the v3 iteration field and clamps it to
+`FUZZ_MAX_ITERS` (4096) before calling `decrypt()`. The KDF loop runs identical
+code at any count, so no parser/stream/crypto coverage is lost; only the
+iteration bytes change, and only when they exceed the cap. Every other byte
+stays adversarial. `-timeout=10` is still passed as a backstop against a genuine
+hang. The structured targets sidestep the cost the same way, by building inputs
+with tiny iteration counts.
 
 ## Toolchain gotcha: `+nightly` is required
 
