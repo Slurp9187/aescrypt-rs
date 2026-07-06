@@ -7,8 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0-rc.10] - 2026-07-06
+
 ### Changed
 
+- Bump `secure-gate` pin to `=0.8.0-rc.10`.
+- **MSRV (1.70) integrity — pin `zeroize` / `zeroize_derive`.** Add `zeroize = "=1.8.2"` and `zeroize_derive = "=1.4.3"` as direct `[dependencies]`, mirroring the existing `quote` / `syn` / `unicode-ident` MSRV pins (present only to force unified resolution; not used in application code). Both reach the graph transitively via `aes`'s `zeroize` feature and `secure-gate`. Without the pins a fresh dependency resolution on Rust 1.70 — as performed by any downstream consumer (this repo's `Cargo.lock` is not delivered to them) and by `cargo publish`'s verify build — floats `zeroize_derive` to `1.5.0`, which declares **edition 2024** (requires rustc 1.85) and fails to compile, silently breaking the advertised `rust-version = "1.70"`. Verified with `cargo publish --dry-run` on the 1.70 toolchain.
 - **Security hardening — transient buffer hygiene** (no output changes; covered by the ACKDF known-answer and v0–v3 round-trip tests):
   - All AES block-cipher calls (`encrypt_block` / `decrypt_block`) now operate **in place inside secure-gate wrappers**, borrowing the wrapped buffer as a `GenericArray` via `from_mut_slice` instead of round-tripping block contents through unwrapped `aes::Block` stack copies. Decrypted plaintext-equivalent bytes and pre-encryption XOR blocks therefore never exist outside a zeroize-on-drop buffer, on any code path. Touches `encrypt_stream`, `encrypt_session_block`, `DecryptionContext::decrypt_cbc_loop`, and `extract_session_data`. No new dependencies.
   - `derive_ackdf_key` now finalizes each SHA-256 iteration directly into the secure-gate-wrapped hash state via `finalize_into_reset`, removing the per-iteration unwrapped `[u8; 32]` stack copies made by the former `hash_once` helper (helper deleted).
@@ -17,7 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **KDF setup-key aliases** in `aescrypt_rs::aliases`: `AckdfDerivedKey32` (v0/v1/v2 ACKDF) and `Pbkdf2DerivedKey32` (v3 PBKDF2) now name the 32-byte derived *setup* key distinctly from the AES-256 session key (`Aes256Key32`) it unwraps. Both are `Fixed<[u8; 32]>` (identical expansion to the type they replaced at the KDF call sites), so this is a pure clarity addition with no caller ripple. Also adds `ExtensionChunk256` (`SpanBuffer<256>`) naming the v2/v3 extension payload chunk.
 - **Fuzz suite** (`fuzz/`): five cargo-fuzz (libFuzzer) targets — `decrypt_raw` (adversarial bytes → `decrypt()`), `roundtrip_v3` (valid file + mutations with an authentication oracle: any accepted output must equal the original plaintext), `roundtrip_legacy` (hand-built v0–v2 files continuously differential-tested against the read path; the tamper oracle tolerates the format's unauthenticated modulo byte — length may drift ≤ 15 bytes but the decrypted prefix may not), `stream_decrypt` (ring-buffer / trailer / PKCS#7 hammering), and `parsers` (header chain). Harness logic lives in a stable-compilable library with smoke tests (`cargo test --no-default-features --manifest-path fuzz/Cargo.toml`), so the wire-format builders are validated on any toolchain including the pinned 1.70; seed corpora are committed; a weekly + PR-triggered CI job (`.github/workflows/fuzz.yml`, also manually dispatchable) runs the campaign on Linux. The fuzz package is standalone with its own `Cargo.lock` and requires no changes to the root crate (all APIs it exercises are already public).
+
+### Removed
+
+- Unused public alias `HmacSha512` (`Hmac<Sha512>`) from `aescrypt_rs::aliases`. PBKDF2 constructs its HMAC-SHA512 internally; the alias had no callers.
 
 ## [0.2.0-rc.9] - 2026-05-10
 

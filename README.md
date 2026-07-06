@@ -235,7 +235,7 @@ This crate defines **no optional features**. It always links `aes` with the `zer
 
 ```toml
 [dependencies]
-aescrypt-rs = "0.2.0-rc.9"
+aescrypt-rs = "0.2.0-rc.10"
 ```
 
 When **0.2.0** is published to crates.io, you can switch the version requirement to `"0.2.0"` (or a caret range you prefer).

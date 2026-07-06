@@ -55,7 +55,7 @@ fn load_json_vectors(filename: &str) -> Vec<TestVector> {
         .join(filename);
 
     let content =
-        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("Failed to read {filename}: {e}"));
+        std::fs::read_to_string(path).unwrap_or_else(|e| panic!("Failed to read {filename}: {e}"));
 
     serde_json::from_str(&content).unwrap_or_else(|e| panic!("Failed to parse {filename}: {e}"))
 }
@@ -351,7 +351,7 @@ fn migrate_v2_to_v3() {
 fn handle_missing_file_gracefully() {
     let non_existent = PathBuf::from("nonexistent_file.aes");
 
-    let file = File::open(&non_existent);
+    let file = File::open(non_existent);
     assert!(file.is_err(), "Should fail to open non-existent file");
 }
 

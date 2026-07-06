@@ -16,7 +16,7 @@ dependencies = [
 
 [[package]]
 name = "aescrypt-rs"
-version = "0.2.0-rc.9"
+version = "0.2.0-rc.10"
 dependencies = [
  "aes",
  "criterion",
@@ -35,6 +35,8 @@ dependencies = [
  "thiserror",
  "unicode-ident",
  "winapi-util",
+ "zeroize",
+ "zeroize_derive",
  "zmij",
 ]
 

@@ -134,7 +134,7 @@ where
         .join(filename);
 
     let content =
-        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("Failed to read {filename}: {e}"));
+        std::fs::read_to_string(path).unwrap_or_else(|e| panic!("Failed to read {filename}: {e}"));
 
     serde_json::from_str(&content).unwrap_or_else(|e| panic!("Failed to parse {filename}: {e}"))
 }

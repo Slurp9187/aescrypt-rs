@@ -4,7 +4,7 @@
 
 [package]
 name = "aescrypt-rs"
-version = "0.2.0-rc.9"
+version = "0.2.0-rc.10"
 edition = "2021"
 rust-version = "1.70"
 description = "AES Crypt (v0-v3) Rust encryption/decryption library"
@@ -50,7 +50,7 @@ all-features = true
 aes = { version = "0.8", features = ["zeroize"] }
 hmac = "0.12"
 pbkdf2 = "0.12"
-# Exact pin on 0.8.0-rc.8; bump deliberately when a newer RC or stable is desired.
+# Exact pin on 0.8.0-rc.10; bump deliberately when a newer RC or stable is desired.
 secure-gate = { version = "=0.8.0-rc.10", features = ["rand", "ct-eq"] }
 sha2 = "0.10"
 thiserror = "2.0"
@@ -63,6 +63,16 @@ thiserror = "2.0"
 quote = "=1.0.44"
 syn = "=2.0.114"
 unicode-ident = "=1.0.22"
+# --- MSRV: zeroize stack (transitive via `aes` `zeroize` feature + `secure-gate`) ---
+# | Crate          | Pinned | Why |
+# |----------------|--------|-----|
+# | zeroize_derive | 1.4.3  | 1.5.0+ declares edition 2024 → rustc 1.85; cargo 1.70 cannot parse the manifest. |
+# | zeroize        | 1.8.2  | Kept in lockstep with the `zeroize_derive` pin; matches secure-gate's own pin. |
+# Pinned as direct deps only to force unified resolution on 1.70 (not used directly in
+# application code). Without them a fresh `cargo build`/`cargo publish` resolve on 1.70
+# floats zeroize_derive to 1.5.0 and fails — this repo's Cargo.lock is not seen downstream.
+zeroize = "=1.8.2"
+zeroize_derive = "=1.4.3"
 
 # ----------------------------------------------------------------------
 # Dev / test / bench dependencies
