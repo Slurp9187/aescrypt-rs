@@ -1,9 +1,9 @@
 //! tests/header_tests.rs
 //! Header validation using the *real* test vectors from tests/test_data/
 
+use aescrypt_rs::decrypt;
 use aescrypt_rs::decryption::consume_all_extensions;
 use aescrypt_rs::read_version;
-use aescrypt_rs::{decrypt, PasswordString};
 use hex::decode;
 use serde::Deserialize;
 use std::io::Cursor;
@@ -197,9 +197,9 @@ fn decrypt_rejects_nonzero_reserved_byte() {
     let mut bad_header: Vec<u8> = b"AES\x03\x01".to_vec(); // version=3, reserved=0x01
     bad_header.extend_from_slice(&[0u8; 100]); // pad with zeros so reads don't fail before header check
 
-    let password = PasswordString::new("irrelevant".to_string());
+    let password = "irrelevant";
     let mut output = Vec::new();
-    let err = decrypt(std::io::Cursor::new(&bad_header), &mut output, &password).unwrap_err();
+    let err = decrypt(std::io::Cursor::new(&bad_header), &mut output, password).unwrap_err();
     assert!(
         err.to_string()
             .contains("reserved byte must be 0x00 for v1"),

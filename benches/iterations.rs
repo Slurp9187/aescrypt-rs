@@ -3,7 +3,6 @@
 //!
 //! Tests performance impact of different PBKDF2 iteration counts
 
-use aescrypt_rs::aliases::PasswordString;
 use aescrypt_rs::{decrypt, encrypt};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::hint::black_box;
@@ -13,7 +12,7 @@ fn bench_encrypt_iterations(c: &mut Criterion) {
     let mut group = c.benchmark_group("encrypt_iterations");
     group.sample_size(10); // Fewer samples for slow iterations
 
-    let password = PasswordString::new("benchmark-password".to_string());
+    let password = "benchmark-password";
     let plaintext = b"test data for iteration benchmarking";
 
     let iterations = vec![1, 10, 100, 1_000, 10_000, 100_000, 300_000, 500_000];
@@ -26,7 +25,7 @@ fn bench_encrypt_iterations(c: &mut Criterion) {
                 encrypt(
                     Cursor::new(black_box(plaintext)),
                     &mut encrypted,
-                    black_box(&password),
+                    black_box(password),
                     iters,
                 )
                 .unwrap();
@@ -42,7 +41,7 @@ fn bench_roundtrip_iterations(c: &mut Criterion) {
     let mut group = c.benchmark_group("roundtrip_iterations");
     group.sample_size(10); // Fewer samples for slow iterations
 
-    let password = PasswordString::new("benchmark-password".to_string());
+    let password = "benchmark-password";
     let plaintext = b"test data for roundtrip benchmarking";
 
     let iterations = vec![1, 10, 100, 1_000, 10_000, 100_000, 300_000];
@@ -56,7 +55,7 @@ fn bench_roundtrip_iterations(c: &mut Criterion) {
                 encrypt(
                     Cursor::new(black_box(plaintext)),
                     &mut encrypted,
-                    black_box(&password),
+                    black_box(password),
                     iters,
                 )
                 .unwrap();
@@ -66,7 +65,7 @@ fn bench_roundtrip_iterations(c: &mut Criterion) {
                 decrypt(
                     Cursor::new(black_box(&encrypted)),
                     &mut decrypted,
-                    black_box(&password),
+                    black_box(password),
                 )
                 .unwrap();
 

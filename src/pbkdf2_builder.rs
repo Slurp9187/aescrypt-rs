@@ -2,7 +2,7 @@
 //!
 //! See [`Pbkdf2Builder`].
 
-use crate::aliases::{Aes256Key32, PasswordString, Salt16};
+use crate::aliases::{Aes256Key32, Salt16};
 use crate::constants::DEFAULT_PBKDF2_ITERATIONS;
 use crate::derive_pbkdf2_key;
 use crate::error::AescryptError;
@@ -28,7 +28,10 @@ use crate::error::AescryptError;
 ///   salt; these are safe for new files. Lower the iteration count only if
 ///   you have measured your platform.
 /// - Salt and derived key live in [`secure-gate`] aliases that zeroize on
-///   drop. Passwords pass through scoped `with_secret` reveals only.
+///   drop. The password is a plain `&str` **borrow** — it is read in place by
+///   [`crate::derive_pbkdf2_key`], never copied and never stored, so
+///   zeroizing it is the caller's responsibility. Keep it in a
+///   zeroize-on-drop container and hand the builder a scoped borrow.
 /// - This builder is `Send + Sync`. It holds a salt secret but no shared
 ///   mutable state, so multiple threads can construct and consume their own
 ///   builders concurrently.
@@ -36,20 +39,24 @@ use crate::error::AescryptError;
 /// # Examples
 ///
 /// ```
-/// use aescrypt_rs::{Pbkdf2Builder, PasswordString, aliases::Aes256Key32};
+/// use aescrypt_rs::{Pbkdf2Builder, aliases::{Aes256Key32, PasswordString}};
+/// use secure_gate::RevealSecret;
 ///
-/// let password = PasswordString::new("my-secret-password".to_string());
+/// let secret = PasswordString::new("my-secret-password".to_string());
 ///
 /// // Use defaults (300k iterations, random salt from `Pbkdf2Builder::new()`).
 /// let mut key = Aes256Key32::new([0u8; 32]);
-/// Pbkdf2Builder::new()
-///     .with_salt([0x42; 16]) // Fixed salt for reproducible doctest
-///     .derive_secure(&password, &mut key)?;
+/// // caller keeps the secret wrapped; the borrow never escapes
+/// secret.with_secret(|pw| {
+///     Pbkdf2Builder::new()
+///         .with_salt([0x42; 16]) // Fixed salt for reproducible doctest
+///         .derive_secure(pw, &mut key)
+/// })?;
 ///
 /// // Or get a new key directly.
-/// let _derived_key = Pbkdf2Builder::new()
-///     .with_salt([0x42; 16])
-///     .derive_secure_new(&password)?;
+/// let _derived_key = secret.with_secret(|pw| {
+///     Pbkdf2Builder::new().with_salt([0x42; 16]).derive_secure_new(pw)
+/// })?;
 /// # Ok::<(), aescrypt_rs::AescryptError>(())
 /// ```
 ///
@@ -150,13 +157,14 @@ impl Pbkdf2Builder {
     ///
     /// `out_key` is overwritten with the derived 32 bytes; it is the caller's
     /// responsibility to keep using a [`secure-gate`]-managed buffer so the
-    /// key zeroizes on drop.
+    /// key zeroizes on drop. `password` is a borrow — no copy is taken, and
+    /// zeroizing the password itself is likewise the caller's job.
     ///
     /// [`secure-gate`]: https://github.com/Slurp9187/secure-gate
     #[inline(always)]
     pub fn derive_secure(
         self,
-        password: &PasswordString,
+        password: &str,
         out_key: &mut Aes256Key32,
     ) -> Result<(), AescryptError> {
         derive_pbkdf2_key(password, &self.salt, self.iterations, out_key)
@@ -170,10 +178,7 @@ impl Pbkdf2Builder {
     /// - [`AescryptError::Crypto`] — see
     ///   [`derive_secure`](Self::derive_secure).
     #[inline(always)]
-    pub fn derive_secure_new(
-        self,
-        password: &PasswordString,
-    ) -> Result<Aes256Key32, AescryptError> {
+    pub fn derive_secure_new(self, password: &str) -> Result<Aes256Key32, AescryptError> {
         let mut key = Aes256Key32::new([0u8; 32]);
         self.derive_secure(password, &mut key)?;
         Ok(key)

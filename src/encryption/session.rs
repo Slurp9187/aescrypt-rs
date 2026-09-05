@@ -10,9 +10,7 @@
 //! These are pure crypto primitives — no I/O. They are exposed for advanced
 //! callers that compose their own v3-compatible encryption flow.
 
-use crate::aliases::{
-    Aes256Key32, Block16, EncryptedSessionBlock48, HmacSha256, Iv16, PasswordString,
-};
+use crate::aliases::{Aes256Key32, Block16, EncryptedSessionBlock48, HmacSha256, Iv16};
 use crate::constants::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
 use crate::error::AescryptError;
 use crate::kdf::pbkdf2::derive_pbkdf2_key;
@@ -44,6 +42,11 @@ use secure_gate::{RevealSecret, RevealSecretMut};
 /// - 32-byte output written directly into the caller-provided
 ///   [`Aes256Key32`](crate::aliases::Aes256Key32) without ever materializing
 ///   the key in a non-zeroizing buffer.
+/// - `password` is a plain `&str` **borrow** — it is forwarded to
+///   [`crate::derive_pbkdf2_key`] and read in place, never copied and never
+///   stored. Zeroizing the password is therefore the caller's
+///   responsibility; keep it in a zeroize-on-drop container and pass a
+///   scoped borrow.
 /// - The public IV is reused as the PBKDF2 salt by the AES Crypt v3 spec; it
 ///   **must** be unique per file (callers using [`crate::encrypt()`] get a
 ///   CSPRNG-generated public IV automatically).
@@ -52,7 +55,7 @@ use secure_gate::{RevealSecret, RevealSecretMut};
 ///   for new files.
 #[inline]
 pub fn derive_setup_key(
-    password: &PasswordString,
+    password: &str,
     public_iv: &Iv16,
     iterations: u32,
     out_key: &mut Aes256Key32,

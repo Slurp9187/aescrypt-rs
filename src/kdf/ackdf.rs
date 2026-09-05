@@ -19,7 +19,7 @@
 //!   block buffer) cannot be explicitly zeroized through `sha2`'s public API;
 //!   see the inline comment in the implementation.
 
-use crate::aliases::{AckdfDerivedKey32, AckdfHashState32, PasswordString, Salt16};
+use crate::aliases::{AckdfDerivedKey32, AckdfHashState32, Salt16};
 use crate::utilities::utf8_to_utf16le;
 use crate::AescryptError;
 use secure_gate::{Dynamic, RevealSecret, RevealSecretMut};
@@ -48,8 +48,11 @@ pub const ACKDF_ITERATIONS: u32 = 8192;
 ///
 /// # Errors
 ///
-/// - [`AescryptError::Crypto`] — `password` is not valid UTF-8 (forwarded
-///   from [`crate::utilities::utf8_to_utf16le`]).
+/// - [`AescryptError::Crypto`] — forwarded from
+///   [`crate::utilities::utf8_to_utf16le`] when the password bytes are not
+///   valid UTF-8. Because `password` is a `&str`, this is structurally
+///   unreachable; the `Result` is kept so the signature stays stable and so
+///   the error path remains shared with the public byte-slice helper.
 ///
 /// # Panics
 ///
@@ -60,7 +63,14 @@ pub const ACKDF_ITERATIONS: u32 = 8192;
 /// - Iteration count is fixed at 8192 by the AES Crypt v0–v2 spec. ACKDF is
 ///   weaker than PBKDF2-HMAC-SHA512; new files use
 ///   [`crate::derive_pbkdf2_key`] instead.
-/// - `out_key` is a [`secure-gate`] alias and zeroizes on drop.
+/// - `out_key` is a [`secure-gate`] alias and zeroizes on drop. `password` is
+///   a plain `&str` **borrow** — it is read in place, never copied and never
+///   stored, so **zeroizing the password is the caller's responsibility**.
+///   Keep it in a zeroize-on-drop container and pass a scoped borrow (see
+///   [`crate::derive_pbkdf2_key`] for the pattern).
+/// - The UTF-16-LE re-encoding of the password is unavoidable (the v0–v2 spec
+///   hashes UTF-16-LE code units) and is wrapped in a `Dynamic<Vec<u8>>` the
+///   moment it exists, so that derived copy zeroizes on drop.
 /// - Each iteration finalizes directly into the [`secure-gate`]-wrapped hash
 ///   state ([`crate::aliases::AckdfHashState32`], zeroized on drop) via
 ///   `finalize_into_reset`; no unwrapped copy of the running hash is made.
@@ -79,12 +89,14 @@ pub const ACKDF_ITERATIONS: u32 = 8192;
 /// [`secure-gate`]: https://github.com/Slurp9187/secure-gate
 #[inline(always)]
 pub fn derive_ackdf_key(
-    password: &PasswordString,
+    password: &str,
     salt: &Salt16,
     out_key: &mut AckdfDerivedKey32,
 ) -> Result<(), AescryptError> {
-    let password_utf16le_result = password.with_secret(|pw| utf8_to_utf16le(pw.as_bytes()));
-    let password_utf16le: Dynamic<Vec<u8>> = Dynamic::new(password_utf16le_result?);
+    // `password.as_bytes()` borrows in place — no copy of the password itself.
+    // The UTF-16-LE expansion is a *derived* secret, so it is wrapped in a
+    // zeroize-on-drop `Dynamic<Vec<u8>>` immediately.
+    let password_utf16le: Dynamic<Vec<u8>> = Dynamic::new(utf8_to_utf16le(password.as_bytes())?);
 
     // Note: `Sha256` holds internal chaining state (8 × u32) and a 64-byte block buffer on
     // the stack, neither wrapped in a secure-gate type. `finalize_into_reset()` re-initializes

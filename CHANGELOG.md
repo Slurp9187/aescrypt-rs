@@ -7,6 +7,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING — remove `secure-gate` types from the password-taking public API.** Every
+  public function that accepted a password now takes `&str` instead of
+  `&PasswordString` (`secure_gate::Dynamic<String>`):
+
+  | Function | Before | After |
+  | --- | --- | --- |
+  | `encrypt` | `password: &PasswordString` | `password: &str` |
+  | `decrypt` | `password: &PasswordString` | `password: &str` |
+  | `derive_ackdf_key` | `password: &PasswordString` | `password: &str` |
+  | `derive_pbkdf2_key` | `password: &PasswordString` | `password: &str` |
+  | `encryption::derive_setup_key` | `password: &PasswordString` | `password: &str` |
+  | `Pbkdf2Builder::derive_secure` / `derive_secure_new` | `password: &PasswordString` | `password: &str` |
+
+  **Why.** `PasswordString` is `secure_gate::dynamic_alias!(pub PasswordString, String)`.
+  Naming it in a signature made *this crate's* `secure-gate` version transitively binding
+  on every consumer: two `secure-gate` versions in one dependency graph are two distinct
+  types with identical names, so the call site fails with
+  `error[E0308]: mismatched types: expected \`Dynamic<String>\`, found \`Dynamic<String>\``.
+  Sibling crates (`odf-crypto`, `msoffice-crypto`, `age-hpke-pq`) use `secure-gate`
+  purely internally and are free of this; `aescrypt-rs` was the odd one out. After this
+  change, this crate's `secure-gate` version is an internal implementation detail again.
+
+  **Memory hygiene is unchanged.** `&str` is a borrow: the password is read in place
+  (`str::as_bytes`) all the way to `pbkdf2`/`sha2`, and no copy of it is made or stored
+  anywhere on the path. Everything *derived* from it stays wrapped — the UTF-16-LE
+  expansion in `derive_ackdf_key` is still a `Dynamic<Vec<u8>>`, and salts, IVs, setup
+  keys, session keys and HMAC tags remain `secure-gate` aliases internally. What moves is
+  *ownership of zeroization*: the password is now the caller's to zeroize. The documented
+  pattern is a scoped borrow out of whatever zeroize-on-drop container the caller already
+  has:
+
+  ```rust,ignore
+  // caller keeps the secret wrapped; the borrow never escapes
+  secret.with_secret(|pw| encrypt(input, output, pw, iterations))
+  ```
+
+  **Migration.** Replace `PasswordString::new(s)` + `&password` with the string itself, or
+  keep your wrapper and pass a scoped borrow as above. `Dynamic<String>`,
+  `Zeroizing<String>`, `EncodedSecret` and anything else that derefs to `str` all work.
+
+- `derive_ackdf_key` drops one indirection: `password.with_secret(|pw| utf8_to_utf16le(pw.as_bytes()))`
+  became `utf8_to_utf16le(password.as_bytes())`. No copy, no behaviour change. Its
+  `AescryptError::Crypto` "not valid UTF-8" variant is now structurally unreachable (a
+  `&str` is always valid UTF-8); the `Result` is retained for signature stability and is
+  documented as such.
+- **Docs corrected where this change falsified them.** `kdf/pbkdf2.rs` no longer claims
+  "`password`, `salt`, and `out_key` are all secure-gate aliases and zeroize on drop" — it
+  now states that the password is a borrow and the caller's to zeroize, and shows the
+  scoped-borrow pattern in the example. Same correction on `encrypt`, `decrypt`,
+  `derive_ackdf_key`, `derive_setup_key`, `Pbkdf2Builder`, the crate-level Security Model
+  (new "Password ownership" section), and the README (new "Password handling" section).
+  Every doc example that built a `PasswordString` to call the API was updated.
+
+### Removed
+
+- **BREAKING** — the root re-export `pub use aliases::PasswordString`. The alias itself is
+  unchanged and still available at `aescrypt_rs::aliases::PasswordString`; it is simply no
+  longer in the crate root, which now contains no `secure-gate` type at all. Migration:
+  `use aescrypt_rs::aliases::PasswordString;`.
+
+### Added
+
+- Crate-level **"Dependency coupling"** section (and a README counterpart) recording that
+  the lower-level primitives under `encryption::*` / `decryption::*` still exchange
+  `aliases::*` types by design — so **naming anything from `aescrypt_rs::aliases::*` (or
+  calling a function that does) re-acquires the `secure-gate` version coupling**. Callers
+  who stay on `encrypt()` / `decrypt()` / the KDFs never see it. Those primitives stay
+  `pub`: they have real consumers (`tests/vector_tests.rs` builds a v3 file stage by stage
+  to diff against the official vectors; `fuzz/src/lib.rs` differential-tests the legacy
+  builder against the read path), they are documented API since 0.2.0-rc.9, and they cost
+  nothing to consumers who do not opt in.
+- `tests/encrypt_tests.rs::roundtrip_with_wrapped_secret_borrow` — a round-trip through
+  `PasswordString::with_secret`, pinning the documented scoped-borrow pattern so it cannot
+  silently stop compiling.
+
 ## [0.2.0-rc.10] - 2026-07-06
 
 ### Changed

@@ -4,7 +4,6 @@
 use aescrypt_rs::{decrypt, encrypt};
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use secure_gate::Dynamic; // ← new API
 use std::hint::black_box;
 use std::io::Cursor;
 
@@ -27,8 +26,8 @@ fn format_size(bytes: usize) -> String {
 fn bench_roundtrip(c: &mut Criterion) {
     let mut group = c.benchmark_group("roundtrip");
 
-    // Explicit type annotation – required because Dynamic is generic
-    let password: Dynamic<String> = Dynamic::new("benchmark-password".to_string());
+    // Borrowed password — `encrypt`/`decrypt` take `&str` and never copy it.
+    let password = "benchmark-password";
 
     let sizes = [KB, 64 * KB, MB, 10 * MB];
 
@@ -40,8 +39,6 @@ fn bench_roundtrip(c: &mut Criterion) {
             BenchmarkId::new("size", format_size(size)),
             &size,
             |b, _| {
-                let password = &password;
-
                 b.iter(|| {
                     // ----- encrypt -------------------------------------------------
                     let mut encrypted = Vec::with_capacity(size + 1024);

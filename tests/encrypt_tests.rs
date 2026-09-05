@@ -4,7 +4,6 @@
 //! This minimal test suite focuses on validating production settings (300k iterations).
 //! Comprehensive encryption testing is covered by vector_tests.rs.
 
-use aescrypt_rs::aliases::PasswordString;
 use aescrypt_rs::constants::DEFAULT_PBKDF2_ITERATIONS;
 use aescrypt_rs::decrypt;
 use aescrypt_rs::encrypt;
@@ -35,27 +34,27 @@ impl<R: Read> Read for StingyReader<R> {
 #[test]
 fn encrypt_with_real_world_iterations() {
     // Test with real-world DEFAULT_PBKDF2_ITERATIONS (300,000) to verify production settings work
-    let password = PasswordString::new("real-world-test".to_string());
+    let password = "real-world-test";
     let plaintext = b"test data for real-world iteration count";
 
     let mut encrypted = Vec::new();
     encrypt(
         Cursor::new(plaintext),
         &mut encrypted,
-        &password,
+        password,
         DEFAULT_PBKDF2_ITERATIONS,
     )
     .unwrap();
 
     let mut decrypted = Vec::new();
-    decrypt(Cursor::new(&encrypted), &mut decrypted, &password).unwrap();
+    decrypt(Cursor::new(&encrypted), &mut decrypted, password).unwrap();
 
     assert_eq!(decrypted, plaintext);
 }
 
 #[test]
 fn encrypt_round_trip_with_stingy_reader() {
-    let password = PasswordString::new("stingy-read-test".to_string());
+    let password = "stingy-read-test";
     let plaintext: Vec<u8> = (0u8..=127).collect();
 
     let mut encrypted = Vec::new();
@@ -64,26 +63,26 @@ fn encrypt_round_trip_with_stingy_reader() {
             inner: Cursor::new(&plaintext),
         },
         &mut encrypted,
-        &password,
+        password,
         DEFAULT_PBKDF2_ITERATIONS,
     )
     .unwrap();
 
     let mut decrypted = Vec::new();
-    decrypt(Cursor::new(&encrypted), &mut decrypted, &password).unwrap();
+    decrypt(Cursor::new(&encrypted), &mut decrypted, password).unwrap();
     assert_eq!(decrypted, plaintext);
 }
 
 #[test]
 fn decrypt_round_trip_with_stingy_reader() {
-    let password = PasswordString::new("stingy-decrypt-test".to_string());
+    let password = "stingy-decrypt-test";
     let plaintext: Vec<u8> = (0u8..=255).collect();
 
     let mut encrypted = Vec::new();
     encrypt(
         Cursor::new(&plaintext),
         &mut encrypted,
-        &password,
+        password,
         DEFAULT_PBKDF2_ITERATIONS,
     )
     .unwrap();
@@ -94,7 +93,7 @@ fn decrypt_round_trip_with_stingy_reader() {
             inner: Cursor::new(&encrypted),
         },
         &mut decrypted,
-        &password,
+        password,
     )
     .unwrap();
     assert_eq!(decrypted, plaintext);
@@ -102,17 +101,50 @@ fn decrypt_round_trip_with_stingy_reader() {
 
 #[test]
 fn encrypt_empty_password() {
-    let empty_password = PasswordString::new("".to_string());
+    let empty_password = "";
     let plaintext = b"dummy data";
     let mut encrypted = Vec::new();
     let result = encrypt(
         Cursor::new(plaintext),
         &mut encrypted,
-        &empty_password,
+        empty_password,
         DEFAULT_PBKDF2_ITERATIONS,
     );
     match result {
         Err(AescryptError::Header(msg)) if msg == "empty password" => {}
         _ => panic!("Expected Header error with 'empty password'"),
     }
+}
+
+/// The documented memory-hygiene pattern: the caller keeps the password in a
+/// zeroize-on-drop container and hands `encrypt`/`decrypt` a scoped borrow that
+/// never escapes the closure. This is a compile-and-behaviour guard for the
+/// examples in the crate docs — if the public signature ever stops accepting a
+/// borrowed `&str`, this test breaks first.
+#[test]
+fn roundtrip_with_wrapped_secret_borrow() {
+    use aescrypt_rs::aliases::PasswordString;
+    use secure_gate::RevealSecret;
+
+    let secret = PasswordString::new("wrapped-secret-borrow".to_string());
+    let plaintext = b"test data behind a scoped borrow";
+
+    let mut encrypted = Vec::new();
+    secret
+        .with_secret(|pw| {
+            encrypt(
+                Cursor::new(plaintext),
+                &mut encrypted,
+                pw,
+                DEFAULT_PBKDF2_ITERATIONS,
+            )
+        })
+        .unwrap();
+
+    let mut decrypted = Vec::new();
+    secret
+        .with_secret(|pw| decrypt(Cursor::new(&encrypted), &mut decrypted, pw))
+        .unwrap();
+
+    assert_eq!(decrypted, plaintext);
 }

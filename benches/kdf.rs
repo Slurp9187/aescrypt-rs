@@ -2,7 +2,7 @@
 //! Consolidated KDF benchmarks – multi-iter PBKDF2 + ACKDF
 use aescrypt_rs::{derive_ackdf_key, derive_pbkdf2_key};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use secure_gate::{fixed_alias, Dynamic, Fixed};
+use secure_gate::{fixed_alias, Fixed};
 use std::hint::black_box;
 use std::time::Duration;
 
@@ -14,7 +14,7 @@ fn kdf_benches(c: &mut Criterion) {
     group.measurement_time(Duration::from_secs(8));
     group.sample_size(20);
 
-    let pw: Dynamic<String> = Dynamic::new("benchmark-password".to_string());
+    let pw = "benchmark-password";
     let salt: Fixed<[u8; 16]> = Fixed::new([0x42; 16]);
 
     // PBKDF2 with various iterations - comprehensive performance testing
@@ -23,7 +23,7 @@ fn kdf_benches(c: &mut Criterion) {
         group.bench_with_input(id, &iters, |b, &iters| {
             b.iter(|| {
                 let mut key = Key32::new([0u8; 32]);
-                derive_pbkdf2_key(black_box(&pw), black_box(&salt), iters, &mut key).unwrap();
+                derive_pbkdf2_key(black_box(pw), black_box(&salt), iters, &mut key).unwrap();
                 let _ = black_box(key);
             });
         });
@@ -33,7 +33,7 @@ fn kdf_benches(c: &mut Criterion) {
     group.bench_function("ackdf_8192", |b| {
         b.iter(|| {
             let mut key = Key32::new([0u8; 32]);
-            let _ = derive_ackdf_key(black_box(&pw), black_box(&salt), &mut key);
+            let _ = derive_ackdf_key(black_box(pw), black_box(&salt), &mut key);
             let _ = black_box(key);
         });
     });

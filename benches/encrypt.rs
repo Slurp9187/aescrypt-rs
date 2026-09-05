@@ -1,15 +1,14 @@
 // benches/encrypt.rs (or roundtrip.rs)
 use aescrypt_rs::{constants::DEFAULT_PBKDF2_ITERATIONS, encrypt};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use secure_gate::Dynamic;
 use std::hint::black_box;
 use std::io::Cursor;
 
 fn bench_encrypt_with_kdf(c: &mut Criterion) {
     let mut group = c.benchmark_group("encrypt_with_kdf");
 
-    // Secure password — zero-cost, auto-zeroized
-    let password: Dynamic<String> = Dynamic::new("benchmark-password".to_string());
+    // Borrowed password — `encrypt` takes `&str` and never copies it.
+    let password = "benchmark-password";
 
     let sizes = [
         1,
@@ -38,8 +37,7 @@ fn bench_encrypt_with_kdf(c: &mut Criterion) {
                     let mut dst = Vec::with_capacity(size + 1024); // Avoid reallocations
                     let mut src = Cursor::new(black_box(&input));
 
-                    // encrypt takes password by reference
-                    encrypt(&mut src, &mut dst, black_box(&password), black_box(iters)).unwrap();
+                    encrypt(&mut src, &mut dst, black_box(password), black_box(iters)).unwrap();
 
                     black_box(dst)
                 });

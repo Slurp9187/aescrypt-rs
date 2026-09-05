@@ -16,21 +16,40 @@
 //! Encrypt and decrypt data using AES Crypt format v3:
 //!
 //! ```rust,no_run
-//! use aescrypt_rs::{encrypt, decrypt, PasswordString, constants::DEFAULT_PBKDF2_ITERATIONS};
+//! use aescrypt_rs::{encrypt, decrypt, constants::DEFAULT_PBKDF2_ITERATIONS};
 //! use std::io::Cursor;
 //!
-//! let password = PasswordString::new("correct horse battery staple".to_string());
+//! let password = "correct horse battery staple";
 //! let data = b"top secret";
 //!
 //! // Encrypt
 //! let mut ciphertext = Vec::new();
-//! encrypt(Cursor::new(data), &mut ciphertext, &password, DEFAULT_PBKDF2_ITERATIONS)?;
+//! encrypt(Cursor::new(data), &mut ciphertext, password, DEFAULT_PBKDF2_ITERATIONS)?;
 //!
 //! // Decrypt
 //! let mut plaintext = Vec::new();
-//! decrypt(Cursor::new(&ciphertext), &mut plaintext, &password)?;
+//! decrypt(Cursor::new(&ciphertext), &mut plaintext, password)?;
 //!
 //! assert_eq!(data, &plaintext[..]);
+//! # Ok::<(), aescrypt_rs::AescryptError>(())
+//! ```
+//!
+//! Passwords are ordinary `&str` borrows, so the crate composes with whatever
+//! zeroize-on-drop container you already use. Keep the secret wrapped and hand
+//! the API a scoped borrow:
+//!
+//! ```rust,no_run
+//! use aescrypt_rs::{encrypt, aliases::PasswordString, constants::DEFAULT_PBKDF2_ITERATIONS};
+//! use secure_gate::RevealSecret;
+//! use std::io::Cursor;
+//!
+//! let secret = PasswordString::new("correct horse battery staple".to_string());
+//! let mut ciphertext = Vec::new();
+//!
+//! // caller keeps the secret wrapped; the borrow never escapes
+//! secret.with_secret(|pw| {
+//!     encrypt(Cursor::new(b"top secret"), &mut ciphertext, pw, DEFAULT_PBKDF2_ITERATIONS)
+//! })?;
 //! # Ok::<(), aescrypt_rs::AescryptError>(())
 //! ```
 //!
@@ -85,9 +104,13 @@
 //!   (v0/v1/v2 read-only).
 //! - **Authentication**: HMAC-SHA256 over the encrypted session block and ciphertext
 //!   stream. Session and payload tags are compared with constant-time equality.
-//! - **Memory hygiene**: keys, IVs, salts, passwords, and intermediate buffers are
-//!   wrapped in [`secure-gate`] types ([`PasswordString`], [`Aes256Key32`](aliases::Aes256Key32),
-//!   [`Iv16`](aliases::Iv16), [`Salt16`](aliases::Salt16), …) that zeroize on drop.
+//! - **Memory hygiene**: every key, IV, salt, and intermediate buffer this crate
+//!   *creates* is wrapped in a [`secure-gate`] type
+//!   ([`Aes256Key32`](aliases::Aes256Key32), [`Iv16`](aliases::Iv16),
+//!   [`Salt16`](aliases::Salt16), …) that zeroizes on drop. The **password is the
+//!   one exception**: it enters the crate as a `&str` borrow, is read in place, and
+//!   is never copied or stored — so zeroizing it is the caller's responsibility.
+//!   See [Password ownership](#password-ownership) below.
 //! - **Decrypt-then-verify**: as defined by the AES Crypt format, the v3 payload HMAC
 //!   is verified **after** the ciphertext stream is decrypted. [`decrypt()`] therefore
 //!   may write partial unauthenticated plaintext to its `output` before returning an
@@ -103,6 +126,38 @@
 //!   `[`PBKDF2_MIN_ITER`](constants::PBKDF2_MIN_ITER) ..= [`PBKDF2_MAX_ITER`](constants::PBKDF2_MAX_ITER)`.
 //!   Lowering iterations weakens password resistance; do not go below
 //!   [`DEFAULT_PBKDF2_ITERATIONS`](constants::DEFAULT_PBKDF2_ITERATIONS).
+//!
+//! # Password ownership
+//!
+//! [`encrypt()`], [`decrypt()`], [`derive_ackdf_key()`], [`derive_pbkdf2_key()`],
+//! [`encryption::derive_setup_key()`] and [`Pbkdf2Builder::derive_secure()`] all take
+//! the password as `&str`. Nothing on that path copies it: the borrow reaches
+//! `pbkdf2`/`sha2` as `str::as_bytes()` and stops there. That means:
+//!
+//! - **The caller owns the password's lifetime and its zeroization.** Hold it in a
+//!   zeroize-on-drop container ([`aliases::PasswordString`], `zeroize::Zeroizing`,
+//!   or your own) and pass a scoped borrow, as in the Quick Start above.
+//! - Values *derived* from the password inside this crate are still wrapped: the
+//!   UTF-16-LE expansion in [`derive_ackdf_key()`] is a `secure_gate::Dynamic<Vec<u8>>`,
+//!   and every derived key lands directly in a [`secure-gate`] alias.
+//!
+//! # Dependency coupling
+//!
+//! No `secure-gate` type appears in any signature a consumer must name, so this
+//! crate's `secure-gate` version is an **internal** implementation detail: a
+//! downstream crate can depend on a different `secure-gate` version without a type
+//! mismatch, exactly like `odf-crypto`, `msoffice-crypto`, and `age-hpke-pq`.
+//!
+//! That property is opt-out, not absolute. The lower-level primitives in
+//! [`encryption`], [`decryption`], and [`kdf`] — [`encryption::encrypt_stream()`],
+//! [`decryption::extract_session_data()`], [`decryption::decrypt_ciphertext_stream()`],
+//! [`decryption::read_exact_span()`], [`encryption::write_public_iv()`], and friends —
+//! exchange [`aliases`] types by design, for callers driving the format stage by
+//! stage. **Naming anything from [`aliases`] (or calling a function that does)
+//! re-acquires the `secure-gate` version coupling**: your crate and this one must
+//! then resolve to the same `secure-gate` version, because two versions produce two
+//! distinct types with identical names. If that matters to you, stay on
+//! [`encrypt()`] / [`decrypt()`] / the KDFs and the coupling never appears.
 //!
 //! # Errors
 //!
@@ -123,7 +178,11 @@ pub mod pbkdf2_builder;
 pub mod utilities;
 
 // High-level API — this is what 99% of users import.
-pub use aliases::PasswordString;
+//
+// Note: `PasswordString` is deliberately *not* re-exported here. It is a
+// `secure-gate` type; keeping it behind `aliases::` keeps the crate root free of
+// the version coupling described in the crate-level "Dependency coupling"
+// section. Callers who want it can still `use aescrypt_rs::aliases::PasswordString`.
 pub use decryption::decrypt;
 pub use encryption::encrypt;
 pub use error::AescryptError;

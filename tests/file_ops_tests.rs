@@ -8,7 +8,6 @@ mod common;
 use common::TEST_ITERATIONS;
 use common::TEST_PASSWORD;
 
-use aescrypt_rs::aliases::PasswordString;
 use aescrypt_rs::decrypt;
 use aescrypt_rs::encrypt;
 use serde::Deserialize;
@@ -65,7 +64,7 @@ fn load_json_vectors(filename: &str) -> Vec<TestVector> {
 // —————————————————————————————————————————————————————————————————————————————
 #[test]
 fn decrypt_actual_v0_files() {
-    let password = PasswordString::new(TEST_PASSWORD.to_string());
+    let password = TEST_PASSWORD;
 
     for i in 0..21 {
         let file_path = get_aes_test_file_path("v0", i);
@@ -74,7 +73,7 @@ fn decrypt_actual_v0_files() {
         let mut reader = BufReader::new(file);
 
         let mut decrypted = Vec::new();
-        let result = decrypt(&mut reader, &mut decrypted, &password);
+        let result = decrypt(&mut reader, &mut decrypted, password);
 
         if let Err(e) = result {
             // Some files might be empty (test vector 0), so empty content is valid
@@ -89,7 +88,7 @@ fn decrypt_actual_v0_files() {
 
 #[test]
 fn decrypt_actual_v1_files() {
-    let password = PasswordString::new(TEST_PASSWORD.to_string());
+    let password = TEST_PASSWORD;
 
     for i in 0..21 {
         let file_path = get_aes_test_file_path("v1", i);
@@ -98,7 +97,7 @@ fn decrypt_actual_v1_files() {
         let mut reader = BufReader::new(file);
 
         let mut decrypted = Vec::new();
-        decrypt(&mut reader, &mut decrypted, &password)
+        decrypt(&mut reader, &mut decrypted, password)
             .unwrap_or_else(|e| panic!("Failed to decrypt v1 file {i}: {e:?}"));
 
         // Note: Empty files are valid (test vector 0 is empty string)
@@ -107,7 +106,7 @@ fn decrypt_actual_v1_files() {
 
 #[test]
 fn decrypt_actual_v2_files() {
-    let password = PasswordString::new(TEST_PASSWORD.to_string());
+    let password = TEST_PASSWORD;
 
     for i in 0..21 {
         let file_path = get_aes_test_file_path("v2", i);
@@ -116,7 +115,7 @@ fn decrypt_actual_v2_files() {
         let mut reader = BufReader::new(file);
 
         let mut decrypted = Vec::new();
-        decrypt(&mut reader, &mut decrypted, &password)
+        decrypt(&mut reader, &mut decrypted, password)
             .unwrap_or_else(|e| panic!("Failed to decrypt v2 file {i}: {e:?}"));
 
         // Note: Empty files are valid (test vector 0 is empty string)
@@ -125,7 +124,7 @@ fn decrypt_actual_v2_files() {
 
 #[test]
 fn decrypt_actual_v3_files() {
-    let password = PasswordString::new(TEST_PASSWORD.to_string());
+    let password = TEST_PASSWORD;
 
     for i in 0..21 {
         let file_path = get_aes_test_file_path("v3", i);
@@ -134,7 +133,7 @@ fn decrypt_actual_v3_files() {
         let mut reader = BufReader::new(file);
 
         let mut decrypted = Vec::new();
-        decrypt(&mut reader, &mut decrypted, &password)
+        decrypt(&mut reader, &mut decrypted, password)
             .unwrap_or_else(|e| panic!("Failed to decrypt v3 file {i}: {e:?}"));
 
         // Note: Empty files are valid (test vector 0 is empty string)
@@ -146,7 +145,7 @@ fn decrypt_actual_v3_files() {
 // —————————————————————————————————————————————————————————————————————————————
 #[test]
 fn round_trip_from_actual_files() {
-    let password = PasswordString::new(TEST_PASSWORD.to_string());
+    let password = TEST_PASSWORD;
 
     for i in 0..5 {
         // Decrypt original file
@@ -156,7 +155,7 @@ fn round_trip_from_actual_files() {
         let mut reader = BufReader::new(input_file);
 
         let mut plaintext = Vec::new();
-        decrypt(&mut reader, &mut plaintext, &password)
+        decrypt(&mut reader, &mut plaintext, password)
             .unwrap_or_else(|e| panic!("Failed to decrypt v3 file {i}: {e:?}"));
 
         // Re-encrypt as v3 (encrypt() always creates v3 format)
@@ -164,14 +163,14 @@ fn round_trip_from_actual_files() {
         encrypt(
             Cursor::new(&plaintext),
             &mut re_encrypted,
-            &password,
+            password,
             TEST_ITERATIONS,
         )
         .unwrap_or_else(|e| panic!("Failed to re-encrypt file {i}: {e:?}"));
 
         // Decrypt again
         let mut final_plaintext = Vec::new();
-        decrypt(Cursor::new(&re_encrypted), &mut final_plaintext, &password)
+        decrypt(Cursor::new(&re_encrypted), &mut final_plaintext, password)
             .unwrap_or_else(|e| panic!("Failed to decrypt re-encrypted file {i}: {e:?}"));
 
         assert_eq!(
@@ -190,7 +189,7 @@ fn round_trip_from_actual_files() {
 
 #[test]
 fn migrate_v0_to_v3() {
-    let password = PasswordString::new(TEST_PASSWORD.to_string());
+    let password = TEST_PASSWORD;
     let vectors = load_json_vectors("test_vectors_v0.json");
 
     // Test all 21 files (or at least 15 for performance)
@@ -207,7 +206,7 @@ fn migrate_v0_to_v3() {
         let mut reader = BufReader::new(file);
 
         let mut decrypted = Vec::new();
-        decrypt(&mut reader, &mut decrypted, &password)
+        decrypt(&mut reader, &mut decrypted, password)
             .unwrap_or_else(|e| panic!("Failed to decrypt v0 file {i}: {e:?}"));
 
         // Verify decrypted plaintext matches expected from vectors
@@ -222,14 +221,14 @@ fn migrate_v0_to_v3() {
         encrypt(
             Cursor::new(&decrypted),
             &mut v3_encrypted,
-            &password,
+            password,
             TEST_ITERATIONS,
         )
         .unwrap_or_else(|e| panic!("Failed to encrypt v0→v3 migration for file {i}: {e:?}"));
 
         // Decrypt v3 encrypted data
         let mut final_plaintext = Vec::new();
-        decrypt(Cursor::new(&v3_encrypted), &mut final_plaintext, &password)
+        decrypt(Cursor::new(&v3_encrypted), &mut final_plaintext, password)
             .unwrap_or_else(|e| panic!("Failed to decrypt v3 migrated file {i}: {e:?}"));
 
         // Verify plaintext matches (migration preserved data integrity)
@@ -242,7 +241,7 @@ fn migrate_v0_to_v3() {
 
 #[test]
 fn migrate_v1_to_v3() {
-    let password = PasswordString::new(TEST_PASSWORD.to_string());
+    let password = TEST_PASSWORD;
     let vectors = load_json_vectors("test_vectors_v1.json");
 
     // Test all 21 files (or at least 15 for performance)
@@ -259,7 +258,7 @@ fn migrate_v1_to_v3() {
         let mut reader = BufReader::new(file);
 
         let mut decrypted = Vec::new();
-        decrypt(&mut reader, &mut decrypted, &password)
+        decrypt(&mut reader, &mut decrypted, password)
             .unwrap_or_else(|e| panic!("Failed to decrypt v1 file {i}: {e:?}"));
 
         // Verify decrypted plaintext matches expected from vectors
@@ -274,14 +273,14 @@ fn migrate_v1_to_v3() {
         encrypt(
             Cursor::new(&decrypted),
             &mut v3_encrypted,
-            &password,
+            password,
             TEST_ITERATIONS,
         )
         .unwrap_or_else(|e| panic!("Failed to encrypt v1→v3 migration for file {i}: {e:?}"));
 
         // Decrypt v3 encrypted data
         let mut final_plaintext = Vec::new();
-        decrypt(Cursor::new(&v3_encrypted), &mut final_plaintext, &password)
+        decrypt(Cursor::new(&v3_encrypted), &mut final_plaintext, password)
             .unwrap_or_else(|e| panic!("Failed to decrypt v3 migrated file {i}: {e:?}"));
 
         // Verify plaintext matches (migration preserved data integrity)
@@ -294,7 +293,7 @@ fn migrate_v1_to_v3() {
 
 #[test]
 fn migrate_v2_to_v3() {
-    let password = PasswordString::new(TEST_PASSWORD.to_string());
+    let password = TEST_PASSWORD;
     let vectors = load_json_vectors("test_vectors_v2.json");
 
     // Test all 21 files (or at least 15 for performance)
@@ -311,7 +310,7 @@ fn migrate_v2_to_v3() {
         let mut reader = BufReader::new(file);
 
         let mut decrypted = Vec::new();
-        decrypt(&mut reader, &mut decrypted, &password)
+        decrypt(&mut reader, &mut decrypted, password)
             .unwrap_or_else(|e| panic!("Failed to decrypt v2 file {i}: {e:?}"));
 
         // Verify decrypted plaintext matches expected from vectors
@@ -326,14 +325,14 @@ fn migrate_v2_to_v3() {
         encrypt(
             Cursor::new(&decrypted),
             &mut v3_encrypted,
-            &password,
+            password,
             TEST_ITERATIONS,
         )
         .unwrap_or_else(|e| panic!("Failed to encrypt v2→v3 migration for file {i}: {e:?}"));
 
         // Decrypt v3 encrypted data
         let mut final_plaintext = Vec::new();
-        decrypt(Cursor::new(&v3_encrypted), &mut final_plaintext, &password)
+        decrypt(Cursor::new(&v3_encrypted), &mut final_plaintext, password)
             .unwrap_or_else(|e| panic!("Failed to decrypt v3 migrated file {i}: {e:?}"));
 
         // Verify plaintext matches (migration preserved data integrity)
@@ -360,7 +359,7 @@ fn handle_missing_file_gracefully() {
 // —————————————————————————————————————————————————————————————————————————————
 #[test]
 fn decrypt_deterministic_v3_files() {
-    let password = PasswordString::new(TEST_PASSWORD.to_string());
+    let password = TEST_PASSWORD;
 
     for i in 0..21 {
         let file_path = get_v3_deterministic_path(i);
@@ -369,7 +368,7 @@ fn decrypt_deterministic_v3_files() {
         let mut reader = BufReader::new(file);
 
         let mut decrypted = Vec::new();
-        decrypt(&mut reader, &mut decrypted, &password)
+        decrypt(&mut reader, &mut decrypted, password)
             .unwrap_or_else(|e| panic!("Failed to decrypt deterministic v3 file {i}: {e:?}"));
 
         // Note: Empty files are valid (test vector 0 is empty string)

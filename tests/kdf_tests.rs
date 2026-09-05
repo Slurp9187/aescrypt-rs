@@ -6,7 +6,7 @@ mod common;
 mod tests {
     use super::common::TEST_ITERATION_VALUES;
 
-    use aescrypt_rs::aliases::{Aes256Key32, PasswordString, Salt16};
+    use aescrypt_rs::aliases::{Aes256Key32, Salt16};
     use aescrypt_rs::{derive_ackdf_key, derive_pbkdf2_key};
     use secure_gate::RevealSecret;
 
@@ -18,11 +18,11 @@ mod tests {
 
     #[test]
     fn secure_kdf_expected_keys() {
-        let password = PasswordString::new("correct horse battery staple".to_string());
+        let password = "correct horse battery staple";
         let salt = Salt16::from([0x11; 16]);
 
         let mut ackdf_key = Aes256Key32::new([0u8; 32]);
-        derive_ackdf_key(&password, &salt, &mut ackdf_key).unwrap();
+        derive_ackdf_key(password, &salt, &mut ackdf_key).unwrap();
 
         let expected_ackdf = [
             0x2d, 0xbb, 0x65, 0x84, 0x99, 0x12, 0x37, 0x80, 0x42, 0xb5, 0x11, 0x97, 0xae, 0xd9,
@@ -32,7 +32,7 @@ mod tests {
         ackdf_key.with_secret(|ak| assert_eq!(ak, &expected_ackdf, "ACKDF mismatch"));
 
         let mut pbkdf2_key = Aes256Key32::new([0u8; 32]);
-        derive_pbkdf2_key(&password, &salt, 1, &mut pbkdf2_key).unwrap();
+        derive_pbkdf2_key(password, &salt, 1, &mut pbkdf2_key).unwrap();
 
         let expected_pbkdf2 = [
             142, 124, 235, 125, 184, 202, 68, 61, 255, 97, 150, 244, 189, 12, 170, 47, 125, 231,
@@ -43,14 +43,14 @@ mod tests {
 
     #[test]
     fn secure_ackdf_and_pbkdf2_differ() {
-        let password = PasswordString::new("correct horse battery staple".to_string());
+        let password = "correct horse battery staple";
         let salt = Salt16::from([0x11; 16]);
 
         let mut ackdf_key = Aes256Key32::new([0u8; 32]);
-        derive_ackdf_key(&password, &salt, &mut ackdf_key).unwrap();
+        derive_ackdf_key(password, &salt, &mut ackdf_key).unwrap();
 
         let mut pbkdf2_key = Aes256Key32::new([0u8; 32]);
-        derive_pbkdf2_key(&password, &salt, 1, &mut pbkdf2_key).unwrap();
+        derive_pbkdf2_key(password, &salt, 1, &mut pbkdf2_key).unwrap();
 
         ackdf_key.with_secret(|ak| pbkdf2_key.with_secret(|pk| assert_ne!(ak, pk)));
     }
@@ -67,14 +67,14 @@ mod tests {
         ];
 
         for (pw_str, desc) in cases {
-            let password = PasswordString::new(pw_str.to_string());
+            let password = pw_str;
             let salt = Salt16::from([0x42u8; 16]);
 
             for kdf in [KdfType::Ackdf, KdfType::Pbkdf2] {
                 let mut key = Aes256Key32::new([0u8; 32]);
                 match kdf {
-                    KdfType::Ackdf => derive_ackdf_key(&password, &salt, &mut key).unwrap(),
-                    KdfType::Pbkdf2 => derive_pbkdf2_key(&password, &salt, 1, &mut key).unwrap(),
+                    KdfType::Ackdf => derive_ackdf_key(password, &salt, &mut key).unwrap(),
+                    KdfType::Pbkdf2 => derive_pbkdf2_key(password, &salt, 1, &mut key).unwrap(),
                 };
                 key.with_secret(|k| assert_eq!(k.len(), 32, "{kdf:?} {desc} failed"));
             }
@@ -86,21 +86,21 @@ mod tests {
         // Both `derive_pbkdf2_key` and `Pbkdf2Builder::with_iterations` clamp 0 → 1
         // so they are consistent. A 0-iteration call should succeed and produce the
         // same key as an explicit 1-iteration call.
-        let password = PasswordString::new("test".to_string());
+        let password = "test";
         let salt = Salt16::from([0x11; 16]);
 
         let mut key_zero = Aes256Key32::new([0u8; 32]);
-        derive_pbkdf2_key(&password, &salt, 0, &mut key_zero).expect("0 should clamp to 1");
+        derive_pbkdf2_key(password, &salt, 0, &mut key_zero).expect("0 should clamp to 1");
 
         let mut key_one = Aes256Key32::new([0u8; 32]);
-        derive_pbkdf2_key(&password, &salt, 1, &mut key_one).expect("1 iteration should succeed");
+        derive_pbkdf2_key(password, &salt, 1, &mut key_one).expect("1 iteration should succeed");
 
         key_zero.with_secret(|kz| key_one.with_secret(|ko| assert_eq!(kz, ko)));
     }
 
     #[test]
     fn pbkdf2_various_iteration_counts() {
-        let password = PasswordString::new("testpassword".to_string());
+        let password = "testpassword";
         let salt = Salt16::from([0x42; 16]);
 
         // Test with low iteration counts - performance testing is in benches/
@@ -110,8 +110,8 @@ mod tests {
             let mut key1 = Aes256Key32::new([0u8; 32]);
             let mut key2 = Aes256Key32::new([0u8; 32]);
 
-            derive_pbkdf2_key(&password, &salt, iterations, &mut key1).unwrap();
-            derive_pbkdf2_key(&password, &salt, iterations, &mut key2).unwrap();
+            derive_pbkdf2_key(password, &salt, iterations, &mut key1).unwrap();
+            derive_pbkdf2_key(password, &salt, iterations, &mut key2).unwrap();
 
             // Determinism: same input should produce same output
             key1.with_secret(|k1| {
@@ -134,16 +134,16 @@ mod tests {
 
     #[test]
     fn pbkdf2_different_iterations_produce_different_keys() {
-        let password = PasswordString::new("testpassword".to_string());
+        let password = "testpassword";
         let salt = Salt16::from([0x42; 16]);
 
         let mut key1 = Aes256Key32::new([0u8; 32]);
         let mut key2 = Aes256Key32::new([0u8; 32]);
         let mut key3 = Aes256Key32::new([0u8; 32]);
 
-        derive_pbkdf2_key(&password, &salt, 1, &mut key1).unwrap();
-        derive_pbkdf2_key(&password, &salt, 10, &mut key2).unwrap();
-        derive_pbkdf2_key(&password, &salt, 100, &mut key3).unwrap();
+        derive_pbkdf2_key(password, &salt, 1, &mut key1).unwrap();
+        derive_pbkdf2_key(password, &salt, 10, &mut key2).unwrap();
+        derive_pbkdf2_key(password, &salt, 100, &mut key3).unwrap();
 
         // Different iteration counts should produce different keys
         key1.with_secret(|k1| {
@@ -174,7 +174,7 @@ mod tests {
 
     #[test]
     fn kdf_determinism() {
-        let password = PasswordString::new("deterministic test".to_string());
+        let password = "deterministic test";
         let salt = Salt16::from([0xAA; 16]);
 
         // Test ACKDF determinism
@@ -182,9 +182,9 @@ mod tests {
         let mut ackdf_key2 = Aes256Key32::new([0u8; 32]);
         let mut ackdf_key3 = Aes256Key32::new([0u8; 32]);
 
-        derive_ackdf_key(&password, &salt, &mut ackdf_key1).unwrap();
-        derive_ackdf_key(&password, &salt, &mut ackdf_key2).unwrap();
-        derive_ackdf_key(&password, &salt, &mut ackdf_key3).unwrap();
+        derive_ackdf_key(password, &salt, &mut ackdf_key1).unwrap();
+        derive_ackdf_key(password, &salt, &mut ackdf_key2).unwrap();
+        derive_ackdf_key(password, &salt, &mut ackdf_key3).unwrap();
 
         ackdf_key1.with_secret(|k1| {
             ackdf_key2.with_secret(|k2| assert_eq!(k1, k2, "ACKDF should be deterministic"))
@@ -198,9 +198,9 @@ mod tests {
         let mut pbkdf2_key2 = Aes256Key32::new([0u8; 32]);
         let mut pbkdf2_key3 = Aes256Key32::new([0u8; 32]);
 
-        derive_pbkdf2_key(&password, &salt, 100, &mut pbkdf2_key1).unwrap();
-        derive_pbkdf2_key(&password, &salt, 100, &mut pbkdf2_key2).unwrap();
-        derive_pbkdf2_key(&password, &salt, 100, &mut pbkdf2_key3).unwrap();
+        derive_pbkdf2_key(password, &salt, 100, &mut pbkdf2_key1).unwrap();
+        derive_pbkdf2_key(password, &salt, 100, &mut pbkdf2_key2).unwrap();
+        derive_pbkdf2_key(password, &salt, 100, &mut pbkdf2_key3).unwrap();
 
         pbkdf2_key1.with_secret(|k1| {
             pbkdf2_key2.with_secret(|k2| assert_eq!(k1, k2, "PBKDF2 should be deterministic"))
@@ -212,7 +212,7 @@ mod tests {
 
     #[test]
     fn kdf_salt_sensitivity() {
-        let password = PasswordString::new("salt sensitivity test".to_string());
+        let password = "salt sensitivity test";
 
         let salt1 = Salt16::from([0x00; 16]);
         let salt2 = Salt16::from([0xFF; 16]);
@@ -226,9 +226,9 @@ mod tests {
         let mut ackdf_key2 = Aes256Key32::new([0u8; 32]);
         let mut ackdf_key3 = Aes256Key32::new([0u8; 32]);
 
-        derive_ackdf_key(&password, &salt1, &mut ackdf_key1).unwrap();
-        derive_ackdf_key(&password, &salt2, &mut ackdf_key2).unwrap();
-        derive_ackdf_key(&password, &salt3, &mut ackdf_key3).unwrap();
+        derive_ackdf_key(password, &salt1, &mut ackdf_key1).unwrap();
+        derive_ackdf_key(password, &salt2, &mut ackdf_key2).unwrap();
+        derive_ackdf_key(password, &salt3, &mut ackdf_key3).unwrap();
 
         ackdf_key1.with_secret(|k1| {
             ackdf_key2.with_secret(|k2| {
@@ -260,9 +260,9 @@ mod tests {
         let mut pbkdf2_key2 = Aes256Key32::new([0u8; 32]);
         let mut pbkdf2_key3 = Aes256Key32::new([0u8; 32]);
 
-        derive_pbkdf2_key(&password, &salt1, 100, &mut pbkdf2_key1).unwrap();
-        derive_pbkdf2_key(&password, &salt2, 100, &mut pbkdf2_key2).unwrap();
-        derive_pbkdf2_key(&password, &salt3, 100, &mut pbkdf2_key3).unwrap();
+        derive_pbkdf2_key(password, &salt1, 100, &mut pbkdf2_key1).unwrap();
+        derive_pbkdf2_key(password, &salt2, 100, &mut pbkdf2_key2).unwrap();
+        derive_pbkdf2_key(password, &salt3, 100, &mut pbkdf2_key3).unwrap();
 
         pbkdf2_key1.with_secret(|k1| {
             pbkdf2_key2.with_secret(|k2| {
@@ -294,18 +294,18 @@ mod tests {
     fn kdf_password_sensitivity() {
         let salt = Salt16::from([0x42; 16]);
 
-        let password1 = PasswordString::new("password1".to_string());
-        let password2 = PasswordString::new("password2".to_string());
-        let password3 = PasswordString::new("different password entirely".to_string());
+        let password1 = "password1";
+        let password2 = "password2";
+        let password3 = "different password entirely";
 
         // Test ACKDF password sensitivity
         let mut ackdf_key1 = Aes256Key32::new([0u8; 32]);
         let mut ackdf_key2 = Aes256Key32::new([0u8; 32]);
         let mut ackdf_key3 = Aes256Key32::new([0u8; 32]);
 
-        derive_ackdf_key(&password1, &salt, &mut ackdf_key1).unwrap();
-        derive_ackdf_key(&password2, &salt, &mut ackdf_key2).unwrap();
-        derive_ackdf_key(&password3, &salt, &mut ackdf_key3).unwrap();
+        derive_ackdf_key(password1, &salt, &mut ackdf_key1).unwrap();
+        derive_ackdf_key(password2, &salt, &mut ackdf_key2).unwrap();
+        derive_ackdf_key(password3, &salt, &mut ackdf_key3).unwrap();
 
         ackdf_key1.with_secret(|k1| {
             ackdf_key2.with_secret(|k2| {
@@ -337,9 +337,9 @@ mod tests {
         let mut pbkdf2_key2 = Aes256Key32::new([0u8; 32]);
         let mut pbkdf2_key3 = Aes256Key32::new([0u8; 32]);
 
-        derive_pbkdf2_key(&password1, &salt, 100, &mut pbkdf2_key1).unwrap();
-        derive_pbkdf2_key(&password2, &salt, 100, &mut pbkdf2_key2).unwrap();
-        derive_pbkdf2_key(&password3, &salt, 100, &mut pbkdf2_key3).unwrap();
+        derive_pbkdf2_key(password1, &salt, 100, &mut pbkdf2_key1).unwrap();
+        derive_pbkdf2_key(password2, &salt, 100, &mut pbkdf2_key2).unwrap();
+        derive_pbkdf2_key(password3, &salt, 100, &mut pbkdf2_key3).unwrap();
 
         pbkdf2_key1.with_secret(|k1| {
             pbkdf2_key2.with_secret(|k2| {
@@ -369,12 +369,12 @@ mod tests {
 
     #[test]
     fn kdf_output_buffer_validation() {
-        let password = PasswordString::new("buffer test".to_string());
+        let password = "buffer test";
         let salt = Salt16::from([0x33; 16]);
 
         // Test ACKDF output buffer
         let mut ackdf_key = Aes256Key32::new([0u8; 32]);
-        derive_ackdf_key(&password, &salt, &mut ackdf_key).unwrap();
+        derive_ackdf_key(password, &salt, &mut ackdf_key).unwrap();
 
         assert_eq!(
             ackdf_key.with_secret(|k| k.len()),
@@ -389,7 +389,7 @@ mod tests {
 
         // Test PBKDF2 output buffer
         let mut pbkdf2_key = Aes256Key32::new([0u8; 32]);
-        derive_pbkdf2_key(&password, &salt, 100, &mut pbkdf2_key).unwrap();
+        derive_pbkdf2_key(password, &salt, 100, &mut pbkdf2_key).unwrap();
 
         assert_eq!(
             pbkdf2_key.with_secret(|k| k.len()),

@@ -47,8 +47,51 @@ If you find AES Crypt (or this Rust port) useful, please consider supporting Pau
 ## Security Features
 
 - **Constant-time operations**: All HMAC verifications and PKCS#7 padding validation use constant-time comparisons to prevent timing attacks
-- **Secure memory management**: All sensitive data (keys, passwords, IVs) wrapped in `secure-gate` types with automatic zeroization
+- **Secure memory management**: Every key, IV, salt and intermediate buffer this crate *creates* is wrapped in a `secure-gate` type with automatic zeroization
+- **Caller-owned passwords**: passwords are taken as `&str` borrows — read in place, never copied, never stored — so no `secure-gate` type appears in a signature you have to name, and this crate's `secure-gate` version stays an internal detail. Zeroizing the password itself is the caller's job; see [Password handling](#password-handling)
 - **Streaming architecture**: Constant-memory decryption using 64-byte ring buffer (no full-file buffering)
+
+## Password handling
+
+`encrypt()`, `decrypt()`, `derive_ackdf_key()`, `derive_pbkdf2_key()`,
+`encryption::derive_setup_key()` and `Pbkdf2Builder::derive_secure*()` all take
+the password as `&str`. Nothing on that path copies it — the borrow reaches
+`pbkdf2`/`sha2` as `str::as_bytes()` and stops there — so **you** own the
+password's lifetime and its zeroization. Keep it in a zeroize-on-drop container
+and hand the API a scoped borrow:
+
+```rust,no_run
+use aescrypt_rs::{encrypt, aliases::PasswordString, constants::DEFAULT_PBKDF2_ITERATIONS};
+use secure_gate::RevealSecret;
+use std::io::Cursor;
+
+let secret = PasswordString::new("correct horse battery staple".to_string());
+let mut ciphertext = Vec::new();
+
+// caller keeps the secret wrapped; the borrow never escapes
+secret.with_secret(|pw| {
+    encrypt(Cursor::new(b"top secret"), &mut ciphertext, pw, DEFAULT_PBKDF2_ITERATIONS)
+})?;
+# Ok::<(), aescrypt_rs::AescryptError>(())
+```
+
+`zeroize::Zeroizing<String>`, `secrecy`, or your own wrapper work just as well —
+anything that derefs to `str`.
+
+Values *derived* from the password inside the crate are still wrapped: the
+UTF-16-LE expansion in `derive_ackdf_key()` is a `secure_gate::Dynamic<Vec<u8>>`,
+and every derived key lands directly in a `secure-gate` alias.
+
+## Dependency coupling
+
+No `secure-gate` type appears in any signature a consumer must name, so this
+crate's `secure-gate` version does not constrain yours. The lower-level
+primitives under `encryption::*`, `decryption::*` and `aliases::*` are the
+deliberate exception: **naming anything from `aliases::*` (or calling a function
+that does) re-acquires the `secure-gate` version coupling**, because two
+`secure-gate` versions in one graph produce two distinct types with identical
+names. Stay on `encrypt()` / `decrypt()` / the KDFs and the coupling never
+appears.
 
 ## Thread Safety
 
@@ -61,26 +104,31 @@ All public functions are **thread-safe** (`Send + Sync`). The library has no sha
 ### Example: Threaded Usage
 
 ```rust,no_run
-use aescrypt_rs::{encrypt, PasswordString, constants::DEFAULT_PBKDF2_ITERATIONS};
+use aescrypt_rs::{encrypt, aliases::PasswordString, constants::DEFAULT_PBKDF2_ITERATIONS};
+use secure_gate::RevealSecret;
 use std::io::Cursor;
-use std::thread;
 
-let password = PasswordString::new("secret".to_string());
+let secret = PasswordString::new("secret".to_string());
 let data = b"large file data...";
 
-// Spawn encryption in a thread
-let handle = thread::spawn(move || {
-    let mut encrypted = Vec::new();
-    encrypt(
-        Cursor::new(data),
-        &mut encrypted,
-        &password,
-        DEFAULT_PBKDF2_ITERATIONS,
-    )
+// A scoped thread keeps the borrow valid, so the secret stays wrapped in the
+// parent frame and still zeroizes on drop.
+let result = std::thread::scope(|s| {
+    let handle = s.spawn(|| {
+        let mut encrypted = Vec::new();
+        secret.with_secret(|pw| {
+            encrypt(
+                Cursor::new(data),
+                &mut encrypted,
+                pw,
+                DEFAULT_PBKDF2_ITERATIONS,
+            )
+        })
+    });
+    handle.join().unwrap()
 });
 
-// Wait for completion or implement cancellation
-let result = handle.join().unwrap()?;
+result?;
 # Ok::<(), aescrypt_rs::AescryptError>(())
 ```
 
@@ -104,10 +152,10 @@ The library provides a minimal, focused API at the root level:
 **Types and constants**:
 
 - `AescryptError` - Comprehensive error type
-- `PasswordString` and other secure types via `aliases::*`
 - Configuration constants via `constants::*`
+- `PasswordString` and the other `secure-gate` aliases via `aliases::*` — optional; see [Dependency coupling](#dependency-coupling)
 
-**Advanced access**: Lower-level functions available via `decryption::*` and `encryption::*` module paths for custom flows.
+**Advanced access**: Lower-level functions available via `decryption::*` and `encryption::*` module paths for custom flows. These exchange `aliases::*` types and therefore re-acquire the `secure-gate` version coupling.
 
 ## API Examples
 
@@ -132,67 +180,73 @@ assert_eq!(version, 0);
 ### Standard encrypt / decrypt
 
 ```rust,no_run
-use aescrypt_rs::{encrypt, decrypt, PasswordString, constants::DEFAULT_PBKDF2_ITERATIONS};
+use aescrypt_rs::{encrypt, decrypt, constants::DEFAULT_PBKDF2_ITERATIONS};
 use std::io::Cursor;
 
-let pw = PasswordString::new("correct horse battery staple".to_string());
+let pw = "correct horse battery staple";
 let data = b"top secret";
 let mut ciphertext = Vec::new();
-encrypt(Cursor::new(data), &mut ciphertext, &pw, DEFAULT_PBKDF2_ITERATIONS)?;
+encrypt(Cursor::new(data), &mut ciphertext, pw, DEFAULT_PBKDF2_ITERATIONS)?;
 let mut plaintext = Vec::new();
-decrypt(Cursor::new(&ciphertext), &mut plaintext, &pw)?;
+decrypt(Cursor::new(&ciphertext), &mut plaintext, pw)?;
 assert_eq!(data, &plaintext[..]);
 # Ok::<(), aescrypt_rs::AescryptError>(())
 ```
+
+For a real password, keep it wrapped and pass a scoped borrow — see
+[Password handling](#password-handling).
 
 ### PBKDF2 Key Derivation Builder
 
 For custom key derivation with a fluent API:
 
 ```rust,no_run
-use aescrypt_rs::{Pbkdf2Builder, PasswordString, aliases::Aes256Key32};
+use aescrypt_rs::{Pbkdf2Builder, aliases::{Aes256Key32, PasswordString}};
+use secure_gate::RevealSecret;
 
-let password = PasswordString::new("my-secret-password".to_string());
+let secret = PasswordString::new("my-secret-password".to_string());
 
 // Use defaults (300k iterations, random salt)
 let mut key = Aes256Key32::new([0u8; 32]);
-Pbkdf2Builder::new()
-    .derive_secure(&password, &mut key)?;
+secret.with_secret(|pw| Pbkdf2Builder::new().derive_secure(pw, &mut key))?;
 
 // Or customize
 let mut custom_key = Aes256Key32::new([0u8; 32]);
-Pbkdf2Builder::new()
-    .with_iterations(500_000)
-    .with_salt([0x42; 16])
-    .derive_secure(&password, &mut custom_key)?;
+secret.with_secret(|pw| {
+    Pbkdf2Builder::new()
+        .with_iterations(500_000)
+        .with_salt([0x42; 16])
+        .derive_secure(pw, &mut custom_key)
+})?;
 
 // Or get a new key directly
-let derived_key = Pbkdf2Builder::new()
-    .derive_secure_new(&password)?;
+let derived_key = secret.with_secret(|pw| Pbkdf2Builder::new().derive_secure_new(pw))?;
 # Ok::<(), aescrypt_rs::AescryptError>(())
 ```
 
 ### Advanced API Access
 
-For custom decryption/encryption flows, access lower-level functions via module paths:
+For custom decryption/encryption flows, access lower-level functions via module paths.
+Note that these exchange `aliases::*` (`secure-gate`) types, which re-introduces the
+version coupling described under [Dependency coupling](#dependency-coupling):
 
 ```rust,no_run
 use aescrypt_rs::{
     decryption::{extract_session_data, StreamConfig, read_file_version},
     encryption::{derive_setup_key, encrypt_session_block},
-    aliases::{Aes256Key32, Iv16, PasswordString},
+    aliases::{Aes256Key32, Iv16},
     constants::DEFAULT_PBKDF2_ITERATIONS,
 };
 use std::io::Cursor;
 
 let mut reader = Cursor::new(b"encrypted data...");
 let version = read_file_version(&mut reader)?;
-let password = PasswordString::new("password".to_string());
+let password = "password";
 
 // Read public IV from file header (example placeholder)
 let public_iv = Iv16::new([0u8; 16]);
 let mut setup_key = Aes256Key32::new([0u8; 32]);
-// derive_setup_key(&password, &public_iv, DEFAULT_PBKDF2_ITERATIONS, &mut setup_key)?;
+// derive_setup_key(password, &public_iv, DEFAULT_PBKDF2_ITERATIONS, &mut setup_key)?;
 let mut session_iv = Iv16::new([0u8; 16]);
 let mut session_key = Aes256Key32::new([0u8; 32]);
 extract_session_data(&mut reader, version, &public_iv, &setup_key, &mut session_iv, &mut session_key)?;
