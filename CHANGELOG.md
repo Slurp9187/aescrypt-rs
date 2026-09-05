@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **BREAKING — remove `secure-gate` types from the password-taking public API.** Every
-  public function that accepted a password now takes `&str` instead of
+- **BREAKING — remove `secure-gate` types from the password-taking public API** ([#47]).
+  Every public function that accepted a password now takes `&str` instead of
   `&PasswordString` (`secure_gate::Dynamic<String>`):
 
   | Function | Before | After |
@@ -48,6 +48,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   **Migration.** Replace `PasswordString::new(s)` + `&password` with the string itself, or
   keep your wrapper and pass a scoped borrow as above. `Dynamic<String>`,
   `Zeroizing<String>`, `EncodedSecret` and anything else that derefs to `str` all work.
+  A consumer that already holds its password in its own zeroize-on-drop container no
+  longer has to materialise a bare `String` just to satisfy this crate's wrapper, so the
+  boundary loses a plaintext copy rather than gaining one.
+
+  The crate version is deliberately **not** bumped here: `0.2.0` has not shipped stable
+  precisely so a break like this can still land inside the `0.2.0-rc` series.
+
+  [#47]: https://github.com/Slurp9187/aescrypt-rs/issues/47
 
 - `derive_ackdf_key` drops one indirection: `password.with_secret(|pw| utf8_to_utf16le(pw.as_bytes()))`
   became `utf8_to_utf16le(password.as_bytes())`. No copy, no behaviour change. Its
