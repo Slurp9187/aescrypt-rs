@@ -10,7 +10,7 @@
 //!
 //! For a more ergonomic builder API see [`crate::Pbkdf2Builder`].
 
-use crate::aliases::{PasswordString, Pbkdf2DerivedKey32, Salt16};
+use crate::aliases::{Pbkdf2DerivedKey32, Salt16};
 use crate::AescryptError;
 
 use hmac::Hmac;
@@ -48,9 +48,28 @@ use sha2::Sha512;
 /// - **Salt uniqueness**: `salt` must be unique per encryption to avoid
 ///   rainbow-table attacks. [`crate::encrypt()`] generates a fresh random
 ///   `Salt16` (the public IV) per call.
-/// - **Memory hygiene**: `password`, `salt`, and `out_key` are all
-///   [`secure-gate`] aliases and zeroize on drop. The password is only
-///   revealed via scoped `with_secret` closures.
+/// - **Memory hygiene**: `salt` and `out_key` are [`secure-gate`] aliases and
+///   zeroize on drop. `password` is a plain `&str` **borrow**: this function
+///   reads it in place (`str::as_bytes`), never copies it and never stores
+///   it, so nothing new needs zeroizing here — but by the same token
+///   **zeroizing the password itself is the caller's responsibility**. Keep
+///   the secret in a zeroize-on-drop container and hand this function a
+///   scoped borrow rather than an owned `String`:
+///
+/// ```
+/// use aescrypt_rs::kdf::pbkdf2::derive_pbkdf2_key;
+/// use aescrypt_rs::aliases::{PasswordString, Pbkdf2DerivedKey32, Salt16};
+/// use secure_gate::RevealSecret;
+///
+/// let secret = PasswordString::new("my-secret-password".to_string());
+/// // In production, prefer `Salt16::from_random()` or `Pbkdf2Builder`.
+/// let salt = Salt16::from([0x42; 16]);
+/// let mut key = Pbkdf2DerivedKey32::new([0u8; 32]);
+///
+/// // caller keeps the secret wrapped; the borrow never escapes
+/// secret.with_secret(|pw| derive_pbkdf2_key(pw, &salt, 300_000, &mut key))?;
+/// # Ok::<(), aescrypt_rs::AescryptError>(())
+/// ```
 ///
 /// # Thread Safety
 ///
@@ -58,16 +77,18 @@ use sha2::Sha512;
 ///
 /// # Examples
 ///
+/// A `&str` literal is fine when the password is not itself secret (test
+/// vectors, fixtures); real passwords should use the scoped-borrow pattern
+/// shown under [Security](#security) above.
+///
 /// ```
 /// use aescrypt_rs::kdf::pbkdf2::derive_pbkdf2_key;
-/// use aescrypt_rs::aliases::{PasswordString, Salt16, Pbkdf2DerivedKey32};
+/// use aescrypt_rs::aliases::{Pbkdf2DerivedKey32, Salt16};
 ///
-/// let password = PasswordString::new("my-secret-password".to_string());
-/// // In production, prefer `Salt16::from_random()` or `Pbkdf2Builder`.
 /// let salt = Salt16::from([0x42; 16]);
 /// let mut key = Pbkdf2DerivedKey32::new([0u8; 32]);
 ///
-/// derive_pbkdf2_key(&password, &salt, 300_000, &mut key)?;
+/// derive_pbkdf2_key("my-secret-password", &salt, 300_000, &mut key)?;
 /// # Ok::<(), aescrypt_rs::AescryptError>(())
 /// ```
 ///
@@ -79,7 +100,7 @@ use sha2::Sha512;
 /// [`secure-gate`]: https://github.com/Slurp9187/secure-gate
 #[inline(always)]
 pub fn derive_pbkdf2_key(
-    password: &PasswordString,
+    password: &str,
     salt: &Salt16,
     iterations: u32,
     out_key: &mut Pbkdf2DerivedKey32,
@@ -87,14 +108,12 @@ pub fn derive_pbkdf2_key(
     // Clamp 0 to 1 — consistent with `Pbkdf2Builder::with_iterations`.
     let iterations = iterations.max(1);
 
-    password
-        .with_secret(|pw| {
-            salt.with_secret(|s| {
-                out_key.with_secret_mut(|key| {
-                    pbkdf2::<Hmac<Sha512>>(pw.as_bytes(), s, iterations, key)
-                })
-            })
-        })
-        .map_err(|e| AescryptError::Crypto(format!("PBKDF2 failed: {e}")))?;
+    // `password.as_bytes()` borrows the caller's buffer in place — no copy is
+    // made here, so there is nothing extra for this function to zeroize.
+    salt.with_secret(|s| {
+        out_key
+            .with_secret_mut(|key| pbkdf2::<Hmac<Sha512>>(password.as_bytes(), s, iterations, key))
+    })
+    .map_err(|e| AescryptError::Crypto(format!("PBKDF2 failed: {e}")))?;
     Ok(())
 }

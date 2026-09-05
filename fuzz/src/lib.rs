@@ -17,7 +17,7 @@
 
 use aes::cipher::{BlockEncrypt, KeyInit};
 use aes::{Aes256Enc, Block};
-use aescrypt_rs::aliases::{AckdfDerivedKey32, Aes256Key32, Iv16, PasswordString, Salt16};
+use aescrypt_rs::aliases::{AckdfDerivedKey32, Aes256Key32, Iv16, Salt16};
 use aescrypt_rs::decryption::{
     consume_all_extensions, decrypt_ciphertext_stream, read_file_version, read_kdf_iterations,
     StreamConfig,
@@ -37,10 +37,9 @@ type HmacSha256 = Hmac<Sha256>;
 
 /// ACKDF setup key for the legacy builder (v0–v2: 8192 × SHA-256, UTF-16-LE password).
 fn ackdf_key(password: &str, iv: &[u8; 16]) -> [u8; 32] {
-    let pw = PasswordString::new(password.to_string());
     let salt = Salt16::from(*iv);
     let mut out = AckdfDerivedKey32::new([0u8; 32]);
-    derive_ackdf_key(&pw, &salt, &mut out).expect("valid UTF-8 password");
+    derive_ackdf_key(password, &salt, &mut out).expect("valid UTF-8 password");
     out.with_secret(|k| *k)
 }
 
@@ -74,7 +73,7 @@ fn hmac_tag(key: &[u8; 32], data: &[u8]) -> [u8; 32] {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Build a valid v3 file with the real encryptor. `iterations` must be 1..=5_000_000.
-pub fn build_v3_file(password: &PasswordString, plaintext: &[u8], iterations: u32) -> Vec<u8> {
+pub fn build_v3_file(password: &str, plaintext: &[u8], iterations: u32) -> Vec<u8> {
     let mut out = Vec::new();
     encrypt(Cursor::new(plaintext), &mut out, password, iterations).expect("encrypt");
     out
@@ -217,7 +216,7 @@ fn clamp_v3_iters(buf: &mut [u8]) {
 
 /// Target 1: raw adversarial bytes → `decrypt()`. Oracle: no panic, no OOM.
 pub fn fuzz_decrypt_raw(data: &[u8]) {
-    let password = PasswordString::new("fuzz-password".to_string());
+    let password = "fuzz-password";
 
     // Clamp a v3 file's iteration count so the fuzzer spends its budget finding
     // defects rather than grinding the intentional PBKDF2 DoS ceiling. Only the
@@ -238,7 +237,7 @@ pub fn fuzz_decrypt_raw(data: &[u8]) {
     };
 
     let mut out = Vec::new();
-    let _ = decrypt(Cursor::new(input), &mut out, &password);
+    let _ = decrypt(Cursor::new(input), &mut out, password);
 }
 
 /// Target 5: pure header parsers on raw bytes. Oracle: no panic.
@@ -287,16 +286,15 @@ pub struct V3Case {
 /// Target 2: v3 round-trip with an authentication oracle. Any accepted mutated
 /// file whose plaintext diverges from the original is an auth bypass → crash.
 pub fn fuzz_roundtrip_v3(case: &V3Case) {
-    let password_str = if case.password.is_empty() {
+    let password = if case.password.is_empty() {
         "p"
     } else {
         case.password.as_str()
     };
-    let password = PasswordString::new(password_str.to_string());
     let plaintext = &case.plaintext[..case.plaintext.len().min(2048)];
     let iterations = 1 + u32::from(case.iterations_sel);
     // `tampered` takes ownership of the built file; nothing else reads `file`.
-    let mut tampered = build_v3_file(&password, plaintext, iterations);
+    let mut tampered = build_v3_file(password, plaintext, iterations);
     let mut changed = false;
     for &(off, x) in case.mutations.iter().take(8) {
         if x != 0 {
@@ -320,7 +318,7 @@ pub fn fuzz_roundtrip_v3(case: &V3Case) {
     clamp_v3_iters(&mut tampered);
 
     let mut out = Vec::new();
-    let result = decrypt(Cursor::new(&tampered), &mut out, &password);
+    let result = decrypt(Cursor::new(&tampered), &mut out, password);
 
     if !changed {
         result.expect("decrypt of untampered v3 file failed");
@@ -352,7 +350,7 @@ pub struct LegacyCase {
 /// plus a tamper oracle that tolerates the format's unauthenticated modulo byte.
 pub fn fuzz_roundtrip_legacy(case: &LegacyCase) {
     let version = case.version_sel % 3;
-    let password_str = if case.password.is_empty() {
+    let password = if case.password.is_empty() {
         "p"
     } else {
         case.password.as_str()
@@ -375,19 +373,18 @@ pub fn fuzz_roundtrip_legacy(case: &LegacyCase) {
 
     let file = build_legacy_file(
         version,
-        password_str,
+        password,
         plaintext,
         &public_iv,
         &case.session_iv,
         &case.session_key,
         &exts,
     );
-    let password = PasswordString::new(password_str.to_string());
 
     // Untampered: must round-trip exactly. This doubles as a continuous
     // differential test of the builder against the real read path.
     let mut out = Vec::new();
-    decrypt(Cursor::new(&file), &mut out, &password)
+    decrypt(Cursor::new(&file), &mut out, password)
         .unwrap_or_else(|e| panic!("well-formed v{version} file rejected: {e}"));
     assert_eq!(out, plaintext, "legacy v{version} round-trip mismatch");
 
@@ -405,7 +402,7 @@ pub fn fuzz_roundtrip_legacy(case: &LegacyCase) {
     }
     if changed {
         let mut out2 = Vec::new();
-        if decrypt(Cursor::new(&tampered), &mut out2, &password).is_ok() {
+        if decrypt(Cursor::new(&tampered), &mut out2, password).is_ok() {
             let n = out2.len().min(plaintext.len());
             assert_eq!(
                 &out2[..n],
@@ -481,8 +478,8 @@ mod tests {
 
     #[test]
     fn smoke_raw_and_parsers() {
-        let password = PasswordString::new("fuzz-password".to_string());
-        let v3 = build_v3_file(&password, b"seed", 1);
+        let password = "fuzz-password";
+        let v3 = build_v3_file(password, b"seed", 1);
         let v0 = build_legacy_file(
             0,
             "fuzz-password",
@@ -518,15 +515,15 @@ mod tests {
 
         // A real v3 file (whatever extension section the encryptor writes) must
         // still have a locatable iteration field equal to the requested count.
-        let pw = PasswordString::new("fuzz-password".to_string());
-        let file = build_v3_file(&pw, b"x", 1234);
+        let pw = "fuzz-password";
+        let file = build_v3_file(pw, b"x", 1234);
         let off = v3_iter_offset(&file).expect("real v3 offset");
         let got = u32::from_be_bytes([file[off], file[off + 1], file[off + 2], file[off + 3]]);
         assert_eq!(got, 1234, "located the wrong iteration field");
 
         // `clamp_v3_iters` caps an inflated field in place but leaves small
         // counts alone.
-        let mut inflated = build_v3_file(&pw, b"x", 7);
+        let mut inflated = build_v3_file(pw, b"x", 7);
         let ioff = v3_iter_offset(&inflated).expect("offset");
         inflated[ioff] = 0x7F; // top big-endian byte → count ≈ 2.1e9
         clamp_v3_iters(&mut inflated);
@@ -537,7 +534,7 @@ mod tests {
             inflated[ioff + 3],
         ]);
         assert_eq!(capped, FUZZ_MAX_ITERS, "clamp must cap an inflated field");
-        let small = build_v3_file(&pw, b"x", 9);
+        let small = build_v3_file(pw, b"x", 9);
         let mut small_clamped = small.clone();
         clamp_v3_iters(&mut small_clamped);
         assert_eq!(small_clamped, small, "clamp must not touch a small count");
@@ -562,8 +559,8 @@ mod tests {
         // the millions, so `decrypt` ground through PBKDF2 before the wrong-key
         // HMAC rejected the file. The harness now clamps the field first, so this
         // case must complete quickly without panicking.
-        let pw = PasswordString::new("p".to_string());
-        let file = build_v3_file(&pw, b"regression", 7);
+        let pw = "p";
+        let file = build_v3_file(pw, b"regression", 7);
         let off = v3_iter_offset(&file).expect("v3 iteration offset");
         // `V3Case` mutation offsets are taken mod the file length; `off` fits in a
         // u16 for any file the fuzzer builds, so the XOR lands on the field's top
@@ -613,13 +610,13 @@ mod tests {
             std::fs::write(dir.join(name), bytes).expect("write seed");
         };
 
-        let password = PasswordString::new("fuzz-password".to_string());
+        let password = "fuzz-password";
 
         // decrypt_raw: real files at iterations=1 so execs stay fast. Password
         // MUST match the target's fixed "fuzz-password" so coverage reaches the
         // success path.
-        let v3 = build_v3_file(&password, b"seed plaintext for fuzzing", 1);
-        let v3_empty = build_v3_file(&password, b"", 1);
+        let v3 = build_v3_file(password, b"seed plaintext for fuzzing", 1);
+        let v3_empty = build_v3_file(password, b"", 1);
         let v0 = build_legacy_file(
             0,
             "fuzz-password",

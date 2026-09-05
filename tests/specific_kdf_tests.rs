@@ -2,7 +2,7 @@
 //! Merged ACKDF/PBKDF2 vector tests — correct expected values (2025)
 
 mod tests {
-    use aescrypt_rs::aliases::{Aes256Key32, PasswordString, Salt16};
+    use aescrypt_rs::aliases::{Aes256Key32, Salt16};
     use aescrypt_rs::{derive_ackdf_key, derive_pbkdf2_key};
     use secure_gate::RevealSecret;
 
@@ -33,13 +33,13 @@ mod tests {
         ];
 
         for (kdf, expected) in cases {
-            let password = PasswordString::new("testpassword".to_owned());
+            let password = "testpassword";
             let salt = Salt16::from([0u8; 16]);
 
             let mut key = Aes256Key32::new([0u8; 32]);
             match kdf {
-                KdfType::Ackdf => derive_ackdf_key(&password, &salt, &mut key).unwrap(),
-                KdfType::Pbkdf2 => derive_pbkdf2_key(&password, &salt, 1, &mut key).unwrap(),
+                KdfType::Ackdf => derive_ackdf_key(password, &salt, &mut key).unwrap(),
+                KdfType::Pbkdf2 => derive_pbkdf2_key(password, &salt, 1, &mut key).unwrap(),
             };
 
             key.with_secret(|k| assert_eq!(k, &expected, "{kdf:?} zero salt mismatch"));
@@ -67,7 +67,7 @@ mod tests {
         ];
 
         for (kdf, expected) in cases {
-            let password = PasswordString::new("password".to_owned());
+            let password = "password";
             let salt = Salt16::from([
                 0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd,
                 0xee, 0xff,
@@ -75,8 +75,8 @@ mod tests {
 
             let mut key = Aes256Key32::new([0u8; 32]);
             match kdf {
-                KdfType::Ackdf => derive_ackdf_key(&password, &salt, &mut key).unwrap(),
-                KdfType::Pbkdf2 => derive_pbkdf2_key(&password, &salt, 1, &mut key).unwrap(),
+                KdfType::Ackdf => derive_ackdf_key(password, &salt, &mut key).unwrap(),
+                KdfType::Pbkdf2 => derive_pbkdf2_key(password, &salt, 1, &mut key).unwrap(),
             };
 
             key.with_secret(|k| assert_eq!(k, &expected, "{kdf:?} custom salt mismatch"));

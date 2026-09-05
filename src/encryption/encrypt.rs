@@ -2,7 +2,6 @@
 
 //! High-level [`encrypt`] entry point: streams plaintext to an AES Crypt v3 file.
 
-use crate::aliases::PasswordString;
 use crate::aliases::{Aes256Key32, EncryptedSessionBlock48, HmacSha256, Iv16};
 use crate::constants::AESCRYPT_LATEST_VERSION;
 use crate::constants::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
@@ -53,10 +52,16 @@ use std::io::{Read, Write};
 ///
 /// # Security
 ///
-/// - All secrets ([`PasswordString`], session key, session IV, setup key) live
-///   in [`secure-gate`] wrappers and zeroize on drop. Plaintext blocks
-///   transit the stack inside [`Block16`](crate::aliases::Block16) for the
-///   same reason.
+/// - Every secret this function *creates* — session key, session IV, public
+///   IV, setup key — lives in a [`secure-gate`] wrapper and zeroizes on drop.
+///   Plaintext blocks transit the stack inside
+///   [`Block16`](crate::aliases::Block16) for the same reason.
+/// - `password` is a plain `&str` **borrow**. It is passed straight through
+///   to [`derive_setup_key`](crate::encryption::derive_setup_key) and read in
+///   place; this function makes no copy of it and never stores it, so
+///   **zeroizing the password is the caller's responsibility**. Keep it in a
+///   zeroize-on-drop container and hand `encrypt` a scoped borrow — see the
+///   examples below.
 /// - The public IV doubles as the PBKDF2 salt; it is generated with
 ///   `Iv16::from_random` per call and is therefore unique with overwhelming
 ///   probability.
@@ -84,34 +89,59 @@ use std::io::{Read, Write};
 ///
 /// # Examples
 ///
+/// The password is an ordinary `&str`, so `encrypt` composes with whatever
+/// zeroize-on-drop container the caller already uses. With this crate's
+/// [`PasswordString`](crate::aliases::PasswordString):
+///
 /// ```no_run
-/// use aescrypt_rs::{encrypt, PasswordString, constants::DEFAULT_PBKDF2_ITERATIONS};
+/// use aescrypt_rs::{encrypt, aliases::PasswordString, constants::DEFAULT_PBKDF2_ITERATIONS};
+/// use secure_gate::RevealSecret;
 /// use std::io::Cursor;
 ///
-/// let password = PasswordString::new("correct horse battery staple".to_string());
+/// let secret = PasswordString::new("correct horse battery staple".to_string());
 /// let plaintext = b"top secret";
-///
 /// let mut ciphertext = Vec::new();
-/// encrypt(Cursor::new(plaintext), &mut ciphertext, &password, DEFAULT_PBKDF2_ITERATIONS)?;
+///
+/// // caller keeps the secret wrapped; the borrow never escapes
+/// secret.with_secret(|pw| {
+///     encrypt(Cursor::new(plaintext), &mut ciphertext, pw, DEFAULT_PBKDF2_ITERATIONS)
+/// })?;
 /// # Ok::<(), aescrypt_rs::AescryptError>(())
 /// ```
 ///
-/// Threaded usage:
+/// A bare `&str` is fine when the password is not itself secret (fixtures,
+/// test vectors):
 ///
 /// ```no_run
-/// use aescrypt_rs::{encrypt, PasswordString};
+/// use aescrypt_rs::{encrypt, constants::DEFAULT_PBKDF2_ITERATIONS};
 /// use std::io::Cursor;
-/// use std::thread;
 ///
-/// let password = PasswordString::new("secret".to_string());
+/// let mut ciphertext = Vec::new();
+/// encrypt(Cursor::new(b"top secret"), &mut ciphertext, "fixture-password",
+///         DEFAULT_PBKDF2_ITERATIONS)?;
+/// # Ok::<(), aescrypt_rs::AescryptError>(())
+/// ```
+///
+/// Threaded usage — the borrow is confined to the scoped thread, so the
+/// secret stays wrapped in the parent frame and still zeroizes on drop:
+///
+/// ```no_run
+/// use aescrypt_rs::{encrypt, aliases::PasswordString};
+/// use secure_gate::RevealSecret;
+/// use std::io::Cursor;
+///
+/// let secret = PasswordString::new("secret".to_string());
 /// let data = b"large file data...";
 ///
-/// let handle = thread::spawn(move || {
-///     let mut encrypted = Vec::new();
-///     encrypt(Cursor::new(data), &mut encrypted, &password, 300_000)
+/// let result = std::thread::scope(|s| {
+///     let handle = s.spawn(|| {
+///         let mut encrypted = Vec::new();
+///         secret.with_secret(|pw| encrypt(Cursor::new(data), &mut encrypted, pw, 300_000))
+///     });
+///     handle.join().unwrap()
 /// });
 ///
-/// let _result = handle.join().unwrap();
+/// let _ = result;
 /// ```
 ///
 /// # See also
@@ -125,7 +155,7 @@ use std::io::{Read, Write};
 pub fn encrypt<R, W>(
     mut input: R,
     mut output: W,
-    password: &PasswordString,
+    password: &str,
     kdf_iterations: u32,
 ) -> Result<(), AescryptError>
 where

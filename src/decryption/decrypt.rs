@@ -7,7 +7,7 @@ use crate::decryption::read::{
 use crate::decryption::session::extract_session_data;
 use crate::decryption::stream::{decrypt_ciphertext_stream, StreamConfig};
 
-use crate::aliases::{Aes256Key32, Iv16, PasswordString};
+use crate::aliases::{Aes256Key32, Iv16};
 use crate::error::AescryptError;
 use crate::{derive_ackdf_key, derive_pbkdf2_key};
 use std::io::{Read, Write};
@@ -40,8 +40,9 @@ use std::io::{Read, Write};
 ///   (`"session data corrupted or tampered"`), payload-HMAC mismatch
 ///   (`"HMAC verification failed"`), or invalid v3 PKCS#7 padding.
 /// - [`AescryptError::UnsupportedVersion`] — version byte is `> 3`.
-/// - [`AescryptError::Crypto`] — KDF failure (PBKDF2 or ACKDF, including
-///   non-UTF-8 password bytes for v0–v2).
+/// - [`AescryptError::Crypto`] — KDF failure (PBKDF2 or ACKDF). The ACKDF
+///   non-UTF-8 password variant is structurally unreachable now that
+///   `password` is a `&str`.
 ///
 /// # Panics
 ///
@@ -64,13 +65,13 @@ use std::io::{Read, Write};
 /// trustworthy.
 ///
 /// ```no_run
-/// use aescrypt_rs::{decrypt, PasswordString};
+/// use aescrypt_rs::decrypt;
 /// use std::io::Cursor;
 ///
 /// # let reader = Cursor::new(vec![]);
-/// # let password = PasswordString::new("pw".to_string());
+/// # let password = "pw";
 /// let mut plaintext = Vec::new();
-/// if decrypt(reader, &mut plaintext, &password).is_err() {
+/// if decrypt(reader, &mut plaintext, password).is_err() {
 ///     plaintext.clear(); // mandatory when using an accumulating buffer
 /// }
 /// ```
@@ -78,8 +79,11 @@ use std::io::{Read, Write};
 /// Other security properties:
 ///
 /// - Setup, session, and intermediate keys live in [`secure-gate`] aliases and
-///   zeroize on drop. The [`PasswordString`] never appears in plain form
-///   outside scoped reveals.
+///   zeroize on drop.
+/// - `password` is a plain `&str` **borrow**: it is forwarded to the KDF and
+///   read in place, never copied and never stored, so **zeroizing the
+///   password is the caller's responsibility**. Keep it in a zeroize-on-drop
+///   container and pass a scoped borrow — see the examples below.
 /// - HMAC and PKCS#7 padding are compared in constant time
 ///   (`secure-gate`'s `ConstantTimeEq`).
 /// - Pre-authentication parsing is bounded: the header has fixed sizes,
@@ -110,36 +114,45 @@ use std::io::{Read, Write};
 ///
 /// # Examples
 ///
+/// Keeping the secret wrapped in this crate's
+/// [`PasswordString`](crate::aliases::PasswordString):
+///
 /// ```no_run
-/// use aescrypt_rs::{decrypt, PasswordString};
+/// use aescrypt_rs::{decrypt, aliases::PasswordString};
+/// use secure_gate::RevealSecret;
 /// use std::io::Cursor;
 ///
-/// let password = PasswordString::new("secret".to_string());
+/// let secret = PasswordString::new("secret".to_string());
 /// let ciphertext: &[u8] = b""; // contents of a .aes file
-///
 /// let mut plaintext = Vec::new();
-/// match decrypt(Cursor::new(ciphertext), &mut plaintext, &password) {
+///
+/// // caller keeps the secret wrapped; the borrow never escapes
+/// match secret.with_secret(|pw| decrypt(Cursor::new(ciphertext), &mut plaintext, pw)) {
 ///     Ok(()) => { /* plaintext is now authenticated */ }
 ///     Err(_) => plaintext.clear(),
 /// }
 /// ```
 ///
-/// Threaded usage:
+/// Threaded usage — the borrow is confined to the scoped thread, so the
+/// secret stays wrapped in the parent frame and still zeroizes on drop:
 ///
 /// ```no_run
-/// use aescrypt_rs::{decrypt, PasswordString};
+/// use aescrypt_rs::{decrypt, aliases::PasswordString};
+/// use secure_gate::RevealSecret;
 /// use std::io::Cursor;
-/// use std::thread;
 ///
-/// let password = PasswordString::new("secret".to_string());
+/// let secret = PasswordString::new("secret".to_string());
 /// let encrypted = b"encrypted data...";
 ///
-/// let handle = thread::spawn(move || {
-///     let mut plaintext = Vec::new();
-///     decrypt(Cursor::new(encrypted), &mut plaintext, &password)
+/// let result = std::thread::scope(|s| {
+///     let handle = s.spawn(|| {
+///         let mut plaintext = Vec::new();
+///         secret.with_secret(|pw| decrypt(Cursor::new(encrypted), &mut plaintext, pw))
+///     });
+///     handle.join().unwrap()
 /// });
 ///
-/// let _result = handle.join().unwrap();
+/// let _ = result;
 /// ```
 ///
 /// # See also
@@ -148,13 +161,8 @@ use std::io::{Read, Write};
 /// - [`crate::read_version`] — header-only version triage.
 ///
 /// [`secure-gate`]: https://github.com/Slurp9187/secure-gate
-/// [`PasswordString`]: crate::PasswordString
 #[inline(always)]
-pub fn decrypt<R, W>(
-    mut input: R,
-    mut output: W,
-    password: &PasswordString,
-) -> Result<(), AescryptError>
+pub fn decrypt<R, W>(mut input: R, mut output: W, password: &str) -> Result<(), AescryptError>
 where
     R: Read,
     W: Write,

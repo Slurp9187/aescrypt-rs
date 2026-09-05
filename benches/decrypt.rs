@@ -3,7 +3,6 @@
 
 use aescrypt_rs::{decrypt, encrypt};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use secure_gate::Dynamic;
 use std::hint::black_box;
 use std::io::Cursor;
 
@@ -26,8 +25,8 @@ fn format_size(bytes: usize) -> String {
 fn bench_decrypt(c: &mut Criterion) {
     let mut group = c.benchmark_group("decrypt");
 
-    // Secure password — zero-cost, auto-zeroized on drop
-    let password: Dynamic<String> = Dynamic::new("benchmark-password".to_string());
+    // Borrowed password — `encrypt`/`decrypt` take `&str` and never copy it.
+    let password = "benchmark-password";
 
     let sizes = [KB, 64 * KB, MB, 10 * MB];
 
@@ -37,13 +36,7 @@ fn bench_decrypt(c: &mut Criterion) {
         let mut encrypted = Vec::with_capacity(size + 1024);
         {
             let mut src = Cursor::new(&input);
-            encrypt(
-                &mut src,
-                &mut encrypted,
-                &password, // encrypt takes ownership
-                KDF_ITERATIONS,
-            )
-            .unwrap();
+            encrypt(&mut src, &mut encrypted, password, KDF_ITERATIONS).unwrap();
         }
 
         group.throughput(Throughput::Bytes(size as u64));
@@ -55,8 +48,7 @@ fn bench_decrypt(c: &mut Criterion) {
                     let mut dst = Vec::with_capacity(size);
                     let mut src = Cursor::new(black_box(&encrypted));
 
-                    // decrypt takes password by reference
-                    decrypt(&mut src, &mut dst, black_box(&password)).unwrap();
+                    decrypt(&mut src, &mut dst, black_box(password)).unwrap();
 
                     black_box(dst)
                 });
