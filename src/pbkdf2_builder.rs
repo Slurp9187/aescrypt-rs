@@ -112,8 +112,11 @@ impl Pbkdf2Builder {
 
     /// Overrides the salt with the supplied 16-byte value.
     ///
-    /// Accepts anything that converts into `[u8; 16]` (including a literal
-    /// array or a [`crate::aliases::Salt16`]). The resulting salt is
+    /// Accepts anything that converts into `[u8; 16]` — in practice a literal
+    /// array. A [`crate::aliases::Salt16`] is *not* accepted: it is a
+    /// `secure-gate` wrapper, and unwrapping one into a bare array would defeat
+    /// the protection, so no such conversion exists. Read it out explicitly with
+    /// `salt.with_secret(|s| *s)` if you genuinely need to. The resulting salt is
     /// stored in a [`secure-gate`] alias and zeroizes on drop.
     ///
     /// # Security
