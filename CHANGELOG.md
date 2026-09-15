@@ -233,9 +233,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   Found by generalising a hazard measured upstream on `From<&[u8]>` / `From<&str>`, where the
   ergonomic conversion copies and `new(owned)` moves: the `From<[u8; N]>` spelling carries the
-  same hazard whenever its argument was manufactured by a deref. Every other deref inside a
-  `with_secret` closure in this crate was audited and carries public data only — extension
-  lengths, iteration counts, the public IV, and CBC ciphertext chaining blocks.
+  same hazard whenever its argument was manufactured by a deref.
+
+- **`encrypt_stream` no longer copies the session IV through an unzeroized temporary.** Same
+  shape as above — `Block16::new(*siv)` materialised a bare `[u8; 16]` that nothing wiped — and
+  lower stakes, since an IV is not a key. It is still protected material rather than public: the
+  session IV is encrypted inside the session block, unlike the file's public IV. Now copied
+  wrapper-to-wrapper.
+
+  With this, every remaining deref inside a `with_secret` closure in the crate was audited and
+  carries public data only: extension lengths, iteration counts, the public IV (which is in the
+  file header in the clear), and CBC ciphertext chaining blocks.
 
 ## [0.2.0-rc.10] - 2026-07-06
 
