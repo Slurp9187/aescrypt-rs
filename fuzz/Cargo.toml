@@ -29,7 +29,7 @@ libfuzzer-sys = { version = "0.4", optional = true }
 # dependencies by source URL, and any divergence — a different URL, a `rev`, or a
 # registry dep — puts two semver-incompatible `secure-gate` copies in one graph.
 # The symptom is the baffling `expected Fixed<[u8; 32]>, found Fixed<[u8; 32]>`.
-secure-gate = { git = "https://github.com/Slurp9187/secure-gate", version = "0.9.0-rc.10", features = ["rand", "ct-eq"] }
+secure-gate = { git = "https://github.com/Slurp9187/secure-gate", version = "0.9.0-rc.11", features = ["rand", "ct-eq"] }
 aes = "0.8"
 hmac = "0.12"
 sha2 = "0.10"

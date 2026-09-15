@@ -46,7 +46,7 @@ pbkdf2 = "0.12"
 #
 # Revert to a plain registry dep, pinned with `=`, before publishing. See
 # CHANGELOG.md [Unreleased].
-secure-gate = { git = "https://github.com/Slurp9187/secure-gate", version = "0.9.0-rc.10", features = ["rand", "ct-eq"] }
+secure-gate = { git = "https://github.com/Slurp9187/secure-gate", version = "0.9.0-rc.11", features = ["rand", "ct-eq"] }
 sha2 = "0.10"
 thiserror = "2.0"
 

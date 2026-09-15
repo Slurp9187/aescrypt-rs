@@ -275,7 +275,7 @@ checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
 [[package]]
 name = "secure-gate"
 version = "0.9.0-rc.11"
-source = "git+https://github.com/Slurp9187/secure-gate#ab87b87aaf768861e567fe0b5131608804bc1c1a"
+source = "git+https://github.com/Slurp9187/secure-gate#84f8b3548f5423f75a56e4ab7c75e13cf050d09e"
 dependencies = [
  "base16ct",
  "base32ct",
