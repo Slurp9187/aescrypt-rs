@@ -232,7 +232,7 @@ version coupling described under [Dependency coupling](#dependency-coupling):
 
 ```rust,no_run
 use aescrypt_rs::{
-    decryption::{extract_session_data, StreamConfig, read_file_version},
+    decryption::{extract_session_data, read_file_version},
     encryption::{derive_setup_key, encrypt_session_block},
     aliases::{Aes256Key32, Iv16},
     constants::DEFAULT_PBKDF2_ITERATIONS,
@@ -240,7 +240,9 @@ use aescrypt_rs::{
 use std::io::Cursor;
 
 let mut reader = Cursor::new(b"encrypted data...");
-let version = read_file_version(&mut reader)?;
+// Returns (version, reserved) — the second byte is the v1–v3 reserved byte,
+// which doubles as the modulo byte on v0–v2.
+let (version, _reserved) = read_file_version(&mut reader)?;
 let password = "password";
 
 // Read public IV from file header (example placeholder)
@@ -285,7 +287,7 @@ This crate defines **no optional features**. It always links `aes` with the `zer
 
 ## Installation
 
-**Requires Rust 1.85+**, matching **`rust-version`** in this crate’s `Cargo.toml` (Rust **edition 2021**). Verify with `cargo +1.85 test` if you pin an older toolchain.
+**Requires Rust 1.85+**, matching **`rust-version`** in this crate’s `Cargo.toml` (Rust **edition 2024**). Verify with `cargo +1.85 test` if you pin an older toolchain.
 
 ```toml
 [dependencies]

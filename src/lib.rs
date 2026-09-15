@@ -1,7 +1,3 @@
-// uncomment to run doctests
-// cargo test --doc lib
-//#![doc = include_str!("../README.md")]
-
 #![forbid(unsafe_code)]
 
 //! Fast, safe, streaming AES Crypt (v0–v3) encryption and decryption.
@@ -197,3 +193,23 @@ pub use kdf::pbkdf2::derive_pbkdf2_key;
 
 // Header-only inspection.
 pub use header::read_version;
+
+// The README's examples are compiled and run by `cargo test --doc`, so they cannot
+// silently rot. `cfg(doctest)` is set only while rustdoc *collects doctests* — never
+// while it *builds documentation* — so this item never reaches docs.rs or `cargo doc`
+// output, and the README is not duplicated onto the crate page, which already covers
+// the same ground in the `//!` docs above.
+//
+// No feature gate is needed here: this crate defines no optional features, so the
+// README's imports are always available.
+//
+// It must live at the end of the file: an item here would otherwise sit ahead of the
+// `//!` crate docs above, which is not allowed.
+//
+// This is load-bearing rather than decorative. It was commented out until
+// 0.2.0-rc.11, and in that time the "Advanced API Access" example drifted — it bound
+// `read_file_version`'s `(u8, u8)` return as a single `u8` and had stopped compiling,
+// with nothing to catch it.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+pub struct ReadmeDoctests;
