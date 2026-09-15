@@ -115,15 +115,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   MSRV-aware resolver configured in `.cargo/config.toml` had nothing to rank against there and
   that lockfile resolved unconstrained.
 
-### Added
-
-- **An MSRV CI workflow** (`.github/workflows/msrv.yml`), running `cargo +1.85 test
-  --all-features`, `cargo +1.85 bench --no-run`, and the same tests on stable. `Cargo.toml`,
-  `src/lib.rs` and `README.md` have asserted since rc.8 that CI enforced the MSRV; no such job
-  existed, and the only workflow in the repo was `fuzz.yml`, whose path filters mean it never
-  ran on a manifest change. The `bench --no-run` step is the sole guard on the criterion 0.7 →
-  clap 4.6 zero-margin edge.
-
 - **BREAKING — remove `secure-gate` types from the password-taking public API** ([#47]).
   Every public function that accepted a password now takes `&str` instead of
   `&PasswordString` (`secure_gate::Dynamic<String>`):
@@ -195,6 +186,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **An MSRV CI workflow** (`.github/workflows/msrv.yml`), running `cargo +1.85 test
+  --all-features`, `cargo +1.85 bench --no-run`, and the same tests on stable. `Cargo.toml`,
+  `src/lib.rs` and `README.md` have asserted since rc.8 that CI enforced the MSRV; no such job
+  existed, and the only workflow in the repo was `fuzz.yml`, whose path filters mean it never
+  ran on a manifest change. The `bench --no-run` step is the sole guard on the criterion 0.7 →
+  clap 4.6 zero-margin edge.
 - Crate-level **"Dependency coupling"** section (and a README counterpart) recording that
   the lower-level primitives under `encryption::*` / `decryption::*` still exchange
   `aliases::*` types by design — so **naming anything from `aescrypt_rs::aliases::*` (or
@@ -207,6 +204,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tests/encrypt_tests.rs::roundtrip_with_wrapped_secret_borrow` — a round-trip through
   `PasswordString::with_secret`, pinning the documented scoped-borrow pattern so it cannot
   silently stop compiling.
+
+### Fixed
+
+- **Two false claims in the shipped rustdoc.** `Pbkdf2Builder::with_salt` documented that it
+  accepts "a literal array or a [`Salt16`]" — the second half never compiled, because `Salt16`
+  is `Fixed<[u8; 16]>` and no `impl Into<[u8; 16]>` exists for it (unwrapping one into a bare
+  array is what the wrapper exists to prevent). It now states what is actually accepted, plus
+  an explicit escape hatch. And `DecryptionContext::decrypt_cbc_loop` primed the ciphertext
+  ring with a buffer typed `EncryptedSessionBlock48`, which holds payload ciphertext, not a
+  session block; retyped to `SpanBuffer<48>` — the same underlying `Fixed<[u8; 48]>`, so no
+  behaviour change. Same-size aliases are interchangeable by design, so a wrong name costs
+  nothing at compile time and misleads every later reader.
+
+### Security
+
+- **`extract_session_data` no longer copies the v0 setup key through an unzeroized temporary.**
+  The v0 branch wrote its outputs with `Iv16::from(*iv)` / `Aes256Key32::from(*key)`.
+  Dereferencing the inner array produces a bare `[u8; 16]` / `[u8; 32]` on the stack that
+  `From` then copies into the wrapper — and nothing zeroizes it. For a v0 file the setup key
+  *is* the master key, so a copy of it outlived its wrapper, contradicting this module's own
+  claim that "no plaintext key bytes survive the call frame".
+
+  Being lexically inside `with_secret` does not protect the value: the guard is `&`-scoped
+  access and a deref escapes it, while `[u8; N]: Copy` makes the copy invisible at the call
+  site. Now copied wrapper-to-wrapper, the shape the same function already used for the v1+
+  CBC path. Behaviour is identical — same bytes, same order, no format change.
+
+  Found by generalising a hazard measured upstream on `From<&[u8]>` / `From<&str>`, where the
+  ergonomic conversion copies and `new(owned)` moves: the `From<[u8; N]>` spelling carries the
+  same hazard whenever its argument was manufactured by a deref. Every other deref inside a
+  `with_secret` closure in this crate was audited and carries public data only — extension
+  lengths, iteration counts, the public IV, and CBC ciphertext chaining blocks.
 
 ## [0.2.0-rc.10] - 2026-07-06
 
