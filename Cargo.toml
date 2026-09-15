@@ -13,7 +13,30 @@ repository = "https://github.com/Slurp9187/aescrypt-rs"
 documentation = "https://docs.rs/aescrypt-rs"
 keywords = ["aes", "crypt", "encryption", "decryption"]
 categories = ["cryptography"]
-include = ["src/**/*.rs", "/CHANGELOG.md", "/LICENSE*", "/README.md"]
+# Allowlist, not `exclude`, deliberately: with an allowlist a new directory is
+# absent from the tarball until it is named here, and the worst case is a verify
+# build that fails loudly. With `exclude` a new directory ships by default and
+# the worst case is publishing something unintended to an immutable registry —
+# crates.io has no delete, and a yanked version stays downloadable. `fuzz/` is
+# 135 MB, so that is not hypothetical.
+#
+# `tests/` and its vectors ship so the crate's headline claim — round-trip
+# verified against all 63 official v0-v3 test vectors — is checkable from the
+# published artifact rather than only from a repo that can be force-pushed. It
+# also lets distro packagers, who build from the crates.io tarball, actually run
+# the suite instead of skipping it. Costs ~65 KiB compressed.
+#
+# `benches/` deliberately does NOT ship: timings are not reproducible across
+# machines, nobody benchmarks a dependency, and they evidence nothing about
+# correctness. `fuzz/`, `docs/` and `scripts/` stay out for the same reason.
+include = [
+    "src/**/*.rs",
+    "tests/**/*.rs",
+    "tests/test_data/**",
+    "/CHANGELOG.md",
+    "/LICENSE*",
+    "/README.md",
+]
 
 # ----------------------------------------------------------------------
 # docs.rs metadata
