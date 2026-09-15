@@ -1,14 +1,18 @@
 /benches/test_data
 /code_packages
 /drafts
-/references*
+# Trailing slash: directories only. Without it these are file globs too, and
+# `/references*` silently swallowed a root `references.md` — plausible for a
+# crate implementing a documented format. The `*` is kept so suffixed variants
+# (`references_old/`, `trash2/`) are still caught.
+/references*/
 # Cargo build dirs, at any depth. Trailing slash = directories only; no leading
 # slash = every level. This must not be `/target*`: that is anchored to the repo
 # root, so a nested crate's build dir is missed (`fuzz/target/` only escaped
 # because fuzz/.gitignore covers it separately), and being a file glob it also
 # silently swallowed root files like `target_notes.md`.
 target/
-/trash*
+/trash*/
 **/.cursor/
 
 # Cargo.lock
