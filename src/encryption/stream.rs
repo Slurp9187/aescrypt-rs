@@ -76,8 +76,12 @@ where
             .expect("session_key is always 32 bytes — valid HMAC key")
     });
 
-    // previous ciphertext block — secure from birth
-    let mut prev_block = session_iv.with_secret(|siv| Block16::new(*siv));
+    // Previous ciphertext block — secure from birth, and copied wrapper-to-wrapper.
+    // `Block16::new(*siv)` would deref the session IV into a bare `[u8; 16]` that
+    // nothing zeroizes; the session IV is encrypted inside the session block, so it
+    // is protected material, not public like the file's IV.
+    let mut prev_block = Block16::new([0u8; 16]);
+    session_iv.with_secret(|siv| prev_block.with_secret_mut(|pb| pb.copy_from_slice(siv)));
 
     let mut plaintext_block = Block16::new([0u8; 16]);
 
