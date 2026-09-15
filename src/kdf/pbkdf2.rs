@@ -10,8 +10,8 @@
 //!
 //! For a more ergonomic builder API see [`crate::Pbkdf2Builder`].
 
-use crate::aliases::{Pbkdf2DerivedKey32, Salt16};
 use crate::AescryptError;
+use crate::aliases::{Pbkdf2DerivedKey32, Salt16};
 
 use hmac::Hmac;
 use pbkdf2::pbkdf2;

@@ -8,8 +8,8 @@ use crate::decryption::stream::trailer::{
     extract_hmac_scattered, extract_hmac_simple, write_final_modulo, write_final_pkcs7,
 };
 use crate::error::AescryptError;
-use aes::cipher::KeyInit;
 use aes::Aes256Dec;
+use aes::cipher::KeyInit;
 use hmac::Mac;
 use secure_gate::{ConstantTimeEq, RevealSecret};
 use std::io::{Read, Write};

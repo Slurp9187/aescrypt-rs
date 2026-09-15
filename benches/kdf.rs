@@ -1,7 +1,7 @@
 //! benches/kdf.rs
 //! Consolidated KDF benchmarks – multi-iter PBKDF2 + ACKDF
 use aescrypt_rs::{derive_ackdf_key, derive_pbkdf2_key};
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use secure_gate::Fixed;
 use std::hint::black_box;
 use std::time::Duration;

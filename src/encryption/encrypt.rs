@@ -12,8 +12,8 @@ use crate::encryption::write::{
     write_extensions, write_header, write_hmac, write_iterations, write_octets, write_public_iv,
 };
 use crate::error::AescryptError;
-use aes::cipher::KeyInit;
 use aes::Aes256Enc;
+use aes::cipher::KeyInit;
 use hmac::Mac;
 use secure_gate::RevealSecret;
 use std::io::{Read, Write};

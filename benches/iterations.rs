@@ -4,7 +4,7 @@
 //! Tests performance impact of different PBKDF2 iteration counts
 
 use aescrypt_rs::{decrypt, encrypt};
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use std::hint::black_box;
 use std::io::Cursor;
 

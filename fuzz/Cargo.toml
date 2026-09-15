@@ -2,7 +2,7 @@
 name = "aescrypt-rs-fuzz"
 version = "0.0.0"
 publish = false
-edition = "2021"
+edition = "2024"
 # Declared so the MSRV-aware resolver (`.cargo/config.toml`,
 # `incompatible-rust-versions = "fallback"`) has something to rank against here
 # too; without it this lockfile resolves unconstrained.

@@ -31,6 +31,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Per [#49] this ships in the `0.2.0-rc` line rather than forking a `0.3.0`: `0.2.0` has never
   been released, so there are no stable consumers a parallel lane could protect.
 
+- **Rust edition 2024** — `edition = "2024"` in both `Cargo.toml` and `fuzz/Cargo.toml`. Like
+  the MSRV raise this re-lands a [0.2.0-rc.7] change that [0.2.0-rc.8] reverted undocumented.
+  `cargo fix --edition` produced **zero source changes**, confirming that entry's assessment.
+
+  The edition change that actually mattered here was the new temporary and tail-expression drop
+  scope, since this crate's security model is `ZeroizeOnDrop`. The surface was surveyed and is
+  empty: no `if let` / `while let` anywhere takes a `with_secret` call as its scrutinee, and the
+  two tail-position `with_secret` calls are both benign — `encryption/write.rs` is a whole
+  function body with no locals to reorder against, and `decryption/read.rs` is a `?`-terminated
+  statement whose tail is `Ok(buf)`. Dropping *earlier* is safe for zeroization regardless; the
+  residual risk was borrow/move breakage, which fails at compile time.
+
+  `#![forbid(unsafe_code)]` makes `unsafe_op_in_unsafe_fn` moot, and there are no bare `gen`
+  identifiers for the keyword reservation to catch. Macro hygiene is a non-issue by
+  construction: a `macro_rules!` matcher is interpreted in the edition of the crate that
+  *defines* it, and `secure-gate` is already edition 2024.
+
+  The only diff beyond the two manifest lines is import reordering, from rustfmt's 2024 style
+  edition.
+
 - **`secure-gate` moved from `0.8.0-rc.10` to the `0.9` line**, crossing three release
   candidates. Numbering is not comparable across the two lines — the 0.8 and 0.9 branches are
   tagged in dated pairs, so `0.8.0-rc.10` is content-equivalent to **`0.9.0-rc.7`**, and this

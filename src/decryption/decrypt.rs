@@ -5,7 +5,7 @@ use crate::decryption::read::{
     consume_all_extensions, read_exact_span, read_file_version, read_kdf_iterations,
 };
 use crate::decryption::session::extract_session_data;
-use crate::decryption::stream::{decrypt_ciphertext_stream, StreamConfig};
+use crate::decryption::stream::{StreamConfig, decrypt_ciphertext_stream};
 
 use crate::aliases::{Aes256Key32, Iv16};
 use crate::error::AescryptError;
