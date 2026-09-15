@@ -47,7 +47,7 @@ If you find AES Crypt (or this Rust port) useful, please consider supporting Pau
 ## Security Features
 
 - **Constant-time operations**: All HMAC verifications and PKCS#7 padding validation use constant-time comparisons to prevent timing attacks
-- **Secure memory management**: Every key, IV, salt and intermediate buffer this crate *creates* is wrapped in a `secure-gate` type with automatic zeroization
+- **Secure memory management**: Every key, IV, salt and intermediate buffer this crate *creates* is wrapped in a `secure-gate` type with automatic zeroization. Two things sit outside that: the caller-owned password (below), and third-party cipher/hasher internals this crate cannot reach — `aes` is built with its `zeroize` feature so the key schedule *is* wiped, but `hmac` 0.12 and `sha2` 0.10 expose no zeroize hook, so HMAC opad/ipad state and SHA-256 chaining state persist until their frames are reused. See the crate-level Security Model on [docs.rs](https://docs.rs/aescrypt-rs)
 - **Caller-owned passwords**: passwords are taken as `&str` borrows — read in place, never copied, never stored — so no `secure-gate` type appears in a signature you have to name, and this crate's `secure-gate` version stays an internal detail. Zeroizing the password itself is the caller's job; see [Password handling](#password-handling)
 - **Streaming architecture**: Constant-memory decryption using 64-byte ring buffer (no full-file buffering)
 

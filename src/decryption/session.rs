@@ -81,7 +81,13 @@ where
     let encrypted_block: EncryptedSessionBlock48 = read_exact_span(reader)?;
     let expected_hmac: SessionHmacTag32 = read_exact_span(reader)?;
 
-    // HMAC verification — exact same pattern as encryption side
+    // HMAC verification — exact same pattern as encryption side.
+    //
+    // Note: the returned `HmacSha256` carries opad/ipad state derived from
+    // `setup_key`, and it is not wrapped. `hmac` 0.12 has no `Drop` impl and no
+    // zeroize feature to enable, so that state persists until the frame is reused.
+    // Same class as the `Sha256` note in `kdf::ackdf`; see the crate-level Security
+    // Model. Not recoverable to the key, but sufficient to forge tags under it.
     let mut mac = setup_key.with_secret(|key| {
         <HmacSha256 as hmac::Mac>::new_from_slice(key).expect("setup_key is always 32 bytes")
     });

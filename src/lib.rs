@@ -102,10 +102,19 @@
 //! - **Memory hygiene**: every key, IV, salt, and intermediate buffer this crate
 //!   *creates* is wrapped in a [`secure-gate`] type
 //!   ([`Aes256Key32`](aliases::Aes256Key32), [`Iv16`](aliases::Iv16),
-//!   [`Salt16`](aliases::Salt16), …) that zeroizes on drop. The **password is the
-//!   one exception**: it enters the crate as a `&str` borrow, is read in place, and
-//!   is never copied or stored — so zeroizing it is the caller's responsibility.
-//!   See [Password ownership](#password-ownership) below.
+//!   [`Salt16`](aliases::Salt16), …) that zeroizes on drop. Two categories sit
+//!   outside that guarantee:
+//!   - The **password**: it enters the crate as a `&str` borrow, is read in place,
+//!     and is never copied or stored — so zeroizing it is the caller's
+//!     responsibility. See [Password ownership](#password-ownership) below.
+//!   - **Third-party cipher and hasher internals**, which this crate cannot reach.
+//!     `aes` is built with its `zeroize` feature, so the AES key schedule *is*
+//!     wiped on drop. `hmac` 0.12 and `sha2` 0.10 expose no zeroize hook at all:
+//!     the HMAC opad/ipad state — derived from the setup, session and payload keys
+//!     — and the SHA-256 chaining state and block buffer persist until their stack
+//!     frames are reused. Recovering a key from that state is preimage-hard, but
+//!     HMAC state is sufficient to forge tags under the key it was built from. This
+//!     is a property of those crates, not a gap this crate can close.
 //! - **Decrypt-then-verify**: as defined by the AES Crypt format, the v3 payload HMAC
 //!   is verified **after** the ciphertext stream is decrypted. [`decrypt()`] therefore
 //!   may write partial unauthenticated plaintext to its `output` before returning an

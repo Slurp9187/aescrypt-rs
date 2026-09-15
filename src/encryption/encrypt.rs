@@ -189,6 +189,9 @@ where
     // Create cipher and HMAC from secure key
     let cipher = setup_key.with_secret(|key| Aes256Enc::new(key.into()));
 
+    // Note: the returned `HmacSha256` carries opad/ipad state derived from
+    // `setup_key` and is not wrapped — `hmac` 0.12 exposes no zeroize hook.
+    // See the crate-level Security Model.
     let mut hmac = setup_key.with_secret(|key| {
         <HmacSha256 as Mac>::new_from_slice(key)
             .expect("setup_key is always 32 bytes — valid HMAC key")

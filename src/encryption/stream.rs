@@ -71,6 +71,9 @@ where
     W: Write,
 {
     let cipher = session_key.with_secret(|sk| Aes256Enc::new(sk.into()));
+    // Note: the returned `HmacSha256` carries opad/ipad state derived from
+    // `session_key` and is not wrapped — `hmac` 0.12 exposes no zeroize hook.
+    // See the crate-level Security Model.
     let mut hmac = session_key.with_secret(|sk| {
         <HmacSha256 as Mac>::new_from_slice(sk)
             .expect("session_key is always 32 bytes — valid HMAC key")

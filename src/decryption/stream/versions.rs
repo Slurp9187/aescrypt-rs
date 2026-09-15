@@ -134,7 +134,11 @@ where
 {
     let cipher = encryption_key.with_secret(|key| Aes256Dec::new(key.into()));
 
-    // This is the exact same construction used in encrypt_stream
+    // This is the exact same construction used in encrypt_stream.
+    //
+    // Note: the returned `HmacSha256` carries opad/ipad state derived from
+    // `encryption_key` and is not wrapped — `hmac` 0.12 exposes no zeroize hook.
+    // See the crate-level Security Model.
     let mut hmac = encryption_key.with_secret(|key| {
         <HmacSha256 as Mac>::new_from_slice(key)
             .expect("encryption_key is always 32 bytes — valid HMAC key")

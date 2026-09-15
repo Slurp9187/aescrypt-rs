@@ -207,6 +207,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The crate-level Security Model overstated the memory-hygiene guarantee.** It said the
+  password was "the **one exception**" to everything being wrapped and zeroized. It is not.
+  Third-party cipher and hasher internals are a second category this crate cannot reach:
+  `HmacSha256` carries opad/ipad state derived from the setup, session and payload keys, and
+  `hmac` 0.12 has no `Drop` impl and no zeroize feature to enable, so that state persists until
+  its stack frame is reused. `sha2` 0.10 is the same for SHA-256 chaining state — already noted
+  locally in `kdf::ackdf` but never surfaced in the Security Model, so the crate documented one
+  instance of the class and asserted the class did not exist.
+
+  `aes` is the counter-example that makes the distinction worth drawing: it is built with its
+  `zeroize` feature, so the AES key schedule *is* wiped on drop. The difference is a feature
+  flag in another crate's manifest and is invisible at the call site.
+
+  Recovering a key from HMAC state is preimage-hard, but the state is sufficient to forge tags
+  under the key it was built from. No code change — there is no fix available at `hmac` 0.12 —
+  but the claim is now accurate, and the four construction sites carry a note. README updated
+  to match.
+
+  Found by testing a rule proposed by another secure-gate consumer: *every `with_secret`
+  closure returns either a non-secret or an already-wrapped secret*. The deref-focused audit
+  that found the two leaks above could not have surfaced this — `new_from_slice(key)` takes a
+  `&[u8]` and returns an owned value, with no deref and no `Copy` involved.
+
 - **Two false claims in the shipped rustdoc.** `Pbkdf2Builder::with_salt` documented that it
   accepts "a literal array or a [`Salt16`]" — the second half never compiled, because `Salt16`
   is `Fixed<[u8; 16]>` and no `impl Into<[u8; 16]>` exists for it (unwrapping one into a bare
