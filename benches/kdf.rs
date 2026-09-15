@@ -1,12 +1,12 @@
 //! benches/kdf.rs
 //! Consolidated KDF benchmarks – multi-iter PBKDF2 + ACKDF
 use aescrypt_rs::{derive_ackdf_key, derive_pbkdf2_key};
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use secure_gate::{fixed_alias, Fixed};
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
+use secure_gate::Fixed;
 use std::hint::black_box;
 use std::time::Duration;
 
-fixed_alias!(Key32, 32);
+type Key32 = Fixed<[u8; 32]>;
 
 fn kdf_benches(c: &mut Criterion) {
     let mut group = c.benchmark_group("KDF");

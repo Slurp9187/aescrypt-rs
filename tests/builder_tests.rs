@@ -6,8 +6,8 @@ mod common;
 mod tests {
     use super::common::TEST_ITERATIONS;
 
-    use aescrypt_rs::aliases::Aes256Key32;
     use aescrypt_rs::Pbkdf2Builder;
+    use aescrypt_rs::aliases::Aes256Key32;
     use secure_gate::RevealSecret;
 
     #[test]

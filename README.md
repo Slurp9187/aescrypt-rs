@@ -2,7 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/aescrypt-rs.svg)](https://crates.io/crates/aescrypt-rs)
 [![Docs.rs](https://docs.rs/aescrypt-rs/badge.svg)](https://docs.rs/aescrypt-rs)
-[![MSRV](https://img.shields.io/badge/MSRV-1.70-orange)](https://releases.rs/docs/1.70.0/)
+[![MSRV](https://img.shields.io/badge/MSRV-1.85-orange)](https://releases.rs/docs/1.85.0/)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
 
 **Fast, safe, streaming Rust implementation of the AES Crypt file format**
@@ -285,11 +285,11 @@ This crate defines **no optional features**. It always links `aes` with the `zer
 
 ## Installation
 
-**Requires Rust 1.70+**, matching **`rust-version`** in this crate’s `Cargo.toml` (Rust **edition 2021**). Verify with `cargo +1.70 test` if you pin an older toolchain.
+**Requires Rust 1.85+**, matching **`rust-version`** in this crate’s `Cargo.toml` (Rust **edition 2021**). Verify with `cargo +1.85 test` if you pin an older toolchain.
 
 ```toml
 [dependencies]
-aescrypt-rs = "0.2.0-rc.10"
+aescrypt-rs = "0.2.0-rc.11"
 ```
 
 When **0.2.0** is published to crates.io, you can switch the version requirement to `"0.2.0"` (or a caret range you prefer).

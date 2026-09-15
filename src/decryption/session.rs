@@ -64,10 +64,16 @@ pub fn extract_session_data<R>(
 where
     R: Read,
 {
-    // v0: direct secure copy — no encryption, no HMAC
+    // v0: direct secure copy — no encryption, no HMAC.
+    //
+    // Copied wrapper-to-wrapper. The obvious spelling, `Aes256Key32::from(*key)`,
+    // derefs the inner array into a bare `[u8; 32]` stack temporary that nothing
+    // zeroizes — being lexically inside `with_secret` does not protect it, and
+    // `[u8; N]: Copy` makes the copy invisible at the call site.
     if file_version == 0 {
-        public_iv.with_secret(|iv| *session_iv_out = Iv16::from(*iv));
-        setup_key.with_secret(|key| *session_key_out = Aes256Key32::from(*key));
+        public_iv.with_secret(|iv| session_iv_out.with_secret_mut(|out| out.copy_from_slice(iv)));
+        setup_key
+            .with_secret(|key| session_key_out.with_secret_mut(|out| out.copy_from_slice(key)));
         return Ok(());
     }
 

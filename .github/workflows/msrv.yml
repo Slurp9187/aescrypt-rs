@@ -1,0 +1,37 @@
+name: msrv
+
+# Makes the MSRV claim in Cargo.toml, src/lib.rs and README.md true. Until
+# 0.2.0-rc.11 those three all asserted that CI enforced `rust-version` and no
+# such job existed.
+#
+# `secure-gate` is an exact registry pin, so these jobs build the same version a
+# downstream consumer would get. Bumping it is a deliberate manifest edit plus
+# `cargo update -p secure-gate` in both lockfiles — see Cargo.toml.
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  msrv:
+    name: rust 1.85 (declared floor)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install 1.85 --profile minimal
+      - run: cargo +1.85 test --all-features
+      # `bench --no-run` is not redundant with `test`. criterion 0.7 resolves
+      # clap 4.6, which declares rust-version 1.85 — satisfied with ZERO margin.
+      # Nothing else in the build touches that edge, so this is the only guard
+      # against a dev-dependency drifting past the floor.
+      - run: cargo +1.85 bench --no-run
+
+  stable:
+    name: rust stable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install stable --profile minimal
+      - run: cargo +stable test --all-features

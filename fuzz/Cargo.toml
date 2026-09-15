@@ -2,7 +2,11 @@
 name = "aescrypt-rs-fuzz"
 version = "0.0.0"
 publish = false
-edition = "2021"
+edition = "2024"
+# Declared so the MSRV-aware resolver (`.cargo/config.toml`,
+# `incompatible-rust-versions = "fallback"`) has something to rank against here
+# too; without it this lockfile resolves unconstrained.
+rust-version = "1.85"
 
 [package.metadata]
 cargo-fuzz = true
@@ -20,7 +24,12 @@ arbitrary = { version = "1", features = ["derive"] }
 libfuzzer-sys = { version = "0.4", optional = true }
 # The legacy-file builder mirrors the v0-v2 wire format with the same
 # primitive crates (and versions) the parent uses.
-secure-gate = { version = "=0.8.0-rc.10", features = ["rand", "ct-eq"] }
+#
+# This line MUST stay character-identical to the parent's. This crate depends on
+# secure-gate directly as well as on `aescrypt-rs` by path, so any divergence puts
+# two semver-incompatible copies in one graph — the symptom is the baffling
+# `expected Fixed<[u8; 32]>, found Fixed<[u8; 32]>`.
+secure-gate = { version = "=0.9.0-rc.12", features = ["rand", "ct-eq"] }
 aes = "0.8"
 hmac = "0.12"
 sha2 = "0.10"

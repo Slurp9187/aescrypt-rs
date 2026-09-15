@@ -1,8 +1,8 @@
 //! tests/utilities_tests.rs
 //! Unit tests for utility functions
 
-use aescrypt_rs::utilities::{utf8_to_utf16le, xor_blocks};
 use aescrypt_rs::AescryptError;
+use aescrypt_rs::utilities::{utf8_to_utf16le, xor_blocks};
 
 #[test]
 fn utf8_to_utf16le_ascii() {

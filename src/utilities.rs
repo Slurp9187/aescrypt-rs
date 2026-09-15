@@ -77,14 +77,6 @@ pub fn utf8_to_utf16le(input_utf8: &[u8]) -> Result<Vec<u8>, AescryptError> {
 /// bytes (Rust's normal slice-bounds panic; this is **not** undefined
 /// behavior).
 ///
-/// # Compatibility
-///
-/// This function is `pub fn`, **not** `pub const fn`, because the MSRV (1.70)
-/// does not yet stabilize mutable references in `const fn` for this access
-/// pattern. The signature is intentionally identical to the eventual `const`
-/// variant so the change can land as a non-breaking minor upgrade once MSRV
-/// is bumped. See `CHANGELOG.md` (0.2.0-rc.8) for the rationale.
-///
 /// # Examples
 ///
 /// ```
@@ -98,7 +90,7 @@ pub fn utf8_to_utf16le(input_utf8: &[u8]) -> Result<Vec<u8>, AescryptError> {
 /// assert_eq!(output, [0x55; 16]); // 0xFF ^ 0xAA = 0x55
 /// ```
 #[inline(always)]
-pub fn xor_blocks(block_a: &[u8], block_b: &[u8], output: &mut [u8]) {
+pub const fn xor_blocks(block_a: &[u8], block_b: &[u8], output: &mut [u8]) {
     let mut i = 0;
     while i < 16 {
         output[i] = block_a[i] ^ block_b[i];

@@ -5,9 +5,115 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0-rc.11] - 2026-09-15
+
+> **Publishable.** `secure-gate` is an exact registry pin, so what CI builds is what a
+> downstream consumer gets. During development this dependency floated on secure-gate's git
+> `main` while the two crates coordinated API fixes; that is now resolved and the git source is
+> gone from both lockfiles.
+>
+> The pin is `=` rather than a caret on purpose. secure-gate is still in RC and ships breaking
+> changes between them — rc.9 deleted the alias macros this crate was built on, rc.12 reshaped
+> `Dynamic::new_with`. A published requirement travels to dependents while a lockfile does not,
+> so a caret would let a downstream build float onto an RC this crate never tested.
+
+### Breaking Changes
+
+- **Minimum supported Rust version (MSRV) is now 1.85** (previously 1.70), and
+  `rust-toolchain.toml` pins 1.85. This re-lands the raise first announced in [0.2.0-rc.7] and
+  silently reverted in [0.2.0-rc.8]; see the note on that section. Forced by the dependency
+  set — `secure-gate` 0.9, `rand` 0.10, `getrandom` 0.4, `zeroize` 1.9 and `clap` 4.6 all
+  declare exactly 1.85, and nothing in the graph wants 1.86+.
+
+  The 1.70 floor protected no one: every sibling project is already 1.85 or above, the
+  third-party CLI fork moved itself to edition 2024 / 1.85+, and the floor was never tested —
+  `Cargo.toml`, `src/lib.rs` and `README.md` all claimed CI enforced it while no such job
+  existed. Consumers who genuinely need 1.70 should pin `v0.1.6`, which stays on crates.io.
+
+  Per [#49] this ships in the `0.2.0-rc` line rather than forking a `0.3.0`: `0.2.0` has never
+  been released, so there are no stable consumers a parallel lane could protect.
+
+- **Rust edition 2024** — `edition = "2024"` in both `Cargo.toml` and `fuzz/Cargo.toml`. Like
+  the MSRV raise this re-lands a [0.2.0-rc.7] change that [0.2.0-rc.8] reverted undocumented.
+  `cargo fix --edition` produced **zero source changes**, confirming that entry's assessment.
+
+  The edition change that actually mattered here was the new temporary and tail-expression drop
+  scope, since this crate's security model is `ZeroizeOnDrop`. The surface was surveyed and is
+  empty: no `if let` / `while let` anywhere takes a `with_secret` call as its scrutinee, and the
+  two tail-position `with_secret` calls are both benign — `encryption/write.rs` is a whole
+  function body with no locals to reorder against, and `decryption/read.rs` is a `?`-terminated
+  statement whose tail is `Ok(buf)`. Dropping *earlier* is safe for zeroization regardless; the
+  residual risk was borrow/move breakage, which fails at compile time.
+
+  `#![forbid(unsafe_code)]` makes `unsafe_op_in_unsafe_fn` moot, and there are no bare `gen`
+  identifiers for the keyword reservation to catch. Macro hygiene is a non-issue by
+  construction: a `macro_rules!` matcher is interpreted in the edition of the crate that
+  *defines* it, and `secure-gate` is already edition 2024.
+
+  The only diff beyond the two manifest lines is import reordering, from rustfmt's 2024 style
+  edition.
+
+- **`secure-gate` moved from `0.8.0-rc.10` to `=0.9.0-rc.12`.** Numbering is not comparable
+  across the two lines — the 0.8 and 0.9 branches are tagged in dated pairs, so `0.8.0-rc.10`
+  is content-equivalent to **`0.9.0-rc.7`**, making this an rc.7 → rc.12 move, five release
+  candidates. Absorbed:
+  - `fixed_alias!` / `dynamic_alias!` / the generic variants were **deleted**; see Changed.
+  - `len()` / `byte_len()` / `is_empty()` moved from `RevealSecret` to a new `SecretLen` trait.
+    No effect here — this crate only calls `.len()` on the revealed slice inside the closure.
+  - `Fixed::new` gained a `T: FixedStorage` bound. No effect — `[u8; N]` satisfies it at every
+    `N`, including the const-generic `N` in `read_exact_span`.
+  - `Fixed::new_with` moved to the generic impl and can now need a type annotation (E0282).
+    No effect — this crate never calls it.
+  - `RevealSecret::into_inner` returns the plain value, and protection now ends at that call.
+    No effect — this crate never calls it.
+  - A zero-sized `Fixed` no longer constructs. No call site instantiates `SpanBuffer<0>`.
 
 ### Changed
+
+- **Replace the deleted `secure-gate` alias macros with plain `pub type` aliases**
+  (`src/aliases.rs`, and a tenth invocation in `benches/kdf.rs`). This is the spelling the
+  upstream migration table prescribes, and it is what the macros already expanded to, so the
+  nine alias types are unchanged in identity, protection and public API. `SpanBuffer<const N>`
+  is untouched: `fixed_newtype!` takes a size *literal* and has no const-generic arm, so a
+  generic alias stays structural permanently, by upstream design.
+
+  Nominal `fixed_newtype!` newtypes were evaluated and rejected for now. They would break 51
+  type-mismatch sites across 6 files — dominated not by the read path but by KDF argument
+  passing, where the mismatches are spec-mandated (in AES Crypt the public IV *is* the PBKDF2
+  salt, and the setup key and derived key are one value at two lifecycle points). Two alias
+  names would end up with zero conforming call sites in the library. An exhaustive audit found
+  no instance anywhere of a wrong-role value reaching a same-size parameter, so the conversion
+  would have caught nothing while silently changing the meaning of 11 public signatures.
+
+- **Delete the entire MSRV pin stack — ten `=` pins, not the five [#49] lists.** None was used
+  in code; all existed solely to hold 1.70 on a fresh resolve. Removed from `[dependencies]`:
+  `quote`, `syn`, `unicode-ident`, `zeroize`, `zeroize_derive`. Removed from
+  `[dev-dependencies]`: `rayon`, `rayon-core`, `zmij`, `half`, `winapi-util`. The six
+  explanatory comment blocks documenting them are deleted with them.
+
+  `zeroize = "=1.8.2"` is the one with downstream reach: as an exact `[dependencies]` pin it
+  made `zeroize 1.9.0` unreachable workspace-wide, which had already blocked a dependency
+  refresh in `encrypted-file-vault`. It is removed rather than relaxed — nothing in this crate
+  calls `zeroize` directly; it reaches the graph through `aes`'s `zeroize` feature and
+  `secure-gate`'s own `^1.8`.
+
+- **`criterion` 0.4 → 0.7** (dev-dependency). All five benchmarks compile unmodified: the
+  `criterion_group!` / `criterion_main!` expansions are character-identical between the two
+  versions, and every bench already used `std::hint::black_box` rather than the deprecated
+  `criterion::black_box`. **Not 0.8**, which declares rustc 1.86. Note 0.7 resolves `clap` 4.6
+  (edition 2024, `rust-version = "1.85"`) — satisfied with zero margin, which is why
+  `cargo bench --no-run` is now a CI job rather than a suggestion.
+
+- **`utilities::xor_blocks` is `pub const fn` again.** It was demoted to `pub fn` for 1.70,
+  which lacked `&mut` in `const fn`; that stabilized in Rust 1.83. Restoring it fulfils the
+  promise its own doc comment made, and the paragraph explaining the demotion is removed.
+
+- **Both lockfiles moved from format v3 to v4**, written by cargo 1.85. Cargo has read v4 since
+  1.78, comfortably below the new floor.
+
+- **`fuzz/Cargo.toml` now declares `rust-version = "1.85"`.** It declared no MSRV at all, so the
+  MSRV-aware resolver configured in `.cargo/config.toml` had nothing to rank against there and
+  that lockfile resolved unconstrained.
 
 - **BREAKING — remove `secure-gate` types from the password-taking public API** ([#47]).
   Every public function that accepted a password now takes `&str` instead of
@@ -56,6 +162,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   precisely so a break like this can still land inside the `0.2.0-rc` series.
 
   [#47]: https://github.com/Slurp9187/aescrypt-rs/issues/47
+  [#49]: https://github.com/Slurp9187/aescrypt-rs/issues/49
 
 - `derive_ackdf_key` drops one indirection: `password.with_secret(|pw| utf8_to_utf16le(pw.as_bytes()))`
   became `utf8_to_utf16le(password.as_bytes())`. No copy, no behaviour change. Its
@@ -79,6 +186,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **An MSRV CI workflow** (`.github/workflows/msrv.yml`), running `cargo +1.85 test
+  --all-features`, `cargo +1.85 bench --no-run`, and the same tests on stable. `Cargo.toml`,
+  `src/lib.rs` and `README.md` have asserted since rc.8 that CI enforced the MSRV; no such job
+  existed, and the only workflow in the repo was `fuzz.yml`, whose path filters mean it never
+  ran on a manifest change. The `bench --no-run` step is the sole guard on the criterion 0.7 →
+  clap 4.6 zero-margin edge.
 - Crate-level **"Dependency coupling"** section (and a README counterpart) recording that
   the lower-level primitives under `encryption::*` / `decryption::*` still exchange
   `aliases::*` types by design — so **naming anything from `aescrypt_rs::aliases::*` (or
@@ -91,6 +204,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tests/encrypt_tests.rs::roundtrip_with_wrapped_secret_borrow` — a round-trip through
   `PasswordString::with_secret`, pinning the documented scoped-borrow pattern so it cannot
   silently stop compiling.
+
+### Fixed
+
+- **Two false claims in the shipped rustdoc.** `Pbkdf2Builder::with_salt` documented that it
+  accepts "a literal array or a [`Salt16`]" — the second half never compiled, because `Salt16`
+  is `Fixed<[u8; 16]>` and no `impl Into<[u8; 16]>` exists for it (unwrapping one into a bare
+  array is what the wrapper exists to prevent). It now states what is actually accepted, plus
+  an explicit escape hatch. And `DecryptionContext::decrypt_cbc_loop` primed the ciphertext
+  ring with a buffer typed `EncryptedSessionBlock48`, which holds payload ciphertext, not a
+  session block; retyped to `SpanBuffer<48>` — the same underlying `Fixed<[u8; 48]>`, so no
+  behaviour change. Same-size aliases are interchangeable by design, so a wrong name costs
+  nothing at compile time and misleads every later reader.
+
+### Security
+
+- **`extract_session_data` no longer copies the v0 setup key through an unzeroized temporary.**
+  The v0 branch wrote its outputs with `Iv16::from(*iv)` / `Aes256Key32::from(*key)`.
+  Dereferencing the inner array produces a bare `[u8; 16]` / `[u8; 32]` on the stack that
+  `From` then copies into the wrapper — and nothing zeroizes it. For a v0 file the setup key
+  *is* the master key, so a copy of it outlived its wrapper, contradicting this module's own
+  claim that "no plaintext key bytes survive the call frame".
+
+  Being lexically inside `with_secret` does not protect the value: the guard is `&`-scoped
+  access and a deref escapes it, while `[u8; N]: Copy` makes the copy invisible at the call
+  site. Now copied wrapper-to-wrapper, the shape the same function already used for the v1+
+  CBC path. Behaviour is identical — same bytes, same order, no format change.
+
+  Found by generalising a hazard measured upstream on `From<&[u8]>` / `From<&str>`, where the
+  ergonomic conversion copies and `new(owned)` moves: the `From<[u8; N]>` spelling carries the
+  same hazard whenever its argument was manufactured by a deref. Every other deref inside a
+  `with_secret` closure in this crate was audited and carries public data only — extension
+  lengths, iteration counts, the public IV, and CBC ciphertext chaining blocks.
 
 ## [0.2.0-rc.10] - 2026-07-06
 
@@ -190,6 +335,13 @@ cargo +1.70 bench --no-run
 ---
 
 ## [0.2.0-rc.7] - 2026-03-23
+
+> **Superseded — read with [0.2.0-rc.8] before believing any of this.** The MSRV 1.85,
+> edition 2024, `secure-gate` 0.9 and criterion 0.7 changes announced below were **reverted**
+> one week later by `1b742f4` (2026-03-30), which returned the crate to MSRV 1.70 / edition
+> 2021 / `secure-gate` 0.8 / criterion 0.4 and added the `=` pin stack. That revert was never
+> written up, so for six releases this section described a state the manifest contradicted.
+> All four changes were re-landed deliberately in **[0.2.0-rc.11]**.
 
 ### Note
 

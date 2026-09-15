@@ -37,8 +37,8 @@
 //!
 //! ## Type Identity
 //!
-//! Every alias in this module — including those produced by `fixed_alias!` —
-//! expands to a plain `pub type` alias for `secure_gate::Fixed<[u8; N]>`. They
+//! Every alias in this module is a plain `pub type` alias for
+//! `secure_gate::Fixed<[u8; N]>` (or `secure_gate::Dynamic<T>`). They
 //! are **not nominal newtypes**: any two size-equal aliases (`Aes256Key32` and
 //! `Salt16` differ in size and so are not interchangeable, but `Aes256Key32`,
 //! `SessionHmacTag32`, `Trailer32`, and `SpanBuffer<32>` all resolve to the
@@ -46,8 +46,7 @@
 //! readability and auditability, not for compile-time enforcement. Any
 //! genuine type-level separation requires hand-rolled wrapper structs.
 
-use secure_gate::dynamic_alias;
-use secure_gate::fixed_alias;
+use secure_gate::{Dynamic, Fixed};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HMAC primitives — available via `aliases::*`
@@ -73,16 +72,16 @@ pub type Trailer32 = SpanBuffer<32>; // v0/v3 HMAC trailer
 // ─────────────────────────────────────────────────────────────────────────────
 // Dynamic secrets
 // ─────────────────────────────────────────────────────────────────────────────
-dynamic_alias!(pub PasswordString, String);
+pub type PasswordString = Dynamic<String>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fixed-size concrete secrets — alphabetical order
 // ─────────────────────────────────────────────────────────────────────────────
-fixed_alias!(pub AckdfDerivedKey32, 32); // ACKDF-derived v0/v1/v2 setup key
-fixed_alias!(pub Aes256Key32, 32); // session key, HMAC key
-fixed_alias!(pub EncryptedSessionBlock48, 48); // encrypted session IV + key
-fixed_alias!(pub Iv16, 16); // public IV, session IV
-fixed_alias!(pub Pbkdf2DerivedKey32, 32); // PBKDF2-derived v3 setup key
-fixed_alias!(pub RingBuffer64, 64); // streaming decryption ring buffer
-fixed_alias!(pub Salt16, 16); // PBKDF2/ACKDF salt
-fixed_alias!(pub SessionHmacTag32, 32); // session block HMAC
+pub type AckdfDerivedKey32 = Fixed<[u8; 32]>; // ACKDF-derived v0/v1/v2 setup key
+pub type Aes256Key32 = Fixed<[u8; 32]>; // session key, HMAC key
+pub type EncryptedSessionBlock48 = Fixed<[u8; 48]>; // encrypted session IV + key
+pub type Iv16 = Fixed<[u8; 16]>; // public IV, session IV
+pub type Pbkdf2DerivedKey32 = Fixed<[u8; 32]>; // PBKDF2-derived v3 setup key
+pub type RingBuffer64 = Fixed<[u8; 64]>; // streaming decryption ring buffer
+pub type Salt16 = Fixed<[u8; 16]>; // PBKDF2/ACKDF salt
+pub type SessionHmacTag32 = Fixed<[u8; 32]>; // session block HMAC

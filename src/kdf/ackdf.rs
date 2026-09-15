@@ -19,11 +19,11 @@
 //!   block buffer) cannot be explicitly zeroized through `sha2`'s public API;
 //!   see the inline comment in the implementation.
 
+use crate::AescryptError;
 use crate::aliases::{AckdfDerivedKey32, AckdfHashState32, Salt16};
 use crate::utilities::utf8_to_utf16le;
-use crate::AescryptError;
 use secure_gate::{Dynamic, RevealSecret, RevealSecretMut};
-use sha2::{digest::Output, Digest, Sha256};
+use sha2::{Digest, Sha256, digest::Output};
 
 /// Fixed ACKDF iteration count mandated by the AES Crypt v0–v2 file format
 /// specification.

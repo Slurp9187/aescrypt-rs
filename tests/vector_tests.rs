@@ -8,8 +8,8 @@ use secure_gate::RevealSecret;
 
 // Deterministic v3 encryption helper – TEST ONLY
 // Exactly matches the official test vectors (including CREATED_BY extension + version byte in HMAC)
-use aes::cipher::KeyInit;
 use aes::Aes256Enc;
+use aes::cipher::KeyInit;
 use aescrypt_rs::encryption::{
     derive_setup_key, encrypt_session_block, encrypt_stream, write_header, write_hmac,
     write_iterations, write_public_iv,
@@ -84,7 +84,7 @@ use std::io::Cursor;
 
 mod common;
 use common::TEST_PASSWORD;
-use common::{TEST_DATA, TEST_DATA_SHORT, TEST_ITERATIONS, TEST_ITERATION_VALUES};
+use common::{TEST_DATA, TEST_DATA_SHORT, TEST_ITERATION_VALUES, TEST_ITERATIONS};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AescryptVersion {

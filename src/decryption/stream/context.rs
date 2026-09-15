@@ -5,7 +5,7 @@
 //! of arbitrarily large files.
 
 use crate::aliases::HmacSha256;
-use crate::aliases::{Block16, EncryptedSessionBlock48, Iv16, RingBuffer64};
+use crate::aliases::{Block16, Iv16, RingBuffer64, SpanBuffer};
 use crate::error::AescryptError;
 use crate::utilities::{read_until_full, xor_blocks}; // Note: This is crate::utilities (existing), not stream/utilities
 use aes::cipher::BlockDecrypt;
@@ -109,7 +109,10 @@ impl DecryptionContext {
         R: Read,
         W: Write,
     {
-        let mut initial_buffer = EncryptedSessionBlock48::new([0u8; 48]);
+        // A plain 48-byte secure buffer, not a session block — this primes the
+        // ciphertext ring, and `EncryptedSessionBlock48` (the same underlying
+        // type) would misname what it holds.
+        let mut initial_buffer = SpanBuffer::<48>::new([0u8; 48]);
         // Accumulate partial `read()` results until 48 bytes or EOF (same contract as encrypt_stream).
         let bytes_read = initial_buffer
             .with_secret_mut(|ib| read_until_full(input, ib))
