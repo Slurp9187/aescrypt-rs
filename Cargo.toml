@@ -26,13 +26,20 @@ categories = ["cryptography"]
 # also lets distro packagers, who build from the crates.io tarball, actually run
 # the suite instead of skipping it. Costs ~65 KiB compressed.
 #
-# `benches/` deliberately does NOT ship: timings are not reproducible across
-# machines, nobody benchmarks a dependency, and they evidence nothing about
-# correctness. `fuzz/`, `docs/` and `scripts/` stay out for the same reason.
+# `benches/` ships too, at 2.2 KiB compressed — not because timings are
+# reproducible across machines (they are not) but because the five `[[bench]]`
+# targets below must stay declared for `harness = false`, and criterion cannot
+# use target auto-discovery. Excluding the sources makes `cargo package` warn
+# once per target, forever, and leaves a manifest declaring targets it cannot
+# build. Five recurring warnings is a worse trade than 2.2 KiB. If the benches
+# ever grow fixtures, revisit — that is the case where excluding wins.
+#
+# `fuzz/` (135 MB), `docs/` and `scripts/` stay out.
 include = [
     "src/**/*.rs",
     "tests/**/*.rs",
     "tests/test_data/**",
+    "benches/**/*.rs",
     "/CHANGELOG.md",
     "/LICENSE*",
     "/README.md",
