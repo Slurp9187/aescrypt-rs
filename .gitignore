@@ -2,7 +2,12 @@
 /code_packages
 /drafts
 /references*
-/target*
+# Cargo build dirs, at any depth. Trailing slash = directories only; no leading
+# slash = every level. This must not be `/target*`: that is anchored to the repo
+# root, so a nested crate's build dir is missed (`fuzz/target/` only escaped
+# because fuzz/.gitignore covers it separately), and being a file glob it also
+# silently swallowed root files like `target_notes.md`.
+target/
 /trash*
 **/.cursor/
 
