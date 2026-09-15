@@ -4,9 +4,9 @@ name: msrv
 # 0.2.0-rc.11 those three all asserted that CI enforced `rust-version` and no
 # such job existed.
 #
-# NOTE: `secure-gate` is currently a git dependency on its `main`, so these jobs
-# hit the network and will follow upstream commits. That is deliberate — this
-# crate is the consumer-side canary for secure-gate's release candidates.
+# `secure-gate` is an exact registry pin, so these jobs build the same version a
+# downstream consumer would get. Bumping it is a deliberate manifest edit plus
+# `cargo update -p secure-gate` in both lockfiles — see Cargo.toml.
 
 on:
   workflow_dispatch: {}

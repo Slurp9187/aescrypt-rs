@@ -28,25 +28,24 @@ all-features = true
 aes = { version = "0.8", features = ["zeroize"] }
 hmac = "0.12"
 pbkdf2 = "0.12"
-# `secure-gate` FLOATS on its git `main` while its API is still settling; the two
-# crates are coordinating API fixes, and those land on `main` before they reach an
-# RC. Cargo.lock still freezes an exact commit, so builds stay reproducible —
-# "floating" only means `cargo update -p secure-gate` is allowed to move it. Run
-# that in `fuzz/Cargo.lock` too; never a bare `cargo update`.
+# Exact pin, registry dep — this crate is publishable in this state.
 #
-# `version` must stay beside `git`: this crate is published, and `cargo publish`
-# rejects a dependency with no registry requirement. It must stay a CARET, not `=`
-# — `main` bumps past the published RC while unpublished, and an `=` pin would
-# break on the first bump. Hold it at the last PUBLISHED RC, never at whatever
-# `main`'s manifest says: that is what makes `cargo publish --dry-run` answer
-# "could this publish today?" rather than failing forever on version skew.
+# `=` and not a caret, deliberately: secure-gate is still in RC and breaking
+# changes land between them (rc.9 deleted the alias macros, rc.12 reshaped
+# `Dynamic::new_with`). A published requirement travels to dependents; a lockfile
+# does not. A caret here would let a downstream `cargo build` float onto the next
+# RC and break against a version this crate never tested.
+#
+# Bump deliberately: change the pin, `cargo update -p secure-gate` in BOTH this
+# lockfile and `fuzz/Cargo.lock`, then run the full suite. Keep this line
+# character-identical to the one in `fuzz/Cargo.toml` — that crate depends on
+# secure-gate directly as well as on this one by path, and any divergence puts two
+# semver-incompatible copies in one graph (`expected Fixed<[u8; 32]>, found
+# Fixed<[u8; 32]>`).
 #
 # NOTE: `secure-gate = "0.9"` resolves to NOTHING — a caret matches a pre-release
 # only when the requirement itself carries one for the same major.minor.patch.
-#
-# Revert to a plain registry dep, pinned with `=`, before publishing. See
-# CHANGELOG.md [Unreleased].
-secure-gate = { git = "https://github.com/Slurp9187/secure-gate", version = "0.9.0-rc.11", features = ["rand", "ct-eq"] }
+secure-gate = { version = "=0.9.0-rc.12", features = ["rand", "ct-eq"] }
 sha2 = "0.10"
 thiserror = "2.0"
 

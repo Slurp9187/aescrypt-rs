@@ -7,15 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0-rc.11] — unreleased
 
-> **Not published, deliberately.** `secure-gate` is taken as a floating **git** dependency on
-> its `main` while the two crates coordinate API fixes. `cargo publish` strips the `git` key and
-> resolves the `version` requirement from crates.io, so a published build would link a
-> `secure-gate` that CI never tested. Before publishing: revert to a plain registry dependency,
-> tighten it to `=<the published RC>`, bump the README installation snippet, and re-run the full
-> suite. `cargo publish --dry-run` is kept in CI as the divergence detector — it goes red exactly
-> when this crate starts consuming API that exists on `main` but is not yet published. Note that
-> `Fixed::try_new_with` is one such API: adopting it is easy to do without registering it as a
-> dependency on an unpublished version.
+> **Publishable.** `secure-gate` is an exact registry pin, so what CI builds is what a
+> downstream consumer gets. During development this dependency floated on secure-gate's git
+> `main` while the two crates coordinated API fixes; that is now resolved and the git source is
+> gone from both lockfiles.
+>
+> The pin is `=` rather than a caret on purpose. secure-gate is still in RC and ships breaking
+> changes between them — rc.9 deleted the alias macros this crate was built on, rc.12 reshaped
+> `Dynamic::new_with`. A published requirement travels to dependents while a lockfile does not,
+> so a caret would let a downstream build float onto an RC this crate never tested.
 
 ### Breaking Changes
 
@@ -53,10 +53,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The only diff beyond the two manifest lines is import reordering, from rustfmt's 2024 style
   edition.
 
-- **`secure-gate` moved from `0.8.0-rc.10` to the `0.9` line**, crossing three release
-  candidates. Numbering is not comparable across the two lines — the 0.8 and 0.9 branches are
-  tagged in dated pairs, so `0.8.0-rc.10` is content-equivalent to **`0.9.0-rc.7`**, and this
-  is an rc.7 → rc.10 move. Absorbed:
+- **`secure-gate` moved from `0.8.0-rc.10` to `=0.9.0-rc.12`.** Numbering is not comparable
+  across the two lines — the 0.8 and 0.9 branches are tagged in dated pairs, so `0.8.0-rc.10`
+  is content-equivalent to **`0.9.0-rc.7`**, making this an rc.7 → rc.12 move, five release
+  candidates. Absorbed:
   - `fixed_alias!` / `dynamic_alias!` / the generic variants were **deleted**; see Changed.
   - `len()` / `byte_len()` / `is_empty()` moved from `RevealSecret` to a new `SecretLen` trait.
     No effect here — this crate only calls `.len()` on the revealed slice inside the closure.
