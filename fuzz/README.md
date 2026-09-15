@@ -43,8 +43,8 @@ with tiny iteration counts.
 
 ## Toolchain gotcha: `+nightly` is required
 
-The repo's `rust-toolchain.toml` pins **1.70**. `cargo fuzz ...` invoked *bare*
-resolves 1.70 and fails (cargo-fuzz needs nightly features). Always use
+The repo's `rust-toolchain.toml` pins **1.85**. `cargo fuzz ...` invoked *bare*
+resolves 1.85 and fails (cargo-fuzz needs nightly features). Always use
 `cargo +nightly fuzz ...` — the `+nightly` sets `RUSTUP_TOOLCHAIN` for the nested
 cargo calls, overriding the toolchain file.
 
