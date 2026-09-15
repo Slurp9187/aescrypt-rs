@@ -13,7 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `secure-gate` that CI never tested. Before publishing: revert to a plain registry dependency,
 > tighten it to `=<the published RC>`, bump the README installation snippet, and re-run the full
 > suite. `cargo publish --dry-run` is kept in CI as the divergence detector — it goes red exactly
-> when this crate starts consuming API that exists on `main` but is not yet published.
+> when this crate starts consuming API that exists on `main` but is not yet published. Note that
+> `Fixed::try_new_with` is one such API: adopting it is easy to do without registering it as a
+> dependency on an unpublished version.
 
 ### Breaking Changes
 
