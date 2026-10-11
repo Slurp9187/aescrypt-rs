@@ -222,6 +222,45 @@ fn tampered_to_stdout_writes_nothing() {
     );
 }
 
+/// Windows counterpart of `unix::no_terminal`: started with no console at all
+/// (`DETACHED_PROCESS`), the prompt must fail with a pointer to
+/// --password-command instead of waiting for input that cannot come.
+#[cfg(windows)]
+#[test]
+fn no_console() {
+    use std::os::windows::process::CommandExt;
+    const DETACHED_PROCESS: u32 = 0x0000_0008;
+
+    let dir = tempfile::tempdir().unwrap();
+    let plain = dir.path().join("a");
+    fs::write(&plain, b"x").unwrap();
+    let mut child = Command::new(BIN)
+        .args(["-e", s(&plain)])
+        .creation_flags(DETACHED_PROCESS)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    // Bounded: a prompt that waits forever must fail the test, not hang it.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+    let status = loop {
+        if let Some(st) = child.try_wait().unwrap() {
+            break st;
+        }
+        if std::time::Instant::now() > deadline {
+            let _ = child.kill();
+            panic!("still waiting at the prompt with no console");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    };
+    let mut err = String::new();
+    std::io::Read::read_to_string(&mut child.stderr.take().unwrap(), &mut err).unwrap();
+    assert_eq!(status.code(), Some(1), "{err}");
+    assert!(err.contains("--password-command"), "{err}");
+    assert!(!dir.path().join("a.aes").exists());
+}
+
 // ---------------------------------------------------------------------------
 // Unix: no terminal, signals, and the real prompt
 // ---------------------------------------------------------------------------
