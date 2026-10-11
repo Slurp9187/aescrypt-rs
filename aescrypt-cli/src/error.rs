@@ -35,9 +35,11 @@ pub enum CliError {
     Io { path: PathBuf, source: io::Error },
 
     /// The library rejected the input.
-    #[error("{}: {}", path.display(), describe(source))]
+    #[error("{}: {}", path.display(), describe(source, *version))]
     Crypto {
         path: PathBuf,
+        /// Format version read from the file header, if it got that far.
+        version: Option<u8>,
         source: AescryptError,
     },
 
@@ -71,19 +73,38 @@ impl CliError {
     }
 }
 
-/// Library errors with a hint where the raw message would leave a user guessing.
+/// Library errors in words a user can act on, with the library's own message
+/// kept in parentheses.
 ///
-/// A wrong password surfaces as an HMAC failure on the session block, which
-/// the library reports as a header error. Saying so is the single most useful
-/// thing an encryption CLI can print.
-fn describe(e: &AescryptError) -> String {
-    match e {
-        AescryptError::Header(msg) if msg.contains("HMAC") || msg.contains("tampered") => {
-            format!("wrong password, or the file is corrupted ({msg})")
+/// The library's messages are not a stable API, so this matches whole strings
+/// and falls back to the raw message for anything it does not recognise.
+/// `tests/run.rs` triggers each case for real, so a wording change in the
+/// library fails a test rather than silently mislabelling errors.
+///
+/// What an HMAC failure means depends on the version. v1-v3 check the password
+/// against the session block first; a payload HMAC failure after that means the
+/// password was right and the data is damaged. v0 has no session block, so
+/// there the payload HMAC is the only password check.
+fn describe(e: &AescryptError, version: Option<u8>) -> String {
+    let AescryptError::Header(msg) = e else {
+        return e.to_string();
+    };
+    let hint = match msg.as_str() {
+        "session data corrupted or tampered (HMAC mismatch)" => {
+            "wrong password, or the file header is damaged"
         }
-        AescryptError::Header(msg) if msg.contains("padding") => {
-            format!("the file is corrupted ({msg})")
+        "HMAC verification failed" if version == Some(0) => {
+            "wrong password, or the file is damaged or was tampered with"
         }
-        other => other.to_string(),
-    }
+        "HMAC verification failed" => {
+            "the file is damaged or was tampered with (the password was correct)"
+        }
+        "v0: expected 32-byte HMAC trailer"
+        | "v1/v2: expected 33-byte trailer"
+        | "v3: expected 32-byte HMAC trailer"
+        | "v3: missing final plaintext block" => "the file is truncated or damaged",
+        "v3: invalid PKCS#7 padding" => "the file is damaged or was tampered with",
+        _ => return e.to_string(),
+    };
+    format!("{hint} ({msg})")
 }

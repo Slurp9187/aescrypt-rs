@@ -112,6 +112,60 @@ fn failing_password_command() {
     assert!(!dir.path().join("a.aes").exists());
 }
 
+/// One trailing `\n` or `\r\n` is not part of the password.
+#[cfg(unix)]
+#[test]
+fn password_command_strips_one_newline() {
+    for printed in [r"pw-strip\n", r"pw-strip\r\n"] {
+        let dir = tempfile::tempdir().unwrap();
+        let plain = dir.path().join("a");
+        fs::write(&plain, b"x").unwrap();
+        let cmd = format!("printf '{printed}'");
+        let o = aescrypt(&[
+            "-e",
+            "--iterations",
+            "5",
+            "--password-command",
+            &cmd,
+            s(&plain),
+        ]);
+        assert!(o.status.success(), "{}", stderr(&o));
+        let o = aescrypt(&[
+            "-d",
+            "-o",
+            "-",
+            "--password-command",
+            &print_cmd("pw-strip"),
+            s(&dir.path().join("a.aes")),
+        ]);
+        assert!(o.status.success(), "{printed}: {}", stderr(&o));
+        assert_eq!(o.stdout, b"x");
+    }
+}
+
+/// An unwritable stderr must not turn an ordinary failure into a panic (101).
+#[cfg(target_os = "linux")]
+#[test]
+fn unwritable_stderr_does_not_panic() {
+    let dir = tempfile::tempdir().unwrap();
+    let full = fs::OpenOptions::new()
+        .write(true)
+        .open("/dev/full")
+        .unwrap();
+    let o = Command::new(BIN)
+        .args([
+            "-e",
+            "--password-command",
+            "printf pw",
+            s(&dir.path().join("missing")),
+        ])
+        .stdin(Stdio::null())
+        .stderr(full)
+        .output()
+        .unwrap();
+    assert_eq!(o.status.code(), Some(1), "{:?}", o.status);
+}
+
 #[cfg(unix)]
 #[test]
 fn empty_password_command_output() {
@@ -263,9 +317,14 @@ mod unix {
 
     use expectrl::{Regex, Session};
 
+    /// Runs the binary on a pty. expectrl creates the pty with echo off, which
+    /// would make "echo restored" impossible to tell from "never touched", so
+    /// echo is switched on first and the shell then `exec`s the binary (same
+    /// pid, so signals reach it directly).
     fn spawn(args: &[&str]) -> Session {
-        let mut cmd = Command::new(BIN);
-        cmd.args(args);
+        let mut cmd = Command::new("sh");
+        cmd.args(["-c", "stty echo && exec \"$@\"", "sh", BIN])
+            .args(args);
         let mut s = Session::spawn(cmd).expect("spawn in pty");
         s.set_expect_timeout(Some(Duration::from_secs(30)));
         s
@@ -358,21 +417,86 @@ mod unix {
         assert!(decrypts_with(&dir.path().join("a.aes"), &pass));
     }
 
-    /// Ctrl-C at the prompt must end in a normal exit (130), not death by
-    /// SIGINT: only then has rpassword's guard turned terminal echo back on.
-    #[test]
-    fn prompt_ctrl_c_restores_terminal() {
-        let dir = tempfile::tempdir().unwrap();
-        let plain = dir.path().join("a");
+    fn echo_on(p: &Session) -> bool {
+        p.get_process().get_echo().expect("read pty echo flag")
+    }
+
+    /// Starts an encrypt prompt and returns once rpassword has turned echo off.
+    fn at_prompt(dir: &Path) -> Session {
+        let plain = dir.join("a");
         fs::write(&plain, b"typed").unwrap();
         let mut p = spawn(&["-e", s(&plain)]);
         p.expect("Password: ").unwrap();
-        p.send("\x03").unwrap();
-        let status = exit_status(&p);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while echo_on(&p) {
+            assert!(Instant::now() < deadline, "prompt never turned echo off");
+            thread::sleep(Duration::from_millis(10));
+        }
+        p
+    }
+
+    /// After a signal at the prompt: a normal exit 130 (not death by signal,
+    /// not a panic's 101), echo back on, and nothing encrypted.
+    fn assert_clean_interrupt(p: &Session, dir: &Path) {
+        // Bounded: a process that ignores the signal must fail the test, not
+        // hang it.
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let status = loop {
+            // Non-blocking waitpid; the first non-StillAlive result reaps the
+            // child, so it is the one to keep.
+            let st = format!("{:?}", p.get_process().status().unwrap());
+            if st != "StillAlive" {
+                break st;
+            }
+            if Instant::now() > deadline {
+                signal(p, libc::SIGKILL);
+                panic!("still running 10s after the signal");
+            }
+            thread::sleep(Duration::from_millis(20));
+        };
         assert!(
             status.contains("Exited") && status.ends_with(", 130)"),
             "{status}"
         );
-        assert!(!dir.path().join("a.aes").exists());
+        assert!(echo_on(p), "terminal left with echo off");
+        assert!(!dir.join("a.aes").exists());
+    }
+
+    fn signal(p: &Session, sig: libc::c_int) {
+        let pid = p.get_process().pid().as_raw();
+        // SAFETY: plain FFI call with a pid we own.
+        unsafe {
+            libc::kill(pid, sig);
+        }
+    }
+
+    /// Ctrl-C typed at the prompt.
+    #[test]
+    fn prompt_ctrl_c_restores_terminal() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut p = at_prompt(dir.path());
+        p.send("\x03").unwrap();
+        assert_clean_interrupt(&p, dir.path());
+    }
+
+    /// SIGTERM and SIGINT from outside must not wait for the user to finish
+    /// typing.
+    #[test]
+    fn prompt_external_signals_exit_at_once() {
+        for sig in [libc::SIGTERM, libc::SIGINT] {
+            let dir = tempfile::tempdir().unwrap();
+            let p = at_prompt(dir.path());
+            signal(&p, sig);
+            assert_clean_interrupt(&p, dir.path());
+        }
+    }
+
+    /// SIGHUP (terminal closed) must not end in a panic while printing.
+    #[test]
+    fn prompt_hangup() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = at_prompt(dir.path());
+        signal(&p, libc::SIGHUP);
+        assert_clean_interrupt(&p, dir.path());
     }
 }

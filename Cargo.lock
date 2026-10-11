@@ -24,6 +24,7 @@ dependencies = [
  "expectrl",
  "libc",
  "rpassword",
+ "rustix",
  "same-file",
  "secure-gate",
  "tempfile",

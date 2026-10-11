@@ -46,6 +46,10 @@ tempfile = "3.10"
 thiserror = "2.0"
 zeroize = "1.8"
 
+# Saves and restores the terminal around the password prompt (src/signals.rs).
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1.0", features = ["termios"] }
+
 [target.'cfg(unix)'.dev-dependencies]
 expectrl = "0.7"
 libc = "0.2"

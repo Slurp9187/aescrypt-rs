@@ -241,6 +241,19 @@ fn refuses_directory_input() {
 }
 
 #[test]
+fn file_named_just_aes() {
+    let dir = tempfile::tempdir().unwrap();
+    let f = dir.path().join(".aes");
+    fs::write(&f, b"x").unwrap();
+    let r = cli(&["-d", s(&f)], PW, b"");
+    assert!(
+        r.1[0].to_string().contains("no name before .aes"),
+        "{}",
+        r.1[0]
+    );
+}
+
+#[test]
 fn decrypt_needs_aes_suffix_or_output() {
     let dir = tempfile::tempdir().unwrap();
     let f = dir.path().join("plain.bin");
@@ -399,6 +412,71 @@ fn vectors(dir: &Path, version: u8) -> Vec<(Vec<u8>, Vec<u8>)> {
     }
     assert!(!out.is_empty());
     out
+}
+
+// ---------------------------------------------------------------------------
+// What failures are called
+// ---------------------------------------------------------------------------
+
+/// Decrypts `cipher` with `pw` and returns the single failure message.
+fn decrypt_failure(cipher: &[u8], pw: &'static str) -> String {
+    let dir = tempfile::tempdir().unwrap();
+    let enc = dir.path().join("f.aes");
+    fs::write(&enc, cipher).unwrap();
+    let r = cli(&["-d", "-o", "-", s(&enc)], pw, b"");
+    assert!(r.0.is_none());
+    assert_eq!(r.1.len(), 1, "expected one failure");
+    assert!(r.2.is_empty());
+    r.1[0].to_string()
+}
+
+/// Each message is produced by a real failure, so a wording change in the
+/// library shows up here instead of as a mislabelled error.
+#[test]
+fn failures_are_described_by_cause() {
+    let dir = tempfile::tempdir().unwrap();
+    let enc = encrypt_file(dir.path(), "a", &[5u8; 100_000]);
+    let good = fs::read(&enc).unwrap();
+
+    let msg = decrypt_failure(&good, "not the password");
+    assert!(msg.contains("wrong password"), "{msg}");
+
+    let mut flipped = good.clone();
+    *flipped.last_mut().unwrap() ^= 1;
+    let msg = decrypt_failure(&flipped, PW);
+    assert!(msg.contains("the password was correct"), "{msg}");
+    assert!(!msg.contains("wrong password"), "{msg}");
+
+    let msg = decrypt_failure(&good[..good.len() - 10], PW);
+    assert!(msg.contains("truncated"), "{msg}");
+    assert!(!msg.contains("wrong password"), "{msg}");
+}
+
+/// v0 has no session block: there a payload HMAC failure may be the password.
+/// v1 checks the password first, and reports truncation differently.
+#[test]
+fn legacy_failures_are_described_by_cause() {
+    let Some(data) = vector_dir() else {
+        eprintln!("skipped: ../tests/test_data not present (published tarball)");
+        return;
+    };
+    let (_, v0) = vectors(&data, 0).pop().unwrap();
+    let msg = decrypt_failure(&v0, "not the password");
+    assert!(msg.contains("wrong password"), "v0: {msg}");
+    let msg = decrypt_failure(&v0[..v0.len() - 10], "Hello");
+    assert!(
+        msg.contains("truncated") && !msg.contains("wrong password"),
+        "v0: {msg}"
+    );
+
+    let (_, v1) = vectors(&data, 1).pop().unwrap();
+    let msg = decrypt_failure(&v1, "not the password");
+    assert!(msg.contains("wrong password"), "v1: {msg}");
+    let msg = decrypt_failure(&v1[..v1.len() - 10], "Hello");
+    assert!(
+        msg.contains("truncated") && !msg.contains("wrong password"),
+        "v1: {msg}"
+    );
 }
 
 #[test]

@@ -191,7 +191,7 @@ pub fn main_entry() -> i32 {
     match run(&opts, source.as_ref(), &mut streams) {
         Ok(failures) => {
             for e in &failures {
-                eprintln!("aescrypt-cli: {e}");
+                say(&format!("aescrypt-cli: {e}"));
             }
             i32::from(!failures.is_empty())
         }
@@ -200,8 +200,15 @@ pub fn main_entry() -> i32 {
 }
 
 fn report_fatal(e: &CliError) -> i32 {
-    eprintln!("aescrypt-cli: {e}");
+    say(&format!("aescrypt-cli: {e}"));
     e.exit_code()
+}
+
+/// Writes a line to stderr. Unlike `eprintln!`, a failed write (terminal hung
+/// up, stderr on a full disk) is ignored instead of panicking with exit 101:
+/// the exit code still reports the failure.
+pub(crate) fn say(line: &str) {
+    let _ = writeln!(io::stderr(), "{line}");
 }
 
 /// Processes every file. A failure on one file does not stop the others.
@@ -323,6 +330,18 @@ fn default_output(mode: Mode, input: &Path) -> Result<PathBuf, CliError> {
             Ok(PathBuf::from(s))
         }
         Mode::Decrypt => {
+            // `Path::extension` is None for a file named just `.aes` (a hidden
+            // stem, not a suffix), so name that case rather than claim the
+            // suffix is missing.
+            if input
+                .file_name()
+                .is_some_and(|n| n.eq_ignore_ascii_case(".aes"))
+            {
+                return Err(CliError::refused(
+                    input,
+                    "has no name before .aes; use -o to name the output",
+                ));
+            }
             let is_aes = input
                 .extension()
                 .is_some_and(|e| e.eq_ignore_ascii_case(SUFFIX));
@@ -361,23 +380,14 @@ fn execute(
         }
     };
 
-    let crypt = |r: &mut dyn Read, w: &mut dyn Write| -> Result<(), CliError> {
-        password
-            .with_secret(|pw| match opts.mode {
-                Mode::Encrypt => encrypt(r, w, pw, opts.iterations),
-                Mode::Decrypt => decrypt(r, w, pw),
-            })
-            .map_err(|source| CliError::Crypto {
-                path: label.clone(),
-                source,
-            })
-    };
+    let mut tap = VersionTap::new(reader);
+    let mut run_lib = |w: &mut dyn Write| crypt(opts, password, &label, &mut tap, w);
 
     match (&job.sink, opts.mode) {
         // Ciphertext is not sensitive: stream it straight out.
         (Sink::Stdout, Mode::Encrypt) => {
             let mut w = BufWriter::new(&mut *streams.stdout);
-            crypt(reader, &mut w)?;
+            run_lib(&mut w)?;
             w.flush().map_err(|e| CliError::io("<stdout>", e))
         }
         // Plaintext reaches stdout only after it has been authenticated.
@@ -385,7 +395,7 @@ fn execute(
             let mut staged = output::Staged::new_in(&std::env::temp_dir(), true)?;
             {
                 let mut w = staged.writer();
-                crypt(reader, &mut w)?;
+                run_lib(&mut w)?;
                 w.flush().map_err(|e| CliError::io(&label, e))?;
             }
             staged.copy_to(&mut *streams.stdout)
@@ -395,11 +405,61 @@ fn execute(
                 output::Staged::new_in(output::parent_dir(dest), mode == Mode::Decrypt)?;
             {
                 let mut w = staged.writer();
-                crypt(reader, &mut w)?;
+                run_lib(&mut w)?;
                 w.flush().map_err(|e| CliError::io(dest, e))?;
             }
             staged.persist(dest, opts.force)
         }
+    }
+}
+
+/// Runs the library call. Errors carry the file's format version, because
+/// what a failure means depends on it (see `error::describe`).
+fn crypt(
+    opts: &Opts,
+    password: &PasswordString,
+    label: &Path,
+    tap: &mut VersionTap<'_>,
+    w: &mut dyn Write,
+) -> Result<(), CliError> {
+    password
+        .with_secret(|pw| match opts.mode {
+            Mode::Encrypt => encrypt(&mut *tap, w, pw, opts.iterations),
+            Mode::Decrypt => decrypt(&mut *tap, w, pw),
+        })
+        .map_err(|source| CliError::Crypto {
+            path: label.to_path_buf(),
+            version: tap.version,
+            source,
+        })
+}
+
+/// Passes reads through and remembers byte 3 of the stream: the AES Crypt
+/// format version (`"AES"` then the version byte).
+struct VersionTap<'a> {
+    inner: &'a mut dyn Read,
+    pos: u64,
+    version: Option<u8>,
+}
+
+impl<'a> VersionTap<'a> {
+    fn new(inner: &'a mut dyn Read) -> Self {
+        Self {
+            inner,
+            pos: 0,
+            version: None,
+        }
+    }
+}
+
+impl Read for VersionTap<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let n = self.inner.read(buf)?;
+        if self.version.is_none() && self.pos <= 3 && self.pos + n as u64 > 3 {
+            self.version = Some(buf[(3 - self.pos) as usize]);
+        }
+        self.pos += n as u64;
+        Ok(n)
     }
 }
 

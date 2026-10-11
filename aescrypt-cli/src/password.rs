@@ -6,7 +6,7 @@
 // ============================================================================
 
 use std::{
-    io::{self, IsTerminal},
+    io::{self, IsTerminal, Write},
     process::{Command, Stdio},
 };
 
@@ -53,10 +53,21 @@ impl PasswordSource for TtyPrompt {
                 ));
             }
             let generated = generate_passphrase();
-            generated.with_secret(|s| {
-                eprintln!("Generated passphrase: {s}");
-                eprintln!("Save it now. It is not stored anywhere and cannot be recovered.");
-            });
+            // If the passphrase cannot be shown, nothing may be encrypted with
+            // it: the file would be unrecoverable.
+            generated
+                .with_secret(|s| {
+                    let mut err = io::stderr().lock();
+                    writeln!(err, "Generated passphrase: {s}")?;
+                    writeln!(
+                        err,
+                        "Save it now. It is not stored anywhere and cannot be recovered."
+                    )?;
+                    err.flush()
+                })
+                .map_err(|e| {
+                    CliError::Password(format!("could not display the generated passphrase: {e}"))
+                })?;
             return Ok(generated);
         }
 
@@ -82,10 +93,10 @@ fn prompt(label: &str) -> Result<PasswordString, CliError> {
 
 fn warn_if_short(pw: &PasswordString) {
     if pw.with_secret(|s| s.chars().count()) < SHORT_PASSWORD {
-        eprintln!(
+        crate::say(&format!(
             "warning: password is shorter than {SHORT_PASSWORD} characters; \
              consider leaving the prompt empty to generate one"
-        );
+        ));
     }
 }
 

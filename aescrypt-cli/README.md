@@ -70,7 +70,9 @@ generated passphrase can't end up in a log file.
 - **Decrypting to stdout** stages the plaintext in the system temp directory
   and only copies it out after verification. Nothing unverified reaches a
   pipe. This needs temporary disk space equal to the file's size.
-- **Ctrl-C** deletes any in-progress temp file.
+- **Ctrl-C, `kill`, or closing the terminal** deletes any in-progress temp
+  file. At the password prompt it exits immediately and turns terminal echo
+  back on.
 - **Crash safety.** Output is flushed to disk before it's renamed, so a crash
   can't leave an empty file under the final name.
 - **No overwriting.** An existing output file is never replaced without
@@ -81,7 +83,9 @@ generated passphrase can't end up in a log file.
 
 ### File permissions
 
-Decrypted files are created readable and writable by you only (`0600`).
+On Unix, decrypted files are created readable and writable by you only
+(`0600`). On Windows they inherit the folder's permissions, like any new file,
+so decrypt into a folder only you can read.
 Encrypted files get the normal permissions your umask gives new files.
 
 `--force` replaces the old file rather than writing into it, so the
@@ -94,7 +98,7 @@ replacement doesn't keep the old file's owner, permissions or hard links.
 | 0 | every file succeeded |
 | 1 | at least one file failed (each failure is reported; other files still run) |
 | 2 | invalid command line |
-| 130 | interrupted (Ctrl-C) |
+| 130 | interrupted (Ctrl-C, SIGTERM, or the terminal closed) |
 
 ## Non-goals
 
@@ -109,9 +113,11 @@ replacement doesn't keep the old file's owner, permissions or hard links.
   `é` in a different internal form than Linux or Windows, so a password that
   looks identical may fail to decrypt on another machine. Plain ASCII
   passwords, and generated passphrases, are unaffected.
-- **Locking memory or disabling core dumps.** The password is held in a
-  wipe-on-drop container from the moment aescrypt-cli receives it, but buffers
-  inside the terminal and the prompt library are outside its reach.
+- **Locking memory or disabling core dumps.** The password is moved into a
+  wipe-on-drop container as soon as aescrypt-cli has it in one piece. Copies
+  made before that are not wiped: buffers inside the terminal, the prompt
+  library's buffer as it grows, and the buffers `--password-command` output
+  passes through while it is read.
 - **A progress bar and shell completions**, for now.
 
 ## Versioning
