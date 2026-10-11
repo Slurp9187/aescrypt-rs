@@ -4,6 +4,8 @@
 
 [package]
 name = "aescrypt-rs"
+# Until 0.2.0 stable, `aescrypt-cli/Cargo.toml` carries this same version and pins
+# it with `=`; bump both together. A unit test in that crate fails if they drift.
 version = "0.2.0-rc.11"
 edition = "2024"
 rust-version = "1.85"
@@ -44,6 +46,18 @@ include = [
     "/LICENSE*",
     "/README.md",
 ]
+
+# ----------------------------------------------------------------------
+# Workspace
+# ----------------------------------------------------------------------
+# The root package stays the only default member, so a bare `cargo test` here
+# still builds the library alone; CI passes `--workspace`.
+#
+# `fuzz/` is not a member: it keeps its own lockfile (nightly-only
+# libfuzzer-sys). It declares its own empty `[workspace]` table to say so —
+# `exclude` here is not enough, because fuzz depends on this package by path.
+[workspace]
+members = [".", "aescrypt-cli"]
 
 # ----------------------------------------------------------------------
 # docs.rs metadata

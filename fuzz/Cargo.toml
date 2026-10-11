@@ -11,6 +11,10 @@ rust-version = "1.85"
 [package.metadata]
 cargo-fuzz = true
 
+# Its own workspace root, so the parent's `[workspace]` does not claim it. This
+# crate keeps its own lockfile and builds on nightly; see ../Cargo.toml.
+[workspace]
+
 [features]
 # `fuzzing` gates libfuzzer-sys (nightly-only) so the harness library and its
 # smoke tests build on the stable / MSRV toolchain:
