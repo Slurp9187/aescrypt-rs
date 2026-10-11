@@ -39,11 +39,11 @@ pub enum CliError {
     Io { path: PathBuf, source: io::Error },
 
     /// The library rejected the input.
-    #[error("{}: {}", path.display(), describe(source, *version))]
+    #[error("{}: {}", path.display(), describe(source, decrypt.as_ref()))]
     Crypto {
         path: PathBuf,
-        /// Format version read from the file header, if it got that far.
-        version: Option<u8>,
+        /// How far a decryption got; `None` when encrypting.
+        decrypt: Option<ReadState>,
         source: AescryptError,
     },
 
@@ -79,6 +79,15 @@ impl CliError {
     }
 }
 
+/// How much of a ciphertext was read when decryption failed.
+#[derive(Debug, Clone, Copy)]
+pub struct ReadState {
+    /// Format version from the header, if the header got that far.
+    pub version: Option<u8>,
+    /// Bytes read from the input.
+    pub bytes: u64,
+}
+
 /// Library errors in words a user can act on, with the library's own message
 /// kept in parentheses.
 ///
@@ -91,10 +100,26 @@ impl CliError {
 /// against the session block first; a payload HMAC failure after that means the
 /// password was right and the data is damaged. v0 has no session block, so
 /// there the payload HMAC is the only password check.
-fn describe(e: &AescryptError, version: Option<u8>) -> String {
-    let AescryptError::Header(msg) = e else {
+///
+/// Input that ends inside the header or session block surfaces as the
+/// library's raw read error (`UnexpectedEof`, "failed to fill whole buffer");
+/// when decrypting, that means the file is empty or cut short.
+fn describe(e: &AescryptError, decrypt: Option<&ReadState>) -> String {
+    let Some(state) = decrypt else {
         return e.to_string();
     };
+    let msg = match e {
+        AescryptError::Io(io) if io.kind() == io::ErrorKind::UnexpectedEof => {
+            return if state.bytes == 0 {
+                "the file is empty".to_string()
+            } else {
+                format!("the file is truncated or damaged ({io})")
+            };
+        }
+        AescryptError::Header(msg) => msg,
+        other => return other.to_string(),
+    };
+    let version = state.version;
     let hint = match msg.as_str() {
         "session data corrupted or tampered (HMAC mismatch)" => {
             "wrong password, or the file header is damaged"

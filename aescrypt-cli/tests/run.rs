@@ -452,6 +452,27 @@ fn failures_are_described_by_cause() {
     assert!(!msg.contains("wrong password"), "{msg}");
 }
 
+/// A file that ends inside the header or session block: the library reports a
+/// bare read error, which the CLI names. Past the header, the trailer check
+/// already says "truncated".
+#[test]
+fn short_files_are_described() {
+    let dir = tempfile::tempdir().unwrap();
+    let enc = encrypt_file(dir.path(), "a", &[5u8; 1_000]);
+    let good = fs::read(&enc).unwrap();
+
+    let msg = decrypt_failure(b"", PW);
+    assert!(msg.ends_with("f.aes: the file is empty"), "{msg}");
+    for cut in [2, 4, 20, 80] {
+        let msg = decrypt_failure(&good[..cut], PW);
+        assert!(
+            msg.contains("the file is truncated or damaged"),
+            "{cut}: {msg}"
+        );
+        assert!(!msg.contains("I/O error"), "{cut}: {msg}");
+    }
+}
+
 /// v0 has no session block: there a payload HMAC failure may be the password.
 /// v1 checks the password first, and reports truncation differently.
 #[test]

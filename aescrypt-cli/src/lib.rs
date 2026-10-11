@@ -27,7 +27,7 @@ use aescrypt_rs::{
 use clap::{ArgGroup, Parser};
 use secure_gate::RevealSecret;
 
-pub use error::CliError;
+pub use error::{CliError, ReadState};
 pub use password::{
     CommandSource, GENERATED_LEN, PasswordSource, SHORT_PASSWORD, TtyPrompt, generate_passphrase,
 };
@@ -429,13 +429,18 @@ fn crypt(
         })
         .map_err(|source| CliError::Crypto {
             path: label.to_path_buf(),
-            version: tap.version,
+            // Only a ciphertext has a format version; byte 3 of a plaintext
+            // being encrypted means nothing.
+            decrypt: (opts.mode == Mode::Decrypt).then_some(error::ReadState {
+                version: tap.version,
+                bytes: tap.pos,
+            }),
             source,
         })
 }
 
-/// Passes reads through and remembers byte 3 of the stream: the AES Crypt
-/// format version (`"AES"` then the version byte).
+/// Passes reads through, counting bytes and remembering byte 3 of the
+/// stream: the AES Crypt format version (`"AES"` then the version byte).
 struct VersionTap<'a> {
     inner: &'a mut dyn Read,
     pos: u64,
