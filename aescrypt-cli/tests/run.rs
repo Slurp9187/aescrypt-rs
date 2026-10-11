@@ -368,12 +368,17 @@ fn permissions() {
 // Official test vectors
 // ---------------------------------------------------------------------------
 
+/// The library's vector files. Present in the repository; absent from this
+/// crate's published tarball (the library's tarball ships and tests them).
+fn vector_dir() -> Option<PathBuf> {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/test_data");
+    dir.join("test_vectors_v0.json").is_file().then_some(dir)
+}
+
 /// Pulls (plaintext, ciphertext) pairs from the library's pretty-printed
 /// vector files without a JSON dependency.
-fn vectors(version: u8) -> Vec<(Vec<u8>, Vec<u8>)> {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../tests/test_data")
-        .join(format!("test_vectors_v{version}.json"));
+fn vectors(dir: &Path, version: u8) -> Vec<(Vec<u8>, Vec<u8>)> {
+    let path = dir.join(format!("test_vectors_v{version}.json"));
     let text = fs::read_to_string(path).unwrap();
     let field = |line: &str, key: &str| -> Option<String> {
         let rest = line.trim().strip_prefix(&format!("\"{key}\": \""))?;
@@ -398,9 +403,13 @@ fn vectors(version: u8) -> Vec<(Vec<u8>, Vec<u8>)> {
 
 #[test]
 fn decrypts_official_vectors() {
+    let Some(data) = vector_dir() else {
+        eprintln!("skipped: ../tests/test_data not present (published tarball)");
+        return;
+    };
     let dir = tempfile::tempdir().unwrap();
     for version in 0..=3 {
-        for (i, (plain, cipher)) in vectors(version).into_iter().enumerate() {
+        for (i, (plain, cipher)) in vectors(&data, version).into_iter().enumerate() {
             let enc = dir.path().join(format!("v{version}_{i}.aes"));
             fs::write(&enc, &cipher).unwrap();
             let r = cli(&["-d", "-o", "-", s(&enc)], "Hello", b"");
