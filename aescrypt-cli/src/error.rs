@@ -26,6 +26,10 @@ pub enum CliError {
     #[error("interrupted")]
     Interrupted,
 
+    /// The terminal went away while the prompt was waiting for input.
+    #[error("the terminal closed during the password prompt")]
+    TerminalLost,
+
     /// Any other password problem: mismatch, empty, command failure.
     #[error("{0}")]
     Password(String),
@@ -67,7 +71,9 @@ impl CliError {
     pub fn exit_code(&self) -> i32 {
         match self {
             Self::Usage(_) => 2,
-            Self::Interrupted => 130,
+            // Same code the signal handler exits with, so a hang-up ends the
+            // same way whichever of the two sees it first.
+            Self::Interrupted | Self::TerminalLost => 130,
             _ => 1,
         }
     }

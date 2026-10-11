@@ -491,6 +491,94 @@ mod unix {
         }
     }
 
+    /// Opens a pty pair: (master, slave).
+    fn openpty() -> (fs::File, fs::File) {
+        use std::os::fd::FromRawFd;
+        let (mut m, mut sl) = (0, 0);
+        // SAFETY: out-pointers to two c_ints; null name/termios/winsize.
+        let rc = unsafe {
+            libc::openpty(
+                &mut m,
+                &mut sl,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+            )
+        };
+        assert_eq!(rc, 0, "openpty: {}", std::io::Error::last_os_error());
+        // openpty's fds are inheritable. A child holding the master would
+        // keep the terminal open after the test closes its copy.
+        // SAFETY: fcntl on fds owned here.
+        unsafe {
+            libc::fcntl(m, libc::F_SETFD, libc::FD_CLOEXEC);
+            libc::fcntl(sl, libc::F_SETFD, libc::FD_CLOEXEC);
+        }
+        // SAFETY: both fds were just returned by openpty and are owned here.
+        unsafe { (fs::File::from_raw_fd(m), fs::File::from_raw_fd(sl)) }
+    }
+
+    /// Closing the terminal while the prompt waits ends in exit 130, the same
+    /// as the SIGHUP handler, never "no terminal available" — whichever of the
+    /// failed read and the signal gets there first. Repeated, because that is
+    /// a race; stderr goes to a file, which is where it was lost half the time.
+    #[test]
+    fn prompt_terminal_closed() {
+        use std::io::Read;
+
+        for round in 0..30 {
+            let dir = tempfile::tempdir().unwrap();
+            let plain = dir.path().join("a");
+            fs::write(&plain, b"x").unwrap();
+            let errlog = dir.path().join("stderr");
+            let (mut master, slave) = openpty();
+
+            let mut cmd = Command::new(BIN);
+            cmd.args(["-e", s(&plain)])
+                .stdin(Stdio::from(slave.try_clone().unwrap()))
+                .stdout(Stdio::from(slave.try_clone().unwrap()))
+                .stderr(fs::File::create(&errlog).unwrap());
+            // SAFETY: setsid and ioctl are async-signal-safe. The child gets a
+            // new session with the pty slave (its stdin) as controlling
+            // terminal, so /dev/tty is the pty.
+            unsafe {
+                cmd.pre_exec(|| {
+                    libc::setsid();
+                    if libc::ioctl(0, libc::TIOCSCTTY as _, 0) != 0 {
+                        return Err(std::io::Error::last_os_error());
+                    }
+                    Ok(())
+                });
+            }
+            let mut child = cmd.spawn().unwrap();
+            drop(slave);
+
+            let mut seen = Vec::new();
+            let mut buf = [0u8; 256];
+            while !seen.windows(10).any(|w| w == b"Password: ") {
+                let n = master.read(&mut buf).expect("prompt never appeared");
+                assert!(n > 0, "pty closed before the prompt");
+                seen.extend_from_slice(&buf[..n]);
+            }
+            drop(master);
+
+            let deadline = Instant::now() + Duration::from_secs(10);
+            let status = loop {
+                if let Some(st) = child.try_wait().unwrap() {
+                    break st;
+                }
+                if Instant::now() > deadline {
+                    let _ = child.kill();
+                    panic!("round {round}: still running after the terminal closed");
+                }
+                thread::sleep(Duration::from_millis(10));
+            };
+            let err = fs::read_to_string(&errlog).unwrap();
+            assert_eq!(status.code(), Some(130), "round {round}: {status:?} {err}");
+            assert!(!err.contains("no terminal"), "round {round}: {err}");
+            assert!(!dir.path().join("a.aes").exists());
+        }
+    }
+
     /// SIGHUP (terminal closed) must not end in a panic while printing.
     #[test]
     fn prompt_hangup() {

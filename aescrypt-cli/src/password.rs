@@ -82,11 +82,16 @@ impl PasswordSource for TtyPrompt {
 }
 
 fn prompt(label: &str) -> Result<PasswordString, CliError> {
-    signals::prompting(|| match rpassword::prompt_password(label) {
+    signals::prompting(|had_terminal| match rpassword::prompt_password(label) {
         // Moved straight into the wrapper: `String` -> `Box<String>` reuses the
         // heap buffer, so no unzeroized copy is left behind by this step.
         Ok(s) => Ok(PasswordString::new(s)),
         Err(e) if e.kind() == io::ErrorKind::Interrupted => Err(CliError::Interrupted),
+        // The terminal was there when the prompt started, so a failed read
+        // means it went away (hang-up, EIO). The SIGHUP handler may not have
+        // run yet; exit the way it would rather than claim there was never a
+        // terminal.
+        Err(_) if had_terminal => Err(CliError::TerminalLost),
         Err(e) => Err(CliError::NoTty(e)),
     })
 }

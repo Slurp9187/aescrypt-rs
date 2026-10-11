@@ -60,14 +60,19 @@ fn on_signal() {
     std::process::exit(130);
 }
 
-/// Runs `f` (a prompt) with the handler in prompt mode.
+/// Runs `f` (a prompt) with the handler in prompt mode. `f` is told whether a
+/// terminal was present when the prompt started, so a read that fails later
+/// can be told apart from there never having been a terminal (always `false`
+/// off Unix, where this is not detected).
 pub(crate) fn prompting<T>(
-    f: impl FnOnce() -> Result<T, crate::CliError>,
+    f: impl FnOnce(bool) -> Result<T, crate::CliError>,
 ) -> Result<T, crate::CliError> {
     #[cfg(unix)]
-    tty::save();
+    let had_terminal = tty::save();
+    #[cfg(not(unix))]
+    let had_terminal = false;
     PROMPTING.store(true, Ordering::SeqCst);
-    let result = f();
+    let result = f(had_terminal);
     PROMPTING.store(false, Ordering::SeqCst);
     #[cfg(unix)]
     tty::forget();
@@ -108,7 +113,8 @@ mod tty {
     /// The controlling terminal and its settings from just before the prompt.
     static SAVED: Mutex<Option<(File, Termios)>> = Mutex::new(None);
 
-    pub(super) fn save() {
+    /// Returns whether there is a terminal to restore.
+    pub(super) fn save() -> bool {
         // No terminal: rpassword will fail on its own, nothing to restore.
         let saved = File::options()
             .read(true)
@@ -116,7 +122,9 @@ mod tty {
             .open("/dev/tty")
             .ok()
             .and_then(|f| tcgetattr(&f).ok().map(|t| (f, t)));
+        let present = saved.is_some();
         *super::lock(&SAVED) = saved;
+        present
     }
 
     pub(super) fn restore() {
