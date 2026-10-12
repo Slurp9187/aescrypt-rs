@@ -238,6 +238,67 @@ fn refuses_same_file_through_links() {
     assert_eq!(fs::read(&enc).unwrap(), original);
 }
 
+/// One job's output must never replace another file in the same run, with or
+/// without `--force`, whichever order the files come in.
+#[test]
+fn refuses_output_that_is_another_input() {
+    let dir = tempfile::tempdir().unwrap();
+    let [x, y] = fast();
+
+    // Encrypt: `note` -> `note.aes`, which is also an input.
+    let note = dir.path().join("note");
+    let note_aes = dir.path().join("note.aes");
+    for order in [[&note, &note_aes], [&note_aes, &note]] {
+        fs::write(&note, b"new plaintext").unwrap();
+        fs::write(&note_aes, b"only copy").unwrap();
+        let r = cli(&["-e", "--force", x, y, s(order[0]), s(order[1])], PW, b"");
+        assert_eq!(r.1.len(), 1, "{order:?}: {:?}", r.1);
+        assert!(
+            r.1[0].to_string().contains("one of the input files"),
+            "{}",
+            r.1[0]
+        );
+        assert_eq!(fs::read(&note_aes).unwrap(), b"only copy", "{order:?}");
+        let _ = fs::remove_file(dir.path().join("note.aes.aes"));
+    }
+
+    // Decrypt: `b.aes.aes` -> `b.aes`, an unrelated ciphertext and an input.
+    let beta = encrypt_file(dir.path(), "b", b"BETA");
+    let beta_bytes = fs::read(&beta).unwrap();
+    let alpha = dir.path().join("b.aes.aes");
+    fs::write(
+        &alpha,
+        fs::read(encrypt_file(dir.path(), "a", b"ALPHA")).unwrap(),
+    )
+    .unwrap();
+    for order in [[&alpha, &beta], [&beta, &alpha]] {
+        let r = cli(&["-d", "--force", s(order[0]), s(order[1])], PW, b"");
+        assert!(
+            r.1.iter()
+                .any(|e| e.to_string().contains("one of the input files")),
+            "{order:?}: {:?}",
+            r.1
+        );
+        assert_eq!(fs::read(&beta).unwrap(), beta_bytes, "{order:?}");
+    }
+}
+
+#[test]
+fn refuses_two_jobs_with_one_output() {
+    let dir = tempfile::tempdir().unwrap();
+    let a = dir.path().join("a");
+    fs::write(&a, b"A").unwrap();
+    let [x, y] = fast();
+    let r = cli(&["-e", "--force", x, y, s(&a), s(&a)], PW, b"");
+    assert_eq!(r.1.len(), 1, "{:?}", r.1);
+    assert!(
+        r.1[0].to_string().contains("output of another file"),
+        "{}",
+        r.1[0]
+    );
+    assert!(dir.path().join("a.aes").exists());
+}
+
 #[test]
 fn refuses_directory_input() {
     let dir = tempfile::tempdir().unwrap();

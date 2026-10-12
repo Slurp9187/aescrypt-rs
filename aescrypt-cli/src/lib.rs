@@ -224,9 +224,11 @@ pub fn run(
     // Everything that can be refused is refused before the prompt, so nobody
     // types a password only to be told the output already exists.
     let mut failures = Vec::new();
-    let mut jobs = Vec::new();
+    let mut jobs: Vec<Job> = Vec::new();
     for input in &opts.files {
-        match plan(opts, input, streams.stdout_is_terminal) {
+        match plan(opts, input, streams.stdout_is_terminal)
+            .and_then(|job| check_batch(&job, &jobs, &opts.files).map(|()| job))
+        {
             Ok(job) => jobs.push(job),
             Err(e) => failures.push(e),
         }
@@ -318,6 +320,52 @@ fn plan(opts: &Opts, input: &Path, stdout_is_terminal: bool) -> Result<Job, CliE
         }
     }
     Ok(Job { source, sink })
+}
+
+/// Refuses a job whose output would replace another file in the same run:
+/// any input (jobs run in order, so a later input would be read after it was
+/// overwritten, and an earlier one is still the user's file), or the output of
+/// a job already accepted. `--force` does not override this; it is about files
+/// from before the run, not ones the run itself reads or writes.
+fn check_batch(job: &Job, accepted: &[Job], inputs: &[PathBuf]) -> Result<(), CliError> {
+    let Sink::File(out) = &job.sink else {
+        return Ok(());
+    };
+    let is_input = inputs
+        .iter()
+        .filter(|i| !is_dash(i))
+        .any(|i| same_file::is_same_file(i, out).unwrap_or(false));
+    if is_input {
+        return Err(CliError::refused(out, "is also one of the input files"));
+    }
+    let taken = accepted.iter().any(|j| match &j.sink {
+        Sink::File(o) => same_destination(o, out),
+        Sink::Stdout => false,
+    });
+    if taken {
+        return Err(CliError::refused(
+            out,
+            "is already the output of another file",
+        ));
+    }
+    Ok(())
+}
+
+/// Whether two output paths name the same file. Outputs usually don't exist
+/// yet, so besides device + inode this compares the resolved parent directory
+/// and the file name.
+fn same_destination(a: &Path, b: &Path) -> bool {
+    if same_file::is_same_file(a, b).unwrap_or(false) {
+        return true;
+    }
+    let key = |p: &Path| {
+        let parent = match p.parent() {
+            Some(d) if !d.as_os_str().is_empty() => d,
+            _ => Path::new("."),
+        };
+        Some((parent.canonicalize().ok()?, p.file_name()?.to_owned()))
+    };
+    matches!((key(a), key(b)), (Some(x), Some(y)) if x == y)
 }
 
 /// `x` -> `x.aes` when encrypting; `x.aes` -> `x` when decrypting.

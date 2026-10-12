@@ -19,5 +19,6 @@ Until `aescrypt-rs` 0.2.0, versions mirror the library's.
 - Output is staged in a temp file and renamed into place only after
   verification, so failures leave nothing behind. Decrypting to stdout also
   waits for verification. Ctrl-C deletes in-progress temp files.
-- Existing files are never overwritten without `--force`, and an output that is
-  the same file as the input is refused.
+- Existing files are never overwritten without `--force`. An output that is the
+  same file as any input of the run, or as another file's output, is refused
+  even with `--force`.
