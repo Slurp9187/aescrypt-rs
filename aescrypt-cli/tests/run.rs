@@ -175,7 +175,12 @@ fn non_utf8_file_name() {
     let dir = tempfile::tempdir().unwrap();
     let name = OsStr::from_bytes(b"bad-\xff-name");
     let plain = dir.path().join(name);
-    fs::write(&plain, b"bytes").unwrap();
+    match fs::write(&plain, b"bytes") {
+        Ok(()) => {}
+        // APFS (macOS) only stores UTF-8 names; nothing to test there.
+        Err(e) if e.raw_os_error() == Some(libc::EILSEQ) => return,
+        Err(e) => panic!("{e}"),
+    }
 
     let opts = |mode, file: PathBuf| Opts {
         mode,
