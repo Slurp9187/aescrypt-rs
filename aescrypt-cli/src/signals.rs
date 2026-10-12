@@ -86,6 +86,16 @@ pub(crate) fn prompting<T>(
 #[cfg(not(unix))]
 static PENDING: AtomicBool = AtomicBool::new(false);
 
+/// Whether the terminal the current prompt started on has since hung up. Only
+/// meaningful inside the closure given to [`prompting`]; always `false` off
+/// Unix.
+pub(crate) fn terminal_hung_up() -> bool {
+    #[cfg(unix)]
+    return tty::hung_up();
+    #[cfg(not(unix))]
+    false
+}
+
 pub(crate) fn register(path: &Path) {
     lock(&TEMPS).push(path.to_path_buf());
 }
@@ -132,6 +142,34 @@ mod tty {
             // Fails harmlessly once the terminal has hung up.
             let _ = tcsetattr(f, OptionalActions::Now, t);
         }
+    }
+
+    /// Whether the saved terminal has hung up. Linux fails the read (EIO), but
+    /// macOS ends it like an empty line, which rpassword returns as `Ok("")`.
+    /// A hung-up terminal polls readable with nothing queued; a live one after
+    /// Enter is either not readable or holds typed-ahead input. Reads nothing,
+    /// so typeahead stays for whatever runs next.
+    pub(super) fn hung_up() -> bool {
+        use rustix::{
+            event::{PollFd, PollFlags, Timespec, poll},
+            io::ioctl_fionread,
+        };
+
+        let saved = super::lock(&SAVED);
+        let Some((f, _)) = saved.as_ref() else {
+            return false;
+        };
+        let mut fds = [PollFd::new(f, PollFlags::IN)];
+        let now = Timespec {
+            tv_sec: 0,
+            tv_nsec: 0,
+        };
+        if !matches!(poll(&mut fds, Some(&now)), Ok(1..)) {
+            return false;
+        }
+        let ev = fds[0].revents();
+        ev.intersects(PollFlags::HUP | PollFlags::ERR)
+            || (ev.contains(PollFlags::IN) && matches!(ioctl_fionread(f), Ok(0) | Err(_)))
     }
 
     pub(super) fn forget() {

@@ -83,6 +83,11 @@ impl PasswordSource for TtyPrompt {
 
 fn prompt(label: &str) -> Result<PasswordString, CliError> {
     signals::prompting(|had_terminal| match rpassword::prompt_password(label) {
+        // On macOS a hang-up reads as an empty line rather than an error. Left
+        // alone, encrypt would generate a passphrase nobody will see.
+        Ok(s) if s.is_empty() && had_terminal && signals::terminal_hung_up() => {
+            Err(CliError::TerminalLost)
+        }
         // Moved straight into the wrapper: `String` -> `Box<String>` reuses the
         // heap buffer, so no unzeroized copy is left behind by this step.
         Ok(s) => Ok(PasswordString::new(s)),
