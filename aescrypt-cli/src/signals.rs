@@ -146,36 +146,16 @@ mod tty {
 
     /// Whether the saved terminal has hung up. Linux fails the read (EIO), but
     /// macOS ends it like an empty line, which rpassword returns as `Ok("")`.
-    /// A hung-up terminal polls readable with nothing queued; a live one after
-    /// Enter is either not readable or holds typed-ahead input. Reads nothing,
-    /// so typeahead stays for whatever runs next.
-    ///
-    /// macOS can end the read a moment before the hang-up shows in `poll`, so
-    /// this waits up to 250ms for it. The prompt is still in progress, so the
-    /// SIGHUP that comes with a hang-up exits 130 meanwhile if it lands first.
-    /// Only an empty answer pays the wait.
+    /// A write of nothing tells them apart: it fails with EIO once the
+    /// terminal has hung up (on both systems), and on a live terminal it does
+    /// nothing at all. Nothing is read, so typeahead stays for whatever runs
+    /// next. `poll` is no use here: on macOS the read can end before the
+    /// hang-up shows there.
     pub(super) fn hung_up() -> bool {
-        use rustix::{
-            event::{PollFd, PollFlags, Timespec, poll},
-            io::ioctl_fionread,
-        };
-
-        // A duplicate, so the signal handler's `restore` is not left waiting on
-        // the lock while this polls.
-        let Some(Ok(f)) = super::lock(&SAVED).as_ref().map(|(f, _)| f.try_clone()) else {
-            return false;
-        };
-        let mut fds = [PollFd::new(&f, PollFlags::IN)];
-        let wait = Timespec {
-            tv_sec: 0,
-            tv_nsec: 250_000_000,
-        };
-        if !matches!(poll(&mut fds, Some(&wait)), Ok(1..)) {
-            return false;
+        match super::lock(&SAVED).as_ref() {
+            Some((f, _)) => rustix::io::write(f, b"").is_err(),
+            None => false,
         }
-        let ev = fds[0].revents();
-        ev.intersects(PollFlags::HUP | PollFlags::ERR)
-            || (ev.contains(PollFlags::IN) && matches!(ioctl_fionread(&f), Ok(0) | Err(_)))
     }
 
     pub(super) fn forget() {

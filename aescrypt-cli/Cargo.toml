@@ -48,7 +48,7 @@ zeroize = "1.8"
 
 # Saves and restores the terminal around the password prompt (src/signals.rs).
 [target.'cfg(unix)'.dependencies]
-rustix = { version = "1.0", features = ["event", "termios"] }
+rustix = { version = "1.0", features = ["termios"] }
 
 [target.'cfg(unix)'.dev-dependencies]
 expectrl = "0.7"
