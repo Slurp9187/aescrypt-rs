@@ -369,10 +369,38 @@ mod unix {
         s
     }
 
-    /// `Exited(pid, code)` vs `Signaled(..)`, via Debug to avoid depending on
-    /// expectrl's nix version.
-    fn exit_status(s: &Session) -> String {
-        format!("{:?}", s.get_process().wait().unwrap())
+    /// Waits for exit and returns `Exited(pid, code)` vs `Signaled(..)`, via
+    /// Debug to avoid depending on expectrl's nix version.
+    ///
+    /// Reads the pty the whole time. On macOS a process cannot finish exiting
+    /// while its terminal holds output nobody has read, so a plain blocking
+    /// `wait()` never returns there. Bounded: a process that does not exit
+    /// must fail the test, not hang it.
+    fn exit_status(p: &mut Session) -> String {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let mut out = Vec::new();
+        let mut buf = [0u8; 1024];
+        loop {
+            // WouldBlock, EOF and Linux's EIO after the slave closes all just
+            // mean "nothing more to read now".
+            while let Ok(n @ 1..) = p.try_read(&mut buf) {
+                out.extend_from_slice(&buf[..n]);
+            }
+            // Non-blocking waitpid; the first non-StillAlive result reaps the
+            // child, so it is the one to keep.
+            let st = format!("{:?}", p.get_process().status().unwrap());
+            if st != "StillAlive" {
+                return st;
+            }
+            if Instant::now() > deadline {
+                signal(p, libc::SIGKILL);
+                panic!(
+                    "still running after 10s; output: {:?}",
+                    String::from_utf8_lossy(&out)
+                );
+            }
+            thread::sleep(Duration::from_millis(20));
+        }
     }
 
     fn decrypts_with(enc: &Path, pw: &str) -> bool {
@@ -397,7 +425,7 @@ mod unix {
         p.send_line("a long enough password").unwrap();
         p.expect("Confirm password: ").unwrap();
         p.send_line("a long enough password").unwrap();
-        let status = exit_status(&p);
+        let status = exit_status(&mut p);
         assert!(
             status.contains("Exited") && status.ends_with(", 0)"),
             "{status}"
@@ -419,7 +447,7 @@ mod unix {
         p.expect("Confirm password: ").unwrap();
         p.send_line("second password here").unwrap();
         p.expect("do not match").unwrap();
-        assert!(exit_status(&p).ends_with(", 1)"));
+        assert!(exit_status(&mut p).ends_with(", 1)"));
         assert!(!dir.path().join("a.aes").exists());
     }
 
@@ -434,7 +462,7 @@ mod unix {
         p.expect("Confirm password: ").unwrap();
         p.send_line("short").unwrap();
         p.expect("shorter than").unwrap();
-        assert!(exit_status(&p).ends_with(", 0)"));
+        assert!(exit_status(&mut p).ends_with(", 0)"));
         assert!(decrypts_with(&dir.path().join("a.aes"), "short"));
     }
 
@@ -452,7 +480,7 @@ mod unix {
             ))
             .unwrap();
         let pass = String::from_utf8(caps.get(1).unwrap().to_vec()).unwrap();
-        assert!(exit_status(&p).ends_with(", 0)"));
+        assert!(exit_status(&mut p).ends_with(", 0)"));
         assert!(decrypts_with(&dir.path().join("a.aes"), &pass));
     }
 
@@ -476,23 +504,8 @@ mod unix {
 
     /// After a signal at the prompt: a normal exit 130 (not death by signal,
     /// not a panic's 101), echo back on, and nothing encrypted.
-    fn assert_clean_interrupt(p: &Session, dir: &Path) {
-        // Bounded: a process that ignores the signal must fail the test, not
-        // hang it.
-        let deadline = Instant::now() + Duration::from_secs(10);
-        let status = loop {
-            // Non-blocking waitpid; the first non-StillAlive result reaps the
-            // child, so it is the one to keep.
-            let st = format!("{:?}", p.get_process().status().unwrap());
-            if st != "StillAlive" {
-                break st;
-            }
-            if Instant::now() > deadline {
-                signal(p, libc::SIGKILL);
-                panic!("still running 10s after the signal");
-            }
-            thread::sleep(Duration::from_millis(20));
-        };
+    fn assert_clean_interrupt(p: &mut Session, dir: &Path) {
+        let status = exit_status(p);
         assert!(
             status.contains("Exited") && status.ends_with(", 130)"),
             "{status}"
@@ -515,7 +528,7 @@ mod unix {
         let dir = tempfile::tempdir().unwrap();
         let mut p = at_prompt(dir.path());
         p.send("\x03").unwrap();
-        assert_clean_interrupt(&p, dir.path());
+        assert_clean_interrupt(&mut p, dir.path());
     }
 
     /// SIGTERM and SIGINT from outside must not wait for the user to finish
@@ -524,9 +537,9 @@ mod unix {
     fn prompt_external_signals_exit_at_once() {
         for sig in [libc::SIGTERM, libc::SIGINT] {
             let dir = tempfile::tempdir().unwrap();
-            let p = at_prompt(dir.path());
+            let mut p = at_prompt(dir.path());
             signal(&p, sig);
-            assert_clean_interrupt(&p, dir.path());
+            assert_clean_interrupt(&mut p, dir.path());
         }
     }
 
@@ -622,8 +635,8 @@ mod unix {
     #[test]
     fn prompt_hangup() {
         let dir = tempfile::tempdir().unwrap();
-        let p = at_prompt(dir.path());
+        let mut p = at_prompt(dir.path());
         signal(&p, libc::SIGHUP);
-        assert_clean_interrupt(&p, dir.path());
+        assert_clean_interrupt(&mut p, dir.path());
     }
 }

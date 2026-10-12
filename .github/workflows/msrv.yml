@@ -45,6 +45,9 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    # A test stuck on a pty otherwise holds the runner for GitHub's 6-hour
+    # default.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - run: rustup toolchain install stable --profile minimal
