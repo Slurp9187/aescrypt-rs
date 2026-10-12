@@ -89,7 +89,10 @@ generated passphrase can't end up in a log file.
   `--force`. An output that is the same file as the input is always refused,
   including through hard links and symlinks. In a run with several files, an
   output that is one of the other inputs, or another file's output, is refused
-  too, even with `--force`.
+  too, even with `--force`. One gap: on a case-insensitive filesystem (the
+  Windows and macOS defaults), two new outputs whose names differ only in case
+  aren't caught in advance. Without `--force` the second is refused; with it,
+  the second replaces the first one's output. No input is touched either way.
 - **No ciphertext on a terminal.** Encrypting to stdout is refused when stdout
   is a terminal.
 

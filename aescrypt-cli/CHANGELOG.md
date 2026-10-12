@@ -21,4 +21,5 @@ Until `aescrypt-rs` 0.2.0, versions mirror the library's.
   waits for verification. Ctrl-C deletes in-progress temp files.
 - Existing files are never overwritten without `--force`. An output that is the
   same file as any input of the run, or as another file's output, is refused
-  even with `--force`.
+  even with `--force` (except two new outputs whose names differ only in case,
+  on a case-insensitive filesystem; see the README).
