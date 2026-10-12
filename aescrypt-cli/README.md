@@ -25,6 +25,12 @@ aescrypt-cli -e|-d [-o OUTPUT] [--force] [--iterations N] [--password-command CM
 | `tar c dir \| aescrypt-cli -e -o dir.tar.aes -` | reads stdin (`-`); needs `-o` |
 | `aescrypt-cli -d -o - backup.tar.aes \| tar x` | writes stdout (`-o -`) |
 
+When passing files with a wildcard, put `--` before them
+(`aescrypt-cli -e -- *`), as with `rm` or `tar`. Otherwise a file whose name
+starts with `-`, such as one named `--force` or `--password-command`, is read
+as that option. Anyone who can create files in the folder could then turn on
+`--force`, or make aescrypt-cli run a command of their choosing.
+
 The flags follow the official `aescrypt` tool, except that there is no `-p`
 or `-k` (see below). Decrypting a file whose name doesn't end in `.aes` needs
 `-o`. `--iterations` sets the PBKDF2 work factor when encrypting (default
@@ -66,7 +72,11 @@ generated passphrase can't end up in a log file.
   verified once the whole file has been read. aescrypt-cli therefore writes to
   a hidden `.aescrypt-cli-*.tmp` file next to the destination, and renames it
   into place only after decryption has been verified. A wrong password or a
-  damaged file leaves nothing behind.
+  damaged file leaves nothing behind. One exception is in the format itself:
+  in v0–v2 files, the byte that records how long the last block is isn't
+  covered by the integrity check, so if only that byte is damaged, the file
+  still decrypts, and the output can be up to 15 bytes too short or too long.
+  v3 files, which aescrypt-cli writes, check it.
 - **Decrypting to stdout** stages the plaintext in the system temp directory
   and only copies it out after verification. Nothing unverified reaches a
   pipe. This needs temporary disk space equal to the file's size.
@@ -77,7 +87,9 @@ generated passphrase can't end up in a log file.
   can't leave an empty file under the final name.
 - **No overwriting.** An existing output file is never replaced without
   `--force`. An output that is the same file as the input is always refused,
-  including through hard links and symlinks.
+  including through hard links and symlinks. In a run with several files, an
+  output that is one of the other inputs, or another file's output, is refused
+  too, even with `--force`.
 - **No ciphertext on a terminal.** Encrypting to stdout is refused when stdout
   is a terminal.
 
