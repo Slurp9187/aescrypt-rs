@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `DEFAULT_PBKDF2_ITERATIONS` is now 600,000 (was 300,000), matching the official AES
+  Crypt tool (4.7). It is the iteration count for newly encrypted files that use the
+  default; every file stores its own count, so files written with either value decrypt
+  unchanged. Key derivation for those files takes about twice as long.
 - `fuzz/Cargo.toml` declares an empty `[workspace]` table so the new root workspace
   doesn't claim it. Its lockfile is unchanged.
 

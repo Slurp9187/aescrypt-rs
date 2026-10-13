@@ -1,7 +1,7 @@
 //! tests/encrypt_tests.rs
 //! Production iteration validation test
 //!
-//! This minimal test suite focuses on validating production settings (300k iterations).
+//! This minimal test suite focuses on validating production settings (600,000 iterations).
 //! Comprehensive encryption testing is covered by vector_tests.rs.
 
 use aescrypt_rs::constants::DEFAULT_PBKDF2_ITERATIONS;
@@ -33,7 +33,7 @@ impl<R: Read> Read for StingyReader<R> {
 
 #[test]
 fn encrypt_with_real_world_iterations() {
-    // Test with real-world DEFAULT_PBKDF2_ITERATIONS (300,000) to verify production settings work
+    // Test with real-world DEFAULT_PBKDF2_ITERATIONS (600,000) to verify production settings work
     let password = "real-world-test";
     let plaintext = b"test data for real-world iteration count";
 

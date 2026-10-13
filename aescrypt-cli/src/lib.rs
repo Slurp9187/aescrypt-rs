@@ -21,7 +21,7 @@ use std::{
 
 use aescrypt_rs::{
     aliases::PasswordString,
-    constants::{DEFAULT_PBKDF2_ITERATIONS, PBKDF2_MAX_ITER, PBKDF2_MIN_ITER},
+    constants::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER},
     decrypt, encrypt,
 };
 use clap::{ArgGroup, Parser};
@@ -51,6 +51,12 @@ const VERSION: &str = concat!(
     lib_version!(),
     ")"
 );
+
+/// PBKDF2 iterations for new files: the official AES Crypt tool's default
+/// (4.7). The CLI's own, not the library's `DEFAULT_PBKDF2_ITERATIONS`: the
+/// pinned library release (0.2.0-rc.11) still defaults to 300,000.
+/// `tests::help_shows_default_iterations` keeps `--help` in step.
+const DEFAULT_ITERATIONS: u32 = 600_000;
 
 /// Shown after the options with both `-h` and `--help`: what a first-time
 /// user, or a script reading the help, needs before the README.
@@ -96,7 +102,7 @@ pub struct Cli {
     #[arg(short, long)]
     pub force: bool,
 
-    /// PBKDF2 iterations when encrypting [default: 300000]
+    /// PBKDF2 iterations when encrypting [default: 600000]
     #[arg(long, value_name = "N")]
     pub iterations: Option<u32>,
 
@@ -157,7 +163,7 @@ impl TryFrom<&Cli> for Opts {
         if mode == Mode::Decrypt && cli.iterations.is_some() {
             return Err(CliError::Usage("--iterations only applies to -e".into()));
         }
-        let iterations = cli.iterations.unwrap_or(DEFAULT_PBKDF2_ITERATIONS);
+        let iterations = cli.iterations.unwrap_or(DEFAULT_ITERATIONS);
         if !(PBKDF2_MIN_ITER..=PBKDF2_MAX_ITER).contains(&iterations) {
             return Err(CliError::Usage(format!(
                 "--iterations must be between {PBKDF2_MIN_ITER} and {PBKDF2_MAX_ITER}"
@@ -571,11 +577,23 @@ mod tests {
     /// The `=` pin on aescrypt-rs in Cargo.toml must be `LIB_VERSION`.
     #[test]
     fn lib_pin_matches() {
+        // Two shapes: the inline table in the repo's Cargo.toml, and the
+        // `[dependencies.aescrypt-rs]` table `cargo package` rewrites it into,
+        // which is what a published crate's tests read.
         let manifest = include_str!("../Cargo.toml");
-        let line = manifest
-            .lines()
-            .find(|l| l.starts_with("aescrypt-rs = "))
-            .expect("aescrypt-rs dependency line");
+        let mut lines = manifest.lines();
+        let line = lines
+            .by_ref()
+            .find(|l| l.starts_with("aescrypt-rs = ") || l.trim() == "[dependencies.aescrypt-rs]")
+            .expect("aescrypt-rs dependency");
+        let line = if line.starts_with('[') {
+            lines
+                .take_while(|l| !l.starts_with('['))
+                .find(|l| l.starts_with("version = "))
+                .expect("version under [dependencies.aescrypt-rs]")
+        } else {
+            line
+        };
         assert!(
             line.contains(&format!("version = \"={LIB_VERSION}\"")),
             "Cargo.toml pins {line}, LIB_VERSION is {LIB_VERSION}"
@@ -583,11 +601,15 @@ mod tests {
         assert!(VERSION.ends_with(&format!("(aescrypt-rs {LIB_VERSION})")));
     }
 
-    /// Until aescrypt-rs 0.2.0 stable the CLI mirrors the library's version.
-    /// Delete this test when the versions are allowed to diverge.
+    /// The `--help` text states the default, so it must name the real one.
     #[test]
-    fn version_mirrors_library() {
-        assert_eq!(env!("CARGO_PKG_VERSION"), LIB_VERSION);
+    fn help_shows_default_iterations() {
+        use clap::CommandFactory;
+        let help = Cli::command().render_long_help().to_string();
+        assert!(
+            help.contains(&format!("[default: {DEFAULT_ITERATIONS}]")),
+            "{help}"
+        );
     }
 
     #[test]
