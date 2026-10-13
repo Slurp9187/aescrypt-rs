@@ -5,8 +5,9 @@
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-orange)](https://releases.rs/docs/1.85.0/)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
 
-aescrypt-rs is an independent implementation of the AES Crypt file format. It is not
-affiliated with or endorsed by Paul E. Jones or the official AES Crypt project.
+> [!NOTE]
+> aescrypt-rs is an independent implementation of the AES Crypt file format. It is not
+> affiliated with or endorsed by Paul E. Jones or the official AES Crypt project.
 
 **Fast, safe, streaming Rust implementation of the AES Crypt file format**
 
