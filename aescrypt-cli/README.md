@@ -5,10 +5,11 @@ A command-line tool for [AES Crypt](https://www.aescrypt.com/) files, built on
 format version (v0–v3) and writes v3.
 
 ```sh
-cargo install aescrypt-cli
+cargo install aescrypt-cli --version 0.2.0-rc.11
 ```
 
-Requires Rust 1.85 or newer.
+Requires Rust 1.85 or newer. Until 0.2.0 is released only release candidates
+exist, and `cargo install` wants the version named for those.
 
 ## Usage
 

@@ -291,7 +291,7 @@ This crate defines **no optional features**. It always links `aes` with the `zer
 this repository as a separate crate, so the library's dependencies are unaffected.
 
 ```sh
-cargo install aescrypt-cli
+cargo install aescrypt-cli --version 0.2.0-rc.11
 aescrypt-cli -e report.pdf        # writes report.pdf.aes
 aescrypt-cli -d report.pdf.aes    # writes report.pdf
 ```
