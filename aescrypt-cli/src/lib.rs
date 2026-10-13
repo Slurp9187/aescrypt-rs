@@ -35,7 +35,7 @@ use std::{
 
 use aescrypt_rs::{
     aliases::PasswordString,
-    constants::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER},
+    constants::{DEFAULT_PBKDF2_ITERATIONS, PBKDF2_MAX_ITER, PBKDF2_MIN_ITER},
     decrypt, encrypt,
 };
 use clap::{ArgGroup, Parser};
@@ -60,7 +60,7 @@ macro_rules! lib_version {
 pub const LIB_VERSION: &str = lib_version!();
 
 /// What `--version` prints after the program name, e.g.
-/// `0.1.0-rc.1 (aescrypt-rs 0.2.0-rc.12)`: both versions, because a bug
+/// `0.1.0-rc.2 (aescrypt-rs 0.2.0-rc.12)`: both versions, because a bug
 /// report needs the library's too.
 const VERSION: &str = concat!(
     env!("CARGO_PKG_VERSION"),
@@ -68,12 +68,6 @@ const VERSION: &str = concat!(
     lib_version!(),
     ")"
 );
-
-/// PBKDF2 iterations for new files: the official AES Crypt tool's default
-/// (4.7). Equal to the library's `DEFAULT_PBKDF2_ITERATIONS` from 0.2.0-rc.12
-/// on; it was defined here because 0.2.0-rc.11 still defaulted to 300,000.
-/// `tests::help_shows_default_iterations` keeps `--help` in step.
-const DEFAULT_ITERATIONS: u32 = 600_000;
 
 /// Shown after the options with both `-h` and `--help`: what a first-time
 /// user, or a script reading the help, needs before the README.
@@ -180,7 +174,7 @@ impl TryFrom<&Cli> for Opts {
         if mode == Mode::Decrypt && cli.iterations.is_some() {
             return Err(CliError::Usage("--iterations only applies to -e".into()));
         }
-        let iterations = cli.iterations.unwrap_or(DEFAULT_ITERATIONS);
+        let iterations = cli.iterations.unwrap_or(DEFAULT_PBKDF2_ITERATIONS);
         if !(PBKDF2_MIN_ITER..=PBKDF2_MAX_ITER).contains(&iterations) {
             return Err(CliError::Usage(format!(
                 "--iterations must be between {PBKDF2_MIN_ITER} and {PBKDF2_MAX_ITER}"
@@ -642,13 +636,15 @@ mod tests {
         assert!(VERSION.ends_with(&format!("(aescrypt-rs {LIB_VERSION})")));
     }
 
-    /// The `--help` text states the default, so it must name the real one.
+    /// The `--help` text states the default as a literal (a doc comment can't
+    /// name a constant), so it must match the library's real default. Fails
+    /// when a library bump changes `DEFAULT_PBKDF2_ITERATIONS`.
     #[test]
     fn help_shows_default_iterations() {
         use clap::CommandFactory;
         let help = Cli::command().render_long_help().to_string();
         assert!(
-            help.contains(&format!("[default: {DEFAULT_ITERATIONS}]")),
+            help.contains(&format!("[default: {DEFAULT_PBKDF2_ITERATIONS}]")),
             "{help}"
         );
     }
