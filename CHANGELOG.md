@@ -25,8 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation is required and enforced. A `[workspace.lints]` table denies missing docs
   (public and private items), missing `# Errors` and `# Panics` sections, and broken,
   private or redundant intra-doc links; a new `rustdoc` CI job builds the docs with
-  warnings denied, private items included. Examples on `encrypt`, `decrypt` and in the
-  README now run as doctests instead of only compiling.
+  warnings denied, private items included. Examples on `encrypt`, `decrypt` and in five
+  of the six README examples now run as doctests instead of only compiling; the sixth
+  reads placeholder bytes, so it only compiles.
+- The v3 padding check builds its comparison block inside a zeroizing wrapper; it used to
+  copy up to 15 bytes of the final plaintext block into a plain stack array.
 - The `aliases` docs no longer claim every alias zeroizes on drop: `HmacSha256` is the
   `hmac` crate's type and its internal state is not zeroized.
 

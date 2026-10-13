@@ -60,8 +60,10 @@ use sha2::Sha256;
 /// and over the payload ciphertext (v0–v3).
 ///
 /// This is the `hmac` crate's type, not a `secure-gate` wrapper. Its keyed
-/// internal state is **not** zeroized on drop; only the tags it produces are
-/// copied into zeroizing buffers ([`SessionHmacTag32`], [`Trailer32`]).
+/// internal state is **not** zeroized on drop. The tags it computes come back as
+/// plain arrays: encryption writes them straight to the output, and decryption
+/// copies them into [`SessionHmacTag32`] / [`Trailer32`] for the constant-time
+/// comparison. Tags are public; they are stored in the file.
 pub type HmacSha256 = Hmac<Sha256>;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -69,9 +71,11 @@ pub type HmacSha256 = Hmac<Sha256>;
 // ─────────────────────────────────────────────────────────────────────────────
 /// An `N`-byte stack buffer that zeroizes on drop: `secure_gate::Fixed<[u8; N]>`.
 ///
-/// The header and session parsers read every fixed-size field into one, so even
-/// public header bytes never sit in an unzeroized buffer. The other `*N` aliases
-/// below are the same type at a specific `N`.
+/// `decrypt` reads each fixed-size header and session field into one through
+/// [`read_exact_span`](crate::decryption::read_exact_span). Not every parser
+/// does: [`read_version`](crate::read_version) reads its few public bytes into
+/// plain arrays. The other `*N` aliases below are the same type at a specific
+/// `N`.
 pub type SpanBuffer<const N: usize> = secure_gate::Fixed<[u8; N]>;
 
 // Semantic sub-types — readability aliases for `SpanBuffer<N>`. Not nominally

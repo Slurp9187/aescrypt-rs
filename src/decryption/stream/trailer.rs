@@ -81,14 +81,16 @@ pub(crate) fn write_final_pkcs7<W: Write>(
 
     // Constant-time validation: build expected block = data bytes || padding bytes,
     // then compare the full 16-byte block in one constant-time operation.
+    // Built inside the wrapper, so the copied plaintext bytes never sit in a
+    // plain stack array that outlives the comparison.
     let padding_start = 16 - padding as usize;
-    let mut expected_block = [0u8; 16];
-    ctx.plaintext_block.with_secret(|block| {
-        expected_block[..padding_start].copy_from_slice(&block[..padding_start]);
+    let mut expected_fixed = Block16::new([0u8; 16]);
+    expected_fixed.with_secret_mut(|expected| {
+        ctx.plaintext_block.with_secret(|block| {
+            expected[..padding_start].copy_from_slice(&block[..padding_start]);
+        });
+        expected[padding_start..].fill(padding);
     });
-    expected_block[padding_start..].fill(padding);
-
-    let expected_fixed = Block16::from(expected_block);
     let padding_valid = ctx.plaintext_block.ct_eq(&expected_fixed);
     if !padding_valid {
         return Err(AescryptError::Header("v3: invalid PKCS#7 padding".into()));
