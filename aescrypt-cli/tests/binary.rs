@@ -92,9 +92,58 @@ fn roundtrip_with_password_command() {
         &print_cmd("wrong"),
         s(&enc),
     ]);
-    assert_eq!(o.status.code(), Some(1));
+    assert_eq!(o.status.code(), Some(3));
     assert!(stderr(&o).contains("wrong password"), "{}", stderr(&o));
     assert!(!dir.path().join("b").exists());
+}
+
+/// 3 only when every failure was a wrong password; anything else in the mix,
+/// or damage the password check passed, is 1.
+#[test]
+fn exit_codes() {
+    let dir = tempfile::tempdir().unwrap();
+    let pw = print_cmd("right");
+    let mut encs = Vec::new();
+    for name in ["a", "b"] {
+        let plain = dir.path().join(name);
+        fs::write(&plain, b"data").unwrap();
+        let o = aescrypt(&[
+            "-e",
+            "--iterations",
+            "5",
+            "--password-command",
+            &pw,
+            s(&plain),
+        ]);
+        assert!(o.status.success(), "{}", stderr(&o));
+        encs.push(dir.path().join(format!("{name}.aes")));
+    }
+    let dec = |args: &[&str]| {
+        let mut v = vec!["-d", "--force", "--password-command"];
+        v.extend_from_slice(args);
+        aescrypt(&v)
+    };
+    let wrong = print_cmd("wrong");
+
+    let o = dec(&[&wrong, s(&encs[0]), s(&encs[1])]);
+    assert_eq!(o.status.code(), Some(3), "both wrong: {}", stderr(&o));
+
+    let missing = dir.path().join("missing.aes");
+    let o = dec(&[&wrong, s(&encs[0]), s(&missing)]);
+    assert_eq!(o.status.code(), Some(1), "wrong + missing: {}", stderr(&o));
+
+    // Last byte of the payload HMAC: the password check passes, the data
+    // check fails. Damage, not a wrong password.
+    let mut bytes = fs::read(&encs[1]).unwrap();
+    *bytes.last_mut().unwrap() ^= 1;
+    fs::write(&encs[1], bytes).unwrap();
+    let o = dec(&[&pw, s(&encs[1])]);
+    assert_eq!(o.status.code(), Some(1), "tampered: {}", stderr(&o));
+    assert!(
+        stderr(&o).contains("password was correct"),
+        "{}",
+        stderr(&o)
+    );
 }
 
 #[test]

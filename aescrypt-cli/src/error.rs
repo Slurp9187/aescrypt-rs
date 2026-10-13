@@ -77,6 +77,19 @@ impl CliError {
             _ => 1,
         }
     }
+
+    /// Whether decryption failed because the password was wrong (for a v0
+    /// file: wrong, or the file is damaged; v0 cannot tell them apart).
+    pub fn is_wrong_password(&self) -> bool {
+        match self {
+            Self::Crypto {
+                decrypt: Some(state),
+                source: AescryptError::Header(msg),
+                ..
+            } => is_wrong_password_msg(msg, state.version),
+            _ => false,
+        }
+    }
 }
 
 /// How much of a ciphertext was read when decryption failed.
@@ -121,11 +134,12 @@ fn describe(e: &AescryptError, decrypt: Option<&ReadState>) -> String {
     };
     let version = state.version;
     let hint = match msg.as_str() {
-        "session data corrupted or tampered (HMAC mismatch)" => {
-            "wrong password, or the file header is damaged"
-        }
-        "HMAC verification failed" if version == Some(0) => {
-            "wrong password, or the file is damaged or was tampered with"
+        _ if is_wrong_password_msg(msg, version) => {
+            if version == Some(0) {
+                "wrong password, or the file is damaged or was tampered with"
+            } else {
+                "wrong password, or the file header is damaged"
+            }
         }
         "HMAC verification failed" => {
             "the file is damaged or was tampered with (the password was correct)"
@@ -138,4 +152,58 @@ fn describe(e: &AescryptError, decrypt: Option<&ReadState>) -> String {
         _ => return e.to_string(),
     };
     format!("{hint} ({msg})")
+}
+
+/// Whether a library header message means the password was wrong: the
+/// session-block HMAC (v1–v3), or for v0, which has no session block, the
+/// payload HMAC (so for v0 it may also mean damage). `describe` and
+/// [`CliError::is_wrong_password`] both use this, so they cannot disagree.
+fn is_wrong_password_msg(msg: &str, version: Option<u8>) -> bool {
+    match msg {
+        "session data corrupted or tampered (HMAC mismatch)" => true,
+        "HMAC verification failed" => version == Some(0),
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Exit code 3 and the "wrong password" wording come from one predicate.
+    #[test]
+    fn wrong_password_agrees_with_message() {
+        let cases = [
+            (
+                "session data corrupted or tampered (HMAC mismatch)",
+                3,
+                true,
+            ),
+            (
+                "session data corrupted or tampered (HMAC mismatch)",
+                1,
+                true,
+            ),
+            ("HMAC verification failed", 0, true),
+            ("HMAC verification failed", 2, false),
+            ("HMAC verification failed", 3, false),
+            ("v3: invalid PKCS#7 padding", 3, false),
+        ];
+        for (msg, version, expected) in cases {
+            let e = CliError::Crypto {
+                path: "f.aes".into(),
+                decrypt: Some(ReadState {
+                    version: Some(version),
+                    bytes: 100,
+                }),
+                source: AescryptError::Header(msg.into()),
+            };
+            assert_eq!(e.is_wrong_password(), expected, "{msg} v{version}");
+            assert_eq!(
+                e.to_string().contains("wrong password"),
+                expected,
+                "{msg} v{version}: {e}"
+            );
+        }
+    }
 }

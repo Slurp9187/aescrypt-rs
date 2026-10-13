@@ -24,3 +24,5 @@ Until `aescrypt-rs` 0.2.0, versions mirror the library's.
   same file as any input of the run, or as another file's output, is refused
   even with `--force` (except two new outputs whose names differ only in case,
   on a case-insensitive filesystem; see the README).
+- Exit codes: 0 success, 1 a file failed (or no password could be obtained),
+  2 usage error, 3 every failure was a wrong password, 130 interrupted.

@@ -204,9 +204,26 @@ pub fn main_entry() -> i32 {
             for e in &failures {
                 say(&format!("aescrypt-cli: {e}"));
             }
-            i32::from(!failures.is_empty())
+            files_exit_code(&failures)
         }
         Err(e) => report_fatal(&e),
+    }
+}
+
+/// Some file failed.
+const EXIT_FAILED: i32 = 1;
+/// Every failure was a wrong password, so retrying with another one may work.
+const EXIT_WRONG_PASSWORD: i32 = 3;
+
+/// Exit code for a run that got as far as the files: 0 if all succeeded, 3 if
+/// every failure was a wrong password, otherwise 1.
+fn files_exit_code(failures: &[CliError]) -> i32 {
+    if failures.is_empty() {
+        0
+    } else if failures.iter().all(CliError::is_wrong_password) {
+        EXIT_WRONG_PASSWORD
+    } else {
+        EXIT_FAILED
     }
 }
 

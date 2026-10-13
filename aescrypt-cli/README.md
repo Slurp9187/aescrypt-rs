@@ -126,6 +126,7 @@ replacement doesn't keep the old file's owner, permissions or hard links.
 | 0 | every file succeeded |
 | 1 | at least one file failed (each failure is reported; other files still run), or no password could be obtained, in which case no file was processed (confirmation mismatch, empty password, `--password-command` or `--password-file` failure, no terminal) |
 | 2 | invalid command line |
+| 3 | every file that failed was decrypted with the wrong password, so another password may work (for a v0 file this can also mean the file is damaged; v0 cannot tell them apart) |
 | 130 | interrupted (Ctrl-C, SIGTERM, or the terminal closed) |
 
 ## Non-goals
