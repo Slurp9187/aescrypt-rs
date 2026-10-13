@@ -37,9 +37,22 @@ fn s(p: &Path) -> &str {
 
 #[test]
 fn help_and_version() {
-    let o = aescrypt(&["--help"]);
-    assert!(o.status.success());
-    assert!(String::from_utf8_lossy(&o.stdout).contains("--password-command"));
+    for flag in ["-h", "--help"] {
+        let o = aescrypt(&[flag]);
+        assert!(o.status.success());
+        let h = String::from_utf8_lossy(&o.stdout);
+        for want in [
+            "--password-command",
+            "--password-file",
+            "Examples:",
+            "-- *",
+            "generate a passphrase",
+            "Exit codes:",
+            "3 wrong password",
+        ] {
+            assert!(h.contains(want), "{flag} lacks {want:?}:\n{h}");
+        }
+    }
 
     let o = aescrypt(&["--version"]);
     assert!(o.status.success());

@@ -52,6 +52,18 @@ const VERSION: &str = concat!(
     ")"
 );
 
+/// Shown after the options with both `-h` and `--help`: what a first-time
+/// user, or a script reading the help, needs before the README.
+const HELP_FOOTER: &str = "\
+Examples:
+  aescrypt-cli -e report.pdf                       writes report.pdf.aes
+  aescrypt-cli -d -o - backup.tar.aes | tar x      decrypts to stdout
+  aescrypt-cli -e --password-file pw.txt -- *      non-interactive; put -- before a wildcard
+
+Leave the encrypt prompt empty to generate a passphrase.
+
+Exit codes: 0 success, 1 a file failed, 2 usage error, 3 wrong password, 130 interrupted";
+
 /// File-name suffix for encrypted files, as the official tool uses.
 const SUFFIX: &str = "aes";
 
@@ -64,7 +76,7 @@ const SUFFIX: &str = "aes";
 /// Passwords are read from the terminal, or from --password-command. There is
 /// deliberately no option that takes a password directly.
 #[derive(Debug, Parser)]
-#[command(name = "aescrypt-cli", version = VERSION, about)]
+#[command(name = "aescrypt-cli", version = VERSION, about, after_help = HELP_FOOTER)]
 #[command(group(ArgGroup::new("mode").required(true).args(["encrypt", "decrypt"])))]
 pub struct Cli {
     /// Encrypt FILEs (output: FILE.aes)
@@ -79,7 +91,7 @@ pub struct Cli {
     #[arg(short, long, value_name = "OUTPUT")]
     pub output: Option<PathBuf>,
 
-    /// Overwrite existing output files
+    /// Overwrite existing output files (never one of this run's inputs)
     #[arg(short, long)]
     pub force: bool,
 
