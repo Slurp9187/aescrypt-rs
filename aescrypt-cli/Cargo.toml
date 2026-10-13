@@ -11,8 +11,11 @@ rust-version = "1.85"
 description = "Command-line tool for AES Crypt files (decrypts v0-v3, writes v3), built on aescrypt-rs"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Slurp9187/aescrypt-rs"
+# The README is the documentation: the library target exists only for tests and
+# exposes no API, so its docs.rs page would be empty.
+documentation = "https://github.com/Slurp9187/aescrypt-rs/tree/main/aescrypt-cli#readme"
 readme = "README.md"
-keywords = ["aes", "crypt", "encryption", "cli"]
+keywords = ["aes", "aescrypt", "crypt", "encryption", "cli"]
 categories = ["cryptography", "command-line-utilities"]
 # Allowlist for the same reason as the library's: a new path ships only once it
 # is named here.

@@ -4,8 +4,8 @@
 
 [package]
 name = "aescrypt-rs"
-# Until 0.2.0 stable, `aescrypt-cli/Cargo.toml` carries this same version and pins
-# it with `=`; bump both together. A unit test in that crate fails if they drift.
+# `aescrypt-cli` is versioned on its own and pins a published release of this
+# crate with `=`; a bump here does not bump it.
 version = "0.2.0-rc.11"
 edition = "2024"
 rust-version = "1.85"
