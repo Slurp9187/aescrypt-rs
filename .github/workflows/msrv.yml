@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: rustup toolchain install 1.85 --profile minimal
-      - run: cargo +1.85 test --all-features
+      - run: cargo +1.85 test --workspace --all-features
       # `bench --no-run` is not redundant with `test`. criterion 0.7 resolves
       # clap 4.6, which declares rust-version 1.85 — satisfied with ZERO margin.
       # Nothing else in the build touches that edge, so this is the only guard
@@ -34,4 +34,33 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: rustup toolchain install stable --profile minimal
-      - run: cargo +stable test --all-features
+      - run: cargo +stable test --workspace --all-features
+
+  # The CLI touches the terminal, `sh` vs `cmd`, and rename semantics, all of
+  # which differ by OS. Linux is covered by the jobs above.
+  cli-os:
+    name: aescrypt-cli on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    # A test stuck on a pty otherwise holds the runner for GitHub's 6-hour
+    # default.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install stable --profile minimal
+      - run: cargo +stable test -p aescrypt-cli
+
+  # On the pinned toolchain (rust-toolchain.toml), not stable: each stable
+  # release adds clippy lints, and a lint job that goes red on its own between
+  # pushes gets ignored.
+  lint:
+    name: fmt + clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: rustup toolchain install 1.85 --profile minimal --component rustfmt,clippy
+      - run: cargo +1.85 fmt --all --check
+      - run: cargo +1.85 clippy --workspace --all-targets -- -D warnings

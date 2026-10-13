@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`aescrypt-cli`**, a command-line tool, as a new crate in a Cargo workspace rooted at
+  this package. It has its own changelog (`aescrypt-cli/CHANGELOG.md`). The library's
+  dependencies, published contents and MSRV are unchanged. A bare `cargo test` at the
+  root still builds the library alone; use `--workspace` for both.
+
+### Changed
+
+- `fuzz/Cargo.toml` declares an empty `[workspace]` table so the new root workspace
+  doesn't claim it. Its lockfile is unchanged.
+
 ## [0.2.0-rc.11] - 2026-09-15
 
 > **Publishable.** `secure-gate` is an exact registry pin, so what CI builds is what a

@@ -1,0 +1,55 @@
+# ============================================================================
+# FILE: aescrypt-cli/Cargo.toml
+# ============================================================================
+
+[package]
+name = "aescrypt-cli"
+# Mirrors aescrypt-rs until 0.2.0 stable: same version string, bumped together,
+# and the `=` pin below must name it. `tests::version_mirrors_library` enforces
+# that. After 0.2.0 the CLI is versioned on its own and that test is deleted.
+version = "0.2.0-rc.11"
+edition = "2024"
+rust-version = "1.85"
+description = "Command-line tool for AES Crypt files (decrypts v0-v3, writes v3), built on aescrypt-rs"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Slurp9187/aescrypt-rs"
+readme = "README.md"
+keywords = ["aes", "crypt", "encryption", "cli"]
+categories = ["cryptography", "command-line-utilities"]
+# Allowlist for the same reason as the library's: a new path ships only once it
+# is named here.
+include = [
+    "src/**/*.rs",
+    "tests/**/*.rs",
+    "/CHANGELOG.md",
+    "/LICENSE*",
+    "/README.md",
+]
+
+[[bin]]
+name = "aescrypt-cli"
+path = "src/main.rs"
+
+[dependencies]
+# Exact pin: the version this CLI was built and tested against. `path` is for
+# the workspace; crates.io sees only `version`.
+aescrypt-rs = { path = "..", version = "=0.2.0-rc.11" }
+clap = { version = "4.6", features = ["derive"] }
+ctrlc = { version = "3.4", features = ["termination"] }
+rpassword = "7.3"
+same-file = "1.0"
+# MUST stay character-identical to the line in ../Cargo.toml and
+# ../fuzz/Cargo.toml — any divergence puts two semver-incompatible copies of
+# secure-gate in one graph.
+secure-gate = { version = "=0.9.0-rc.12", features = ["rand", "ct-eq"] }
+tempfile = "3.10"
+thiserror = "2.0"
+zeroize = "1.8"
+
+# Saves and restores the terminal around the password prompt (src/signals.rs).
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1.0", features = ["termios"] }
+
+[target.'cfg(unix)'.dev-dependencies]
+expectrl = "0.7"
+libc = "0.2"

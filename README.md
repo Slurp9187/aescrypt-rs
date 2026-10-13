@@ -285,6 +285,21 @@ All benchmarks include full 300,000 PBKDF2 iterations when applicable.
 
 This crate defines **no optional features**. It always links `aes` with the `zeroize` feature, and `secure-gate` with `rand` and `ct-eq`, so secure wiping, CSPRNG-backed encryption, and constant-time comparisons are always in effect.
 
+## Command-line tool
+
+[`aescrypt-cli`](aescrypt-cli/) is a command-line tool built on this crate. It lives in
+this repository as a separate crate, so the library's dependencies are unaffected.
+
+```sh
+cargo install aescrypt-cli
+aescrypt-cli -e report.pdf        # writes report.pdf.aes
+aescrypt-cli -d report.pdf.aes    # writes report.pdf
+```
+
+Passwords come from a terminal prompt, `--password-command` or
+`--password-file`, never from a flag. See
+[its README](aescrypt-cli/README.md).
+
 ## Installation
 
 **Requires Rust 1.85+**, matching **`rust-version`** in this crate’s `Cargo.toml` (Rust **edition 2024**). Verify with `cargo +1.85 test` if you pin an older toolchain.
