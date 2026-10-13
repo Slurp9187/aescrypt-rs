@@ -10,10 +10,10 @@ format version (v0–v3) and writes v3.
 > `aescrypt` command-line program.
 
 ```sh
-cargo install aescrypt-cli --version 0.2.0-rc.11
+cargo install aescrypt-cli --version 0.1.0-rc.1
 ```
 
-Requires Rust 1.85 or newer. Until 0.2.0 is released only release candidates
+Requires Rust 1.85 or newer. Until 0.1.0 is released only release candidates
 exist, and `cargo install` wants the version named for those.
 
 ## Usage
