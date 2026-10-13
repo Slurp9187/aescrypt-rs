@@ -60,7 +60,7 @@ macro_rules! lib_version {
 pub const LIB_VERSION: &str = lib_version!();
 
 /// What `--version` prints after the program name, e.g.
-/// `0.1.0-rc.1 (aescrypt-rs 0.2.0-rc.11)`: both versions, because a bug
+/// `0.1.0-rc.1 (aescrypt-rs 0.2.0-rc.12)`: both versions, because a bug
 /// report needs the library's too.
 const VERSION: &str = concat!(
     env!("CARGO_PKG_VERSION"),
@@ -70,8 +70,8 @@ const VERSION: &str = concat!(
 );
 
 /// PBKDF2 iterations for new files: the official AES Crypt tool's default
-/// (4.7). The CLI's own, not the library's `DEFAULT_PBKDF2_ITERATIONS`: the
-/// pinned library release (0.2.0-rc.11) still defaults to 300,000.
+/// (4.7). Equal to the library's `DEFAULT_PBKDF2_ITERATIONS` from 0.2.0-rc.12
+/// on; it was defined here because 0.2.0-rc.11 still defaulted to 300,000.
 /// `tests::help_shows_default_iterations` keeps `--help` in step.
 const DEFAULT_ITERATIONS: u32 = 600_000;
 

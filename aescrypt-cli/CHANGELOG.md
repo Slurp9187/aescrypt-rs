@@ -13,7 +13,7 @@ Versioned independently of `aescrypt-rs`; `--version` shows both.
 
 - First release: `aescrypt-cli -e|-d [-o OUTPUT] [--force] [--iterations N]
   [--password-command CMD | --password-file PATH] FILE...`, decrypting AES Crypt
-  v0–v3 and encrypting v3. Built on `aescrypt-rs` 0.2.0-rc.11.
+  v0–v3 and encrypting v3. Built on `aescrypt-rs` 0.2.0-rc.12.
 - `--iterations` defaults to 600,000, the official AES Crypt tool's default.
   Files interoperate with the official tool (4.7) in both directions.
 - Passwords come from a terminal prompt, `--password-command` or
