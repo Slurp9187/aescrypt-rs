@@ -44,7 +44,8 @@ use crate::error::AescryptError;
 ///
 /// let secret = PasswordString::new("my-secret-password".to_string());
 ///
-/// // Use defaults (300k iterations, random salt from `Pbkdf2Builder::new()`).
+/// // Default iteration count (600,000). `Pbkdf2Builder::new()` would pick a
+/// // random salt; this example fixes one so the doctest is reproducible.
 /// let mut key = Aes256Key32::new([0u8; 32]);
 /// // caller keeps the secret wrapped; the borrow never escapes
 /// secret.with_secret(|pw| {

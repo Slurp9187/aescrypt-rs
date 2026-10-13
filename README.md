@@ -210,7 +210,7 @@ use secure_gate::RevealSecret;
 
 let secret = PasswordString::new("my-secret-password".to_string());
 
-// Use defaults (300k iterations, random salt)
+// Use defaults (600,000 iterations, random salt)
 let mut key = Aes256Key32::new([0u8; 32]);
 secret.with_secret(|pw| Pbkdf2Builder::new().derive_secure(pw, &mut key))?;
 
