@@ -356,6 +356,38 @@ fn roundtrip_with_password_file() {
     assert_eq!(o.stdout, b"from a file");
 }
 
+/// A UTF-8 byte order mark, as Windows PowerShell 5.1 writes, is not part of
+/// the password: the file must decrypt with the same password typed or
+/// printed without one.
+#[test]
+fn password_file_ignores_bom() {
+    let dir = tempfile::tempdir().unwrap();
+    let plain = dir.path().join("a");
+    fs::write(&plain, b"bom").unwrap();
+    let pw = dir.path().join("pw.txt");
+    fs::write(&pw, b"\xEF\xBB\xBFpw\r\n").unwrap();
+    let o = aescrypt(&[
+        "-e",
+        "--iterations",
+        "5",
+        "--password-file",
+        s(&pw),
+        s(&plain),
+    ]);
+    assert!(o.status.success(), "{}", stderr(&o));
+    let enc = dir.path().join("a.aes");
+    let o = aescrypt(&[
+        "-d",
+        "-o",
+        "-",
+        "--password-command",
+        &print_cmd("pw"),
+        s(&enc),
+    ]);
+    assert!(o.status.success(), "{}", stderr(&o));
+    assert_eq!(o.stdout, b"bom");
+}
+
 #[test]
 fn password_file_errors() {
     let dir = tempfile::tempdir().unwrap();

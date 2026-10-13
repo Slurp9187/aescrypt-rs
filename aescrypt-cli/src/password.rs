@@ -145,11 +145,18 @@ impl PasswordSource for CommandSource {
     }
 }
 
-/// Turns captured bytes into the password: drops one trailing `\n` or `\r\n`,
-/// then rejects empty and non-UTF-8 input. Every error path zeroizes the
-/// bytes first. `what` starts the error messages, e.g. "--password-command
-/// printed".
+/// Turns captured bytes into the password: drops a leading UTF-8 byte order
+/// mark and one trailing `\n` or `\r\n`, then rejects empty and non-UTF-8
+/// input. Every error path zeroizes the bytes first. `what` starts the error
+/// messages, e.g. "--password-command printed".
 fn password_from_bytes(mut bytes: Vec<u8>, what: &str) -> Result<PasswordString, CliError> {
+    // A leading U+FEFF is an encoding signature, not text. Windows PowerShell
+    // 5.1 writes one for `Out-File` and `Set-Content -Encoding UTF8`; kept, it
+    // would silently become part of the password. Shifted out in place so no
+    // second copy is made.
+    if bytes.starts_with(b"\xEF\xBB\xBF") {
+        bytes.drain(..3);
+    }
     if bytes.ends_with(b"\n") {
         bytes.pop();
         if bytes.ends_with(b"\r") {

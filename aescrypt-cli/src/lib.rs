@@ -62,7 +62,8 @@ Examples:
 
 Leave the encrypt prompt empty to generate a passphrase.
 
-Exit codes: 0 success, 1 a file failed, 2 usage error, 3 wrong password, 130 interrupted";
+Exit codes: 0 success, 1 a file failed or no password was obtained, 2 usage error,
+3 wrong password, 130 interrupted";
 
 /// File-name suffix for encrypted files, as the official tool uses.
 const SUFFIX: &str = "aes";
@@ -73,8 +74,8 @@ const SUFFIX: &str = "aes";
 
 /// Encrypt and decrypt AES Crypt files.
 ///
-/// Passwords are read from the terminal, or from --password-command. There is
-/// deliberately no option that takes a password directly.
+/// Passwords are read from the terminal, --password-command or --password-file.
+/// There is deliberately no option that takes a password directly.
 #[derive(Debug, Parser)]
 #[command(name = "aescrypt-cli", version = VERSION, about, after_help = HELP_FOOTER)]
 #[command(group(ArgGroup::new("mode").required(true).args(["encrypt", "decrypt"])))]

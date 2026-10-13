@@ -62,7 +62,9 @@ A password comes from one of three places:
   it can't consume data piped to aescrypt-cli. Its stderr is shown.
 - **`--password-file PATH`**, when quoting a command is more trouble than it's
   worth. The file's contents, minus one trailing newline, are the password; no
-  shell is involved. On Unix, `--password-file <(pass show backups/aes)` keeps
+  shell is involved. A leading UTF-8 byte order mark, which Windows PowerShell
+  5.1 adds with `Out-File` and `Set-Content -Encoding UTF8`, is ignored, here
+  and in `--password-command` output. On Unix, `--password-file <(pass show backups/aes)` keeps
   the password off disk. Files over 64 KiB are refused as almost certainly the
   wrong path, and on Unix a file other users can read draws a warning. No
   output may replace the password file, even with `--force`.
