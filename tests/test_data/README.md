@@ -84,7 +84,7 @@ The `.aes` files are used in `tests/file_ops_tests.rs` to test:
 ## Notes
 
 - The low iteration count (5) is intentional for fast test execution
-- Production code should use higher iteration counts (e.g., 300,000+)
+- Production code should use higher iteration counts (the default is 600,000)
 - All test files can be decrypted with password `"Hello"`
 - The deterministic v3 files use fixed salts/IVs for reproducible encryption
 

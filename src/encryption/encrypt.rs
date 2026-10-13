@@ -136,7 +136,7 @@ use std::io::{Read, Write};
 /// let result = std::thread::scope(|s| {
 ///     let handle = s.spawn(|| {
 ///         let mut encrypted = Vec::new();
-///         secret.with_secret(|pw| encrypt(Cursor::new(data), &mut encrypted, pw, 300_000))
+///         secret.with_secret(|pw| encrypt(Cursor::new(data), &mut encrypted, pw, 600_000))
 ///     });
 ///     handle.join().unwrap()
 /// });

@@ -33,7 +33,7 @@ impl<R: Read> Read for StingyReader<R> {
 
 #[test]
 fn encrypt_with_real_world_iterations() {
-    // Test with real-world DEFAULT_PBKDF2_ITERATIONS (300,000) to verify production settings work
+    // Test with real-world DEFAULT_PBKDF2_ITERATIONS (600,000) to verify production settings work
     let password = "real-world-test";
     let plaintext = b"test data for real-world iteration count";
 

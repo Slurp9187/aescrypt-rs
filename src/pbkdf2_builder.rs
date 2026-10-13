@@ -24,7 +24,7 @@ use crate::error::AescryptError;
 ///
 /// # Security
 ///
-/// - Defaults to 300 000 PBKDF2-HMAC-SHA512 iterations and a CSPRNG-backed
+/// - Defaults to 600 000 PBKDF2-HMAC-SHA512 iterations and a CSPRNG-backed
 ///   salt; these are safe for new files. Lower the iteration count only if
 ///   you have measured your platform.
 /// - Salt and derived key live in [`secure-gate`] aliases that zeroize on
@@ -96,7 +96,7 @@ impl Pbkdf2Builder {
     ///
     /// `0` is silently clamped to `1` for symmetry with
     /// [`crate::derive_pbkdf2_key`]. For new files, prefer
-    /// [`DEFAULT_PBKDF2_ITERATIONS`] (300 000) or higher; the encryption path
+    /// [`DEFAULT_PBKDF2_ITERATIONS`] (600 000) or higher; the encryption path
     /// rejects values outside
     /// [`PBKDF2_MIN_ITER..=PBKDF2_MAX_ITER`](crate::constants::PBKDF2_MAX_ITER).
     ///

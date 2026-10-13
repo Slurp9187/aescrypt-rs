@@ -263,7 +263,7 @@ Configuration constants are available via the `constants` module:
 
 ```rust,no_run
 use aescrypt_rs::constants::{
-    DEFAULT_PBKDF2_ITERATIONS, // 300,000 (recommended default)
+    DEFAULT_PBKDF2_ITERATIONS, // 600,000 (recommended default)
     PBKDF2_MIN_ITER,           // 1
     PBKDF2_MAX_ITER,           // 5,000,000
     AESCRYPT_LATEST_VERSION,   // 3
@@ -278,7 +278,9 @@ use aescrypt_rs::constants::{
 | Encrypt 10 MiB (with KDF) | ~149 MiB/s |
 | Round-trip 10 MiB         | ~75 MiB/s  |
 
-All benchmarks include full 300,000 PBKDF2 iterations when applicable.
+These figures were measured with 300,000 PBKDF2 iterations, the default at the time. The
+default is now 600,000, which doubles the one-time key-derivation cost per file; throughput
+after it is unaffected.
 **Note**: For very large files (GB+), operations may take minutes. All functions are thread-safe and can be spawned in threads for parallel processing or custom cancellation implementations.
 
 ## Cargo features

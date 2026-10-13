@@ -93,7 +93,7 @@
 //! - **No `unsafe` in this crate** — enforced by `#![forbid(unsafe_code)]`. Cryptographic
 //!   backends and `secure-gate` may use `unsafe` internally; this crate does not.
 //! - **Key derivation**: PBKDF2-HMAC-SHA512 for v3 (caller-controlled iterations,
-//!   default [`DEFAULT_PBKDF2_ITERATIONS`](constants::DEFAULT_PBKDF2_ITERATIONS) = 300 000),
+//!   default [`DEFAULT_PBKDF2_ITERATIONS`](constants::DEFAULT_PBKDF2_ITERATIONS) = 600 000),
 //!   and the AES Crypt v0–v2 ACKDF (8192 SHA-256 iterations, UTF-16-LE password) for legacy reads.
 //! - **Bulk encryption**: AES-256-CBC with PKCS#7 padding (v3) or legacy modulo padding
 //!   (v0/v1/v2 read-only).

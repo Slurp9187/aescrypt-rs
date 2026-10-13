@@ -50,9 +50,11 @@ pub const PBKDF2_MAX_ITER: u32 = 5_000_000;
 
 /// Recommended PBKDF2 iteration count for new v3 files.
 ///
-/// `300_000` iterations of PBKDF2-HMAC-SHA512. This value tracks
-/// OWASP/NIST 2025+ guidance for SHA-512-based password hashing on commodity
-/// hardware.
+/// `600_000` iterations of PBKDF2-HMAC-SHA512: the default of the official
+/// AES Crypt tool (4.7), and above OWASP/NIST 2025+ guidance for SHA-512-based
+/// password hashing on commodity hardware. Releases up to 0.2.0-rc.11 used
+/// `300_000`; files carry their own count, so files written with either
+/// decrypt unchanged.
 ///
 /// # Security
 ///
@@ -61,4 +63,4 @@ pub const PBKDF2_MAX_ITER: u32 = 5_000_000;
 /// trades password-cracking resistance for CPU; do not lower it without a
 /// documented reason. Raising it (up to [`PBKDF2_MAX_ITER`]) is always safe but
 /// proportionally slows down [`crate::encrypt()`] and [`crate::decrypt()`].
-pub const DEFAULT_PBKDF2_ITERATIONS: u32 = 300_000;
+pub const DEFAULT_PBKDF2_ITERATIONS: u32 = 600_000;
