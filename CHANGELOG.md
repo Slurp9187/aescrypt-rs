@@ -5,31 +5,38 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0-rc.12] - Unreleased
+## [0.2.0-rc.12] - 2026-10-12
 
 ### Added
 
 - **`aescrypt-cli`**, a command-line tool, as a new crate in a Cargo workspace rooted at
-  this package. It has its own changelog (`aescrypt-cli/CHANGELOG.md`). The library's
-  dependencies, published contents and MSRV are unchanged. A bare `cargo test` at the
-  root still builds the library alone; use `--workspace` for both.
+  this package. It has its own changelog (`aescrypt-cli/CHANGELOG.md`) and version line.
+  Adding it changed neither this crate's dependencies, its MSRV, nor the list of files it
+  packages. A bare `cargo test` at the root still builds the library alone; use
+  `--workspace` for both.
 
 ### Changed
 
 - `DEFAULT_PBKDF2_ITERATIONS` is now 600,000 (was 300,000), matching the official AES
   Crypt tool (4.7). It is the iteration count for newly encrypted files that use the
   default; every file stores its own count, so files written with either value decrypt
-  unchanged. Key derivation for those files takes about twice as long.
-- `fuzz/Cargo.toml` declares an empty `[workspace]` table so the new root workspace
-  doesn't claim it. Its lockfile is unchanged.
+  unchanged. Key derivation for those files takes about twice as long. The API is
+  unchanged.
 - Documentation is required and enforced. A `[workspace.lints]` table denies missing docs
   (public and private items), missing `# Errors` and `# Panics` sections, and broken,
   private or redundant intra-doc links; a new `rustdoc` CI job builds the docs with
-  warnings denied, private items included. Examples on `encrypt`, `decrypt` and in five
-  of the six README examples now run as doctests instead of only compiling; the sixth
-  reads placeholder bytes, so it only compiles.
+  warnings denied, private items included. Cargo does not apply these to crates that
+  depend on this one. Examples on `encrypt`, `decrypt` and in five of the six README
+  examples now run as doctests instead of only compiling; the sixth reads placeholder
+  bytes, so it only compiles.
+- `fuzz/Cargo.toml` declares an empty `[workspace]` table so the new root workspace
+  doesn't claim it.
+
+### Fixed
+
 - The v3 padding check builds its comparison block inside a zeroizing wrapper; it used to
-  copy up to 15 bytes of the final plaintext block into a plain stack array.
+  copy up to 15 bytes of the final plaintext block into a plain stack array that was not
+  wiped. Results are unchanged, and the check now has unit tests for every branch.
 - The `aliases` docs no longer claim every alias zeroizes on drop: `HmacSha256` is the
   `hmac` crate's type and its internal state is not zeroized.
 
