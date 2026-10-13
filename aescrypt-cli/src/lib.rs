@@ -29,7 +29,8 @@ use secure_gate::RevealSecret;
 
 pub use error::{CliError, ReadState};
 pub use password::{
-    CommandSource, GENERATED_LEN, PasswordSource, SHORT_PASSWORD, TtyPrompt, generate_passphrase,
+    CommandSource, FileSource, GENERATED_LEN, PASSWORD_FILE_LIMIT, PasswordSource, SHORT_PASSWORD,
+    TtyPrompt, generate_passphrase,
 };
 
 /// The aescrypt-rs version this build pins with `=` in Cargo.toml.
@@ -90,6 +91,11 @@ pub struct Cli {
     #[arg(long, value_name = "CMD")]
     pub password_command: Option<String>,
 
+    /// Read the password from this file (minus one trailing newline) instead
+    /// of prompting
+    #[arg(long, value_name = "PATH", conflicts_with = "password_command")]
+    pub password_file: Option<PathBuf>,
+
     /// Files to process. Use '-' for stdin (requires -o)
     #[arg(required = true, value_name = "FILE")]
     pub files: Vec<PathBuf>,
@@ -111,6 +117,8 @@ pub struct Opts {
     pub output: Option<PathBuf>,
     pub force: bool,
     pub iterations: u32,
+    /// Read before any output is written, so no output may replace it.
+    pub password_file: Option<PathBuf>,
 }
 
 impl TryFrom<&Cli> for Opts {
@@ -148,6 +156,7 @@ impl TryFrom<&Cli> for Opts {
             output: cli.output.clone(),
             force: cli.force,
             iterations,
+            password_file: cli.password_file.clone(),
         })
     }
 }
@@ -174,9 +183,11 @@ pub fn main_entry() -> i32 {
     };
     signals::install();
 
-    let source: Box<dyn PasswordSource> = match cli.password_command {
-        Some(command) => Box::new(CommandSource { command }),
-        None => Box::new(TtyPrompt),
+    // clap rejects --password-command together with --password-file.
+    let source: Box<dyn PasswordSource> = match (cli.password_command, cli.password_file) {
+        (Some(command), _) => Box::new(CommandSource { command }),
+        (None, Some(path)) => Box::new(FileSource { path }),
+        (None, None) => Box::new(TtyPrompt),
     };
 
     let stdout = io::stdout();
@@ -227,7 +238,7 @@ pub fn run(
     let mut jobs: Vec<Job> = Vec::new();
     for input in &opts.files {
         match plan(opts, input, streams.stdout_is_terminal)
-            .and_then(|job| check_batch(&job, &jobs, &opts.files).map(|()| job))
+            .and_then(|job| check_batch(&job, &jobs, opts).map(|()| job))
         {
             Ok(job) => jobs.push(job),
             Err(e) => failures.push(e),
@@ -325,13 +336,20 @@ fn plan(opts: &Opts, input: &Path, stdout_is_terminal: bool) -> Result<Job, CliE
 /// Refuses a job whose output would replace another file in the same run:
 /// any input (jobs run in order, so a later input would be read after it was
 /// overwritten, and an earlier one is still the user's file), or the output of
-/// a job already accepted. `--force` does not override this; it is about files
-/// from before the run, not ones the run itself reads or writes.
-fn check_batch(job: &Job, accepted: &[Job], inputs: &[PathBuf]) -> Result<(), CliError> {
+/// a job already accepted, or the --password-file. `--force` does not override
+/// this; it is about files from before the run, not ones the run itself reads
+/// or writes.
+fn check_batch(job: &Job, accepted: &[Job], opts: &Opts) -> Result<(), CliError> {
     let Sink::File(out) = &job.sink else {
         return Ok(());
     };
-    let is_input = inputs
+    if let Some(pw) = &opts.password_file {
+        if same_file::is_same_file(pw, out).unwrap_or(false) {
+            return Err(CliError::refused(out, "is the --password-file"));
+        }
+    }
+    let is_input = opts
+        .files
         .iter()
         .filter(|i| !is_dash(i))
         .any(|i| same_file::is_same_file(i, out).unwrap_or(false));

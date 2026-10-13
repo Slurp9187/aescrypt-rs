@@ -296,7 +296,8 @@ aescrypt-cli -e report.pdf        # writes report.pdf.aes
 aescrypt-cli -d report.pdf.aes    # writes report.pdf
 ```
 
-Passwords come from a terminal prompt or `--password-command`, never from a flag. See
+Passwords come from a terminal prompt, `--password-command` or
+`--password-file`, never from a flag. See
 [its README](aescrypt-cli/README.md).
 
 ## Installation

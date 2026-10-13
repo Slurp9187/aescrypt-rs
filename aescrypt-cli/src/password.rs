@@ -6,7 +6,9 @@
 // ============================================================================
 
 use std::{
-    io::{self, IsTerminal, Write},
+    fs::File,
+    io::{self, IsTerminal, Read, Write},
+    path::PathBuf,
     process::{Command, Stdio},
 };
 
@@ -139,26 +141,90 @@ impl PasswordSource for CommandSource {
                 output.status
             )));
         }
-        if bytes.ends_with(b"\n") {
+        password_from_bytes(bytes, "--password-command printed")
+    }
+}
+
+/// Turns captured bytes into the password: drops one trailing `\n` or `\r\n`,
+/// then rejects empty and non-UTF-8 input. Every error path zeroizes the
+/// bytes first. `what` starts the error messages, e.g. "--password-command
+/// printed".
+fn password_from_bytes(mut bytes: Vec<u8>, what: &str) -> Result<PasswordString, CliError> {
+    if bytes.ends_with(b"\n") {
+        bytes.pop();
+        if bytes.ends_with(b"\r") {
             bytes.pop();
-            if bytes.ends_with(b"\r") {
-                bytes.pop();
-            }
         }
-        if bytes.is_empty() {
+    }
+    if bytes.is_empty() {
+        bytes.zeroize();
+        return Err(CliError::Password(format!("{what} an empty password")));
+    }
+    match String::from_utf8(bytes) {
+        Ok(s) => Ok(PasswordString::new(s)),
+        Err(e) => {
+            e.into_bytes().zeroize();
+            Err(CliError::Password(format!("{what} invalid UTF-8")))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// --password-file
+// ---------------------------------------------------------------------------
+
+/// Largest password file read. A password is never this long, so anything
+/// bigger is almost certainly the wrong path, and reading it all into memory
+/// as a "password" would only leave a large copy behind.
+pub const PASSWORD_FILE_LIMIT: u64 = 64 * 1024;
+
+/// Reads the password from a file, minus one trailing newline. No shell is
+/// involved, so nothing needs quoting. On Unix, `--password-file <(pass show
+/// x)` keeps it off disk entirely. Never asks for confirmation.
+pub struct FileSource {
+    pub path: PathBuf,
+}
+
+impl PasswordSource for FileSource {
+    fn password(&self, _mode: Mode) -> Result<PasswordString, CliError> {
+        let fail = |e: io::Error| {
+            CliError::Password(format!("--password-file {}: {e}", self.path.display()))
+        };
+        let file = File::open(&self.path).map_err(fail)?;
+        #[cfg(unix)]
+        warn_if_shared(&file, &self.path);
+        // Pre-sized for any plausible password, so the buffer does not grow
+        // and leave copies behind.
+        let mut bytes = Vec::with_capacity(4096);
+        if let Err(e) = file.take(PASSWORD_FILE_LIMIT + 1).read_to_end(&mut bytes) {
             bytes.zeroize();
-            return Err(CliError::Password(
-                "--password-command printed an empty password".into(),
-            ));
+            return Err(fail(e));
         }
-        match String::from_utf8(bytes) {
-            Ok(s) => Ok(PasswordString::new(s)),
-            Err(e) => {
-                e.into_bytes().zeroize();
-                Err(CliError::Password(
-                    "--password-command printed invalid UTF-8".into(),
-                ))
-            }
+        if bytes.len() as u64 > PASSWORD_FILE_LIMIT {
+            bytes.zeroize();
+            return Err(CliError::Password(format!(
+                "--password-file {}: larger than 64 KiB; is it the right file?",
+                self.path.display()
+            )));
+        }
+        password_from_bytes(bytes, "--password-file contains")
+    }
+}
+
+/// Warns, as ssh does for keys, when a regular password file is accessible
+/// to other users. Pipes such as `<(…)` are not regular files and are skipped.
+#[cfg(unix)]
+fn warn_if_shared(file: &File, path: &std::path::Path) {
+    use std::os::unix::fs::PermissionsExt;
+    if let Ok(meta) = file.metadata() {
+        let mode = meta.permissions().mode();
+        if meta.is_file() && mode & 0o077 != 0 {
+            crate::say(&format!(
+                "warning: --password-file {} is accessible by other users (mode {:o}); \
+                 consider chmod 600",
+                path.display(),
+                mode & 0o777
+            ));
         }
     }
 }

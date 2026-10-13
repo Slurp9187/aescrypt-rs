@@ -188,6 +188,7 @@ fn non_utf8_file_name() {
         output: None,
         force: false,
         iterations: 5,
+        password_file: None,
     };
     ok(&run_opts(&opts(Mode::Encrypt, plain.clone()), PW, b""));
     fs::remove_file(&plain).unwrap();

@@ -13,7 +13,8 @@ Requires Rust 1.85 or newer.
 ## Usage
 
 ```text
-aescrypt-cli -e|-d [-o OUTPUT] [--force] [--iterations N] [--password-command CMD] FILE...
+aescrypt-cli -e|-d [-o OUTPUT] [--force] [--iterations N]
+                   [--password-command CMD | --password-file PATH] FILE...
 ```
 
 | Command | Result |
@@ -43,7 +44,7 @@ password.** Command-line arguments are visible to every user through `ps` and
 end up in shell history. Environment variables leak into child processes,
 crash reports and CI logs. This follows [age](https://github.com/FiloSottile/age).
 
-A password comes from one of two places:
+A password comes from one of three places:
 
 - **The terminal (default).** You're asked twice when encrypting and once when
   decrypting. The prompt reads the terminal directly, so piping data through
@@ -59,6 +60,15 @@ A password comes from one of two places:
   The command runs through `sh -c` (`cmd /S /C` on Windows, which receives it
   exactly as written, quotes included), with stdin closed so
   it can't consume data piped to aescrypt-cli. Its stderr is shown.
+- **`--password-file PATH`**, when quoting a command is more trouble than it's
+  worth. The file's contents, minus one trailing newline, are the password; no
+  shell is involved. On Unix, `--password-file <(pass show backups/aes)` keeps
+  the password off disk. Files over 64 KiB are refused as almost certainly the
+  wrong path, and on Unix a file other users can read draws a warning. No
+  output may replace the password file, even with `--force`.
+
+`--password-command` and `--password-file` never ask for confirmation and never
+generate a passphrase. Only one of them can be given.
 
 ### Generated passphrases
 
@@ -114,7 +124,7 @@ replacement doesn't keep the old file's owner, permissions or hard links.
 | Code | Meaning |
 | --- | --- |
 | 0 | every file succeeded |
-| 1 | at least one file failed (each failure is reported; other files still run), or no password could be obtained, in which case no file was processed (confirmation mismatch, empty password, `--password-command` failure, no terminal) |
+| 1 | at least one file failed (each failure is reported; other files still run), or no password could be obtained, in which case no file was processed (confirmation mismatch, empty password, `--password-command` or `--password-file` failure, no terminal) |
 | 2 | invalid command line |
 | 130 | interrupted (Ctrl-C, SIGTERM, or the terminal closed) |
 
@@ -134,8 +144,9 @@ replacement doesn't keep the old file's owner, permissions or hard links.
 - **Locking memory or disabling core dumps.** The password is moved into a
   wipe-on-drop container as soon as aescrypt-cli has it in one piece. Copies
   made before that are not wiped: buffers inside the terminal, the prompt
-  library's buffer as it grows, and the buffers `--password-command` output
-  passes through while it is read.
+  library's buffer as it grows, the buffers `--password-command` output
+  passes through while it is read, and the operating system's cached copy of
+  a `--password-file`.
 - **A progress bar and shell completions**, for now.
 
 ## Versioning

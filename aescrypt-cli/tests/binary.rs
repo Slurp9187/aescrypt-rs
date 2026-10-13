@@ -253,6 +253,138 @@ fn empty_password_command_output() {
     assert!(stderr(&o).contains("empty password"), "{}", stderr(&o));
 }
 
+// ---------------------------------------------------------------------------
+// --password-file
+// ---------------------------------------------------------------------------
+
+/// The file's contents are the password; one trailing `\r\n` (as Windows
+/// tools write) or `\n` is not part of it.
+#[test]
+fn roundtrip_with_password_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let plain = dir.path().join("a.txt");
+    fs::write(&plain, b"from a file").unwrap();
+    let pw = dir.path().join("pw.txt");
+    fs::write(&pw, b"file pw\r\n").unwrap();
+
+    let o = aescrypt(&[
+        "-e",
+        "--iterations",
+        "5",
+        "--password-file",
+        s(&pw),
+        s(&plain),
+    ]);
+    assert!(o.status.success(), "{}", stderr(&o));
+    let enc = dir.path().join("a.txt.aes");
+    let o = aescrypt(&[
+        "-d",
+        "-o",
+        "-",
+        "--password-command",
+        &print_cmd("file pw"),
+        s(&enc),
+    ]);
+    assert!(o.status.success(), "{}", stderr(&o));
+    assert_eq!(o.stdout, b"from a file");
+
+    fs::write(&pw, b"file pw\n").unwrap();
+    let o = aescrypt(&["-d", "-o", "-", "--password-file", s(&pw), s(&enc)]);
+    assert!(o.status.success(), "{}", stderr(&o));
+    assert_eq!(o.stdout, b"from a file");
+}
+
+#[test]
+fn password_file_errors() {
+    let dir = tempfile::tempdir().unwrap();
+    let plain = dir.path().join("a");
+    fs::write(&plain, b"x").unwrap();
+    let pw = dir.path().join("pw");
+    let enc = |pw: &Path| aescrypt(&["-e", "--password-file", s(pw), s(&plain)]);
+
+    fs::write(&pw, b"\n").unwrap();
+    let o = enc(&pw);
+    assert_eq!(o.status.code(), Some(1));
+    assert!(stderr(&o).contains("empty password"), "{}", stderr(&o));
+
+    let o = enc(&dir.path().join("missing"));
+    assert_eq!(o.status.code(), Some(1));
+    assert!(stderr(&o).contains("--password-file"), "{}", stderr(&o));
+
+    fs::write(&pw, vec![b'a'; 64 * 1024 + 1]).unwrap();
+    let o = enc(&pw);
+    assert_eq!(o.status.code(), Some(1));
+    assert!(stderr(&o).contains("larger than 64 KiB"), "{}", stderr(&o));
+
+    fs::write(&pw, b"pw").unwrap();
+    let o = aescrypt(&[
+        "-e",
+        "--password-file",
+        s(&pw),
+        "--password-command",
+        &print_cmd("pw"),
+        s(&plain),
+    ]);
+    assert_eq!(o.status.code(), Some(2), "{}", stderr(&o));
+    assert!(!dir.path().join("a.aes").exists());
+}
+
+/// The password file is read before anything is written, so no output may
+/// replace it, --force or not.
+#[test]
+fn password_file_is_never_an_output() {
+    let dir = tempfile::tempdir().unwrap();
+    let plain = dir.path().join("a");
+    fs::write(&plain, b"x").unwrap();
+    let pw = dir.path().join("pw");
+    fs::write(&pw, b"keep me").unwrap();
+    let o = aescrypt(&[
+        "-e",
+        "--force",
+        "--password-file",
+        s(&pw),
+        "-o",
+        s(&pw),
+        s(&plain),
+    ]);
+    assert_eq!(o.status.code(), Some(1), "{}", stderr(&o));
+    assert!(
+        stderr(&o).contains("is the --password-file"),
+        "{}",
+        stderr(&o)
+    );
+    assert_eq!(fs::read(&pw).unwrap(), b"keep me");
+}
+
+#[cfg(unix)]
+#[test]
+fn password_file_mode_warning() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let plain = dir.path().join("a");
+    fs::write(&plain, b"x").unwrap();
+    let pw = dir.path().join("pw");
+    fs::write(&pw, b"pw").unwrap();
+    for (mode, warns) in [(0o644, true), (0o600, false)] {
+        fs::set_permissions(&pw, fs::Permissions::from_mode(mode)).unwrap();
+        let _ = fs::remove_file(dir.path().join("a.aes"));
+        let o = aescrypt(&[
+            "-e",
+            "--iterations",
+            "5",
+            "--password-file",
+            s(&pw),
+            s(&plain),
+        ]);
+        assert!(o.status.success(), "{}", stderr(&o));
+        assert_eq!(
+            stderr(&o).contains("accessible by other users"),
+            warns,
+            "{mode:o}"
+        );
+    }
+}
+
 /// Plaintext reaches stdout only after verification, and the staging file in
 /// the temp dir is gone afterwards.
 #[test]
