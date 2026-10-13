@@ -7,17 +7,15 @@
 // `tempfile` deletes its files on drop, which a signal skips. The handler below
 // deletes every registered temp file and exits 130.
 //
-// The prompt needs more care. rpassword turns echo and ISIG off, reads ^C as a
-// byte and re-raises SIGINT *before* its guard restores the terminal, and a
-// SIGTERM or SIGHUP can arrive at any point while it blocks on the read. So on
-// Unix the terminal state is saved before every prompt, and a signal during
-// the prompt restores it and exits at once. Nothing waits for the user to
-// finish typing, and nothing is printed: after SIGHUP there may be no terminal
-// left to print to.
-//
-// Windows has no termios to restore without `unsafe` console calls, so there
-// the handler only records a signal during the prompt; rpassword then returns
-// `Interrupted`, its guard restores the console mode, and the caller exits 130.
+// The prompt needs more care. rpassword turns echo off and blocks on the read,
+// and a signal can arrive at any point while it does. On Unix it also turns
+// ISIG off, reads ^C as a byte and re-raises SIGINT *before* its guard restores
+// the terminal. On Windows, Ctrl-C does not end the console read at all: it
+// waits for Enter. So the terminal state (termios on Unix, the console input
+// mode on Windows) is saved before every prompt, and a signal during the
+// prompt restores it and exits at once. Nothing waits for the user to finish
+// typing, and nothing is printed: after SIGHUP there may be no terminal left
+// to print to.
 
 use std::{
     path::{Path, PathBuf},
@@ -40,21 +38,12 @@ pub(crate) fn install() {
 
 fn on_signal() {
     if PROMPTING.load(Ordering::SeqCst) {
+        // If the prompt ended a moment ago, this restores the same state the
+        // prompt itself just restored: harmless.
         #[cfg(unix)]
-        {
-            tty::restore();
-            remove_all();
-            std::process::exit(130);
-        }
-        #[cfg(not(unix))]
-        {
-            PENDING.store(true, Ordering::SeqCst);
-            // Re-check: if the prompt ended between the two loads, nobody will
-            // look at PENDING any more, so act on the signal here.
-            if PROMPTING.load(Ordering::SeqCst) {
-                return;
-            }
-        }
+        tty::restore();
+        #[cfg(windows)]
+        con::restore();
     }
     remove_all();
     std::process::exit(130);
@@ -71,20 +60,17 @@ pub(crate) fn prompting<T>(
     let had_terminal = tty::save();
     #[cfg(not(unix))]
     let had_terminal = false;
+    #[cfg(windows)]
+    con::save();
     PROMPTING.store(true, Ordering::SeqCst);
     let result = f(had_terminal);
     PROMPTING.store(false, Ordering::SeqCst);
     #[cfg(unix)]
     tty::forget();
-    #[cfg(not(unix))]
-    if PENDING.load(Ordering::SeqCst) {
-        return Err(crate::CliError::Interrupted);
-    }
+    #[cfg(windows)]
+    con::forget();
     result
 }
-
-#[cfg(not(unix))]
-static PENDING: AtomicBool = AtomicBool::new(false);
 
 /// Whether the terminal the current prompt started on has since hung up. Only
 /// meaningful inside the closure given to [`prompting`]; always `false` off
@@ -155,6 +141,39 @@ mod tty {
         match super::lock(&SAVED).as_ref() {
             Some((f, _)) => rustix::io::write(f, b"").is_err(),
             None => false,
+        }
+    }
+
+    pub(super) fn forget() {
+        *super::lock(&SAVED) = None;
+    }
+}
+
+#[cfg(windows)]
+mod con {
+    use std::{fs::File, sync::Mutex};
+
+    use winapi_util::console;
+
+    /// The console input buffer and its mode from just before the prompt. The
+    /// mode belongs to the console, not to a handle, so restoring it through
+    /// this handle undoes what rpassword set through its own.
+    static SAVED: Mutex<Option<(File, u32)>> = Mutex::new(None);
+
+    pub(super) fn save() {
+        // No console: rpassword will fail on its own, nothing to restore.
+        let saved = File::options()
+            .read(true)
+            .write(true)
+            .open("CONIN$")
+            .ok()
+            .and_then(|f| console::mode(&f).ok().map(|m| (f, m)));
+        *super::lock(&SAVED) = saved;
+    }
+
+    pub(super) fn restore() {
+        if let Some((f, mode)) = super::lock(&SAVED).as_ref() {
+            let _ = console::set_mode(f, *mode);
         }
     }
 

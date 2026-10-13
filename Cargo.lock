@@ -29,6 +29,7 @@ dependencies = [
  "secure-gate",
  "tempfile",
  "thiserror",
+ "winapi-util",
  "zeroize",
 ]
 
