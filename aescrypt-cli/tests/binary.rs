@@ -143,6 +143,58 @@ fn password_command_strips_one_newline() {
     }
 }
 
+/// The command reaches `cmd` as written. A quoted program path (the usual
+/// shape for a password manager under `Program Files`) runs, and a double
+/// quote inside the command is part of the password, not an escaped `\"`.
+#[cfg(windows)]
+#[test]
+fn password_command_keeps_quotes() {
+    let dir = tempfile::tempdir().unwrap();
+    let bat_dir = dir.path().join("my dir");
+    fs::create_dir(&bat_dir).unwrap();
+    let bat = bat_dir.join("pw.bat");
+    fs::write(&bat, "@echo quoted-pw\r\n").unwrap();
+    let plain = dir.path().join("a.txt");
+    fs::write(&plain, b"x").unwrap();
+    let enc = dir.path().join("a.txt.aes");
+
+    let quoted_path = format!("\"{}\"", s(&bat));
+    let o = aescrypt(&[
+        "-e",
+        "--iterations",
+        "5",
+        "--password-command",
+        &quoted_path,
+        s(&plain),
+    ]);
+    assert!(o.status.success(), "{}", stderr(&o));
+    let o = aescrypt(&[
+        "-d",
+        "-o",
+        "-",
+        "--password-command",
+        "echo quoted-pw",
+        s(&enc),
+    ]);
+    assert!(o.status.success(), "{}", stderr(&o));
+    assert_eq!(o.stdout, b"x");
+
+    fs::remove_file(&enc).unwrap();
+    fs::write(&bat, "@echo \"a b\"\r\n").unwrap();
+    let o = aescrypt(&[
+        "-e",
+        "--iterations",
+        "5",
+        "--password-command",
+        "echo \"a b\"",
+        s(&plain),
+    ]);
+    assert!(o.status.success(), "{}", stderr(&o));
+    let o = aescrypt(&["-d", "-o", "-", "--password-command", &quoted_path, s(&enc)]);
+    assert!(o.status.success(), "{}", stderr(&o));
+    assert_eq!(o.stdout, b"x");
+}
+
 /// An unwritable stderr must not turn an ordinary failure into a panic (101).
 #[cfg(target_os = "linux")]
 #[test]

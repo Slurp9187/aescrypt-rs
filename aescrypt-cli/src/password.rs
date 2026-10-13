@@ -173,8 +173,12 @@ fn shell(command: &str) -> Command {
 
 #[cfg(windows)]
 fn shell(command: &str) -> Command {
+    use std::os::windows::process::CommandExt;
+    // `arg` would apply MSVC quoting rules, which cmd does not understand: a
+    // command containing a double quote reaches it with `\"` and is mangled.
+    // `/S` makes cmd strip exactly the outer quotes and leave the rest as is.
     let mut c = Command::new("cmd");
-    c.arg("/C").arg(command);
+    c.raw_arg(format!("/S /C \"{command}\""));
     c
 }
 
