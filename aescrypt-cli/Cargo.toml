@@ -50,6 +50,11 @@ zeroize = "1.8"
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "1.0", features = ["termios"] }
 
+# Saves and restores the console input mode around the password prompt. Safe
+# wrappers; already in the graph through same-file.
+[target.'cfg(windows)'.dependencies]
+winapi-util = "0.1"
+
 [target.'cfg(unix)'.dev-dependencies]
 expectrl = "0.7"
 libc = "0.2"

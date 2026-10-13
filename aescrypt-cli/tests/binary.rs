@@ -563,6 +563,93 @@ fn no_console() {
     assert!(!dir.path().join("a.aes").exists());
 }
 
+/// Ctrl-C at the prompt on Windows exits 130 at once. Before, the console read
+/// kept waiting until Enter was pressed, so Ctrl-C looked ignored. The CLI
+/// runs in a real console with no window (`CREATE_NO_WINDOW`); a helper (this
+/// test binary again, running `windows_ctrl_c_sender`) attaches to that
+/// console and sends CTRL_C_EVENT, which is what the key does.
+#[cfg(windows)]
+#[test]
+fn ctrl_c_at_prompt_exits_at_once() {
+    use std::os::windows::process::CommandExt;
+    use std::time::{Duration, Instant};
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+    let dir = tempfile::tempdir().unwrap();
+    let plain = dir.path().join("a");
+    fs::write(&plain, b"x").unwrap();
+    let mut child = Command::new(BIN)
+        .args(["-e", s(&plain)])
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn()
+        .unwrap();
+    // Time to reach the prompt; it must still be waiting there.
+    std::thread::sleep(Duration::from_millis(1500));
+    assert!(child.try_wait().unwrap().is_none(), "exited before Ctrl-C");
+
+    let sent = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "windows_ctrl_c_sender",
+            "--ignored",
+            "--nocapture",
+        ])
+        .env("AESCRYPT_CLI_CTRL_C_TARGET", child.id().to_string())
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .unwrap();
+    assert!(
+        sent.status.success(),
+        "sender failed: {}",
+        String::from_utf8_lossy(&sent.stdout)
+    );
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let status = loop {
+        if let Some(st) = child.try_wait().unwrap() {
+            break st;
+        }
+        if Instant::now() > deadline {
+            let _ = child.kill();
+            panic!("still at the prompt 5s after Ctrl-C");
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    };
+    assert_eq!(status.code(), Some(130));
+    assert!(!dir.path().join("a.aes").exists());
+}
+
+/// Not a test on its own: `ctrl_c_at_prompt_exits_at_once` runs it in a
+/// separate process, because attaching to another console means leaving this
+/// one, which would take the test runner's console with it.
+#[cfg(windows)]
+#[test]
+#[ignore = "helper process for ctrl_c_at_prompt_exits_at_once"]
+fn windows_ctrl_c_sender() {
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn FreeConsole() -> i32;
+        fn AttachConsole(pid: u32) -> i32;
+        fn SetConsoleCtrlHandler(handler: *const std::ffi::c_void, add: i32) -> i32;
+        fn GenerateConsoleCtrlEvent(event: u32, group: u32) -> i32;
+    }
+    let pid: u32 = std::env::var("AESCRYPT_CLI_CTRL_C_TARGET")
+        .expect("run by ctrl_c_at_prompt_exits_at_once")
+        .parse()
+        .unwrap();
+    // SAFETY: plain kernel32 calls with integer arguments and a null handler.
+    unsafe {
+        FreeConsole();
+        assert!(AttachConsole(pid) != 0, "AttachConsole failed");
+        // This process ignores the event; the CLI, on the same console, gets it.
+        SetConsoleCtrlHandler(std::ptr::null(), 1);
+        assert!(
+            GenerateConsoleCtrlEvent(0, 0) != 0,
+            "GenerateConsoleCtrlEvent failed"
+        );
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Unix: no terminal, signals, and the real prompt
 // ---------------------------------------------------------------------------
