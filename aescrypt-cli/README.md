@@ -97,7 +97,7 @@ generated passphrase can't end up in a log file.
   pipe. This needs temporary disk space equal to the file's size.
 - **Ctrl-C, `kill`, or closing the terminal** deletes any in-progress temp
   file. At the password prompt it exits immediately and turns terminal echo
-  back on.
+  back on, on Windows as well as Unix.
 - **Crash safety.** Output is flushed to disk before it's renamed, so a crash
   can't leave an empty file under the final name.
 - **No overwriting.** An existing output file is never replaced without
@@ -114,8 +114,12 @@ generated passphrase can't end up in a log file.
 ### File permissions
 
 On Unix, decrypted files are created readable and writable by you only
-(`0600`). On Windows they inherit the folder's permissions, like any new file,
-so decrypt into a folder only you can read.
+(`0600`), on filesystems that store Unix permissions. Some don't, and there
+the mount decides: a Windows drive under WSL (`/mnt/c`), FAT and exFAT
+drives, and network shares mounted without Unix extensions. Decrypted files
+there can come out readable by everyone (`/mnt/c` gives `0777`). On Windows,
+decrypted files inherit the folder's permissions, like any new file. On
+those filesystems and on Windows, decrypt into a folder only you can read.
 Encrypted files get the normal permissions your umask gives new files.
 
 `--force` replaces the old file rather than writing into it, so the
