@@ -8,6 +8,10 @@ A command-line tool for [AES Crypt](https://www.aescrypt.com/) files, built on
 [`aescrypt-rs`](https://crates.io/crates/aescrypt-rs). It decrypts every
 format version (v0–v3) and writes v3.
 
+aescrypt-cli is an independent tool. It is not affiliated with or endorsed by
+Paul E. Jones or the official AES Crypt project, and it is not the official
+`aescrypt` command-line program.
+
 ```sh
 cargo install aescrypt-cli --version 0.1.0-rc.1
 ```
