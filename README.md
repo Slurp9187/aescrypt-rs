@@ -19,6 +19,9 @@
 
 ## Support the Original Author
 
+aescrypt-rs is an independent implementation of the AES Crypt file format. It is not
+affiliated with or endorsed by Paul E. Jones or the official AES Crypt project.
+
 AES Crypt was created and maintained for over two decades by **Paul E. Jones**.
 If you find AES Crypt (or this Rust port) useful, please consider supporting Paul directly:
 
