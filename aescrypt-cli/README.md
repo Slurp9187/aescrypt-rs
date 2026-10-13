@@ -97,7 +97,11 @@ generated passphrase can't end up in a log file.
   pipe. This needs temporary disk space equal to the file's size.
 - **Ctrl-C, `kill`, or closing the terminal** deletes any in-progress temp
   file. At the password prompt it exits immediately and turns terminal echo
-  back on, on Windows as well as Unix.
+  back on, on Windows as well as Unix. A forced kill can't be caught, so it
+  leaves the temp file behind: `kill -9` on Unix, and `taskkill /F` or
+  `Stop-Process` on Windows. Delete any leftover `.aescrypt-cli-*.tmp` file
+  by hand. The destination is never touched: nothing has been renamed into
+  place yet.
 - **Crash safety.** Output is flushed to disk before it's renamed, so a crash
   can't leave an empty file under the final name.
 - **No overwriting.** An existing output file is never replaced without
