@@ -1,4 +1,12 @@
-// benches/encrypt.rs (or roundtrip.rs)
+//! `benches/encrypt.rs`
+//! Encryption benchmarks, including key derivation at
+//! `DEFAULT_PBKDF2_ITERATIONS`.
+
+// Bench crate: helpers and fixtures are explained by the benchmarks that use them.
+#![allow(clippy::missing_docs_in_private_items)]
+// `criterion_group!` generates an undocumented `pub fn benches`; this is a bench binary, not an API.
+#![allow(missing_docs)]
+
 use aescrypt_rs::{constants::DEFAULT_PBKDF2_ITERATIONS, encrypt};
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use std::hint::black_box;

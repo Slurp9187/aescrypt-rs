@@ -1,8 +1,11 @@
-//! tests/file_ops_tests.rs
-//! Real-world file-based operations using actual .aes files
+//! `tests/file_ops_tests.rs`
+//! Real-world file-based operations using actual `.aes` files
 //!
 //! Tests decryption, conversion, and rotation using actual AES Crypt files
-//! from tests/test_data/aes_test_files/
+//! from `tests/test_data/aes_test_files/`
+
+// Test crate: helpers and fixtures are explained by the tests that use them.
+#![allow(clippy::missing_docs_in_private_items)]
 
 mod common;
 use common::TEST_ITERATIONS;

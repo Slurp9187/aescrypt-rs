@@ -37,8 +37,8 @@ use std::io::{Read, Write};
 /// # Errors
 ///
 /// - [`AescryptError::Header`] — `password` is empty, or `kdf_iterations` is
-///   outside [`PBKDF2_MIN_ITER`](crate::constants::PBKDF2_MIN_ITER) `..=`
-///   [`PBKDF2_MAX_ITER`](crate::constants::PBKDF2_MAX_ITER).
+///   outside [`PBKDF2_MIN_ITER`] `..=`
+///   [`PBKDF2_MAX_ITER`].
 /// - [`AescryptError::Crypto`] — PBKDF2 setup-key derivation failed (forwarded
 ///   from [`crate::derive_pbkdf2_key`]).
 /// - [`AescryptError::Io`] — `input.read` or `output.write_all` returned an
@@ -48,7 +48,7 @@ use std::io::{Read, Write};
 ///
 /// Never panics on valid input; the internal `expect` on `setup_key` is a
 /// 32-byte invariant that is structurally guaranteed by
-/// [`Aes256Key32`](crate::aliases::Aes256Key32).
+/// [`Aes256Key32`].
 ///
 /// # Security
 ///
@@ -57,7 +57,7 @@ use std::io::{Read, Write};
 ///   Plaintext blocks transit the stack inside
 ///   [`Block16`](crate::aliases::Block16) for the same reason.
 /// - `password` is a plain `&str` **borrow**. It is passed straight through
-///   to [`derive_setup_key`](crate::encryption::derive_setup_key) and read in
+///   to [`derive_setup_key`] and read in
 ///   place; this function makes no copy of it and never stores it, so
 ///   **zeroizing the password is the caller's responsibility**. Keep it in a
 ///   zeroize-on-drop container and hand `encrypt` a scoped borrow — see the
@@ -93,7 +93,7 @@ use std::io::{Read, Write};
 /// zeroize-on-drop container the caller already uses. With this crate's
 /// [`PasswordString`](crate::aliases::PasswordString):
 ///
-/// ```no_run
+/// ```
 /// use aescrypt_rs::{encrypt, aliases::PasswordString, constants::DEFAULT_PBKDF2_ITERATIONS};
 /// use secure_gate::RevealSecret;
 /// use std::io::Cursor;
@@ -112,7 +112,7 @@ use std::io::{Read, Write};
 /// A bare `&str` is fine when the password is not itself secret (fixtures,
 /// test vectors):
 ///
-/// ```no_run
+/// ```
 /// use aescrypt_rs::{encrypt, constants::DEFAULT_PBKDF2_ITERATIONS};
 /// use std::io::Cursor;
 ///
@@ -125,7 +125,7 @@ use std::io::{Read, Write};
 /// Threaded usage — the borrow is confined to the scoped thread, so the
 /// secret stays wrapped in the parent frame and still zeroizes on drop:
 ///
-/// ```no_run
+/// ```
 /// use aescrypt_rs::{encrypt, aliases::PasswordString};
 /// use secure_gate::RevealSecret;
 /// use std::io::Cursor;

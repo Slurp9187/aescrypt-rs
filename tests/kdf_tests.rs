@@ -1,5 +1,8 @@
-//! tests/kdf_tests.rs
+//! `tests/kdf_tests.rs`
 //! General secure KDF tests — with merged edge cases, corrected PBKDF2 (2025)
+
+// Test crate: helpers and fixtures are explained by the tests that use them.
+#![allow(clippy::missing_docs_in_private_items)]
 
 mod common;
 

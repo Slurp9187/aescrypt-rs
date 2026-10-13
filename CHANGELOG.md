@@ -22,6 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unchanged. Key derivation for those files takes about twice as long.
 - `fuzz/Cargo.toml` declares an empty `[workspace]` table so the new root workspace
   doesn't claim it. Its lockfile is unchanged.
+- Documentation is required and enforced. A `[workspace.lints]` table denies missing docs
+  (public and private items), missing `# Errors` and `# Panics` sections, and broken,
+  private or redundant intra-doc links; a new `rustdoc` CI job builds the docs with
+  warnings denied, private items included. Examples on `encrypt`, `decrypt` and in five
+  of the six README examples now run as doctests instead of only compiling; the sixth
+  reads placeholder bytes, so it only compiles.
+- The v3 padding check builds its comparison block inside a zeroizing wrapper; it used to
+  copy up to 15 bytes of the final plaintext block into a plain stack array.
+- The `aliases` docs no longer claim every alias zeroizes on drop: `HmacSha256` is the
+  `hmac` crate's type and its internal state is not zeroized.
 
 ## [0.2.0-rc.11] - 2026-09-15
 

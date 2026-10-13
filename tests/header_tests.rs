@@ -1,5 +1,8 @@
-//! tests/header_tests.rs
-//! Header validation using the *real* test vectors from tests/test_data/
+//! `tests/header_tests.rs`
+//! Header validation using the *real* test vectors from `tests/test_data/`
+
+// Test crate: helpers and fixtures are explained by the tests that use them.
+#![allow(clippy::missing_docs_in_private_items)]
 
 use aescrypt_rs::decrypt;
 use aescrypt_rs::decryption::consume_all_extensions;

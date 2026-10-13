@@ -1,5 +1,8 @@
-//! tests/utilities_tests.rs
+//! `tests/utils_tests.rs`
 //! Unit tests for utility functions
+
+// Test crate: helpers and fixtures are explained by the tests that use them.
+#![allow(clippy::missing_docs_in_private_items)]
 
 use aescrypt_rs::AescryptError;
 use aescrypt_rs::utilities::{utf8_to_utf16le, xor_blocks};

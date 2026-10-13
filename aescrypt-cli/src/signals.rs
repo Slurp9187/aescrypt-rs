@@ -25,10 +25,17 @@ use std::{
     },
 };
 
+/// Temp files that exist right now; the handler deletes them all.
 static TEMPS: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+/// Whether a password prompt is in progress, so the handler restores the
+/// terminal before exiting.
 static PROMPTING: AtomicBool = AtomicBool::new(false);
+/// Makes [`install`] idempotent.
 static INSTALL: Once = Once::new();
 
+/// Installs the handler for Ctrl-C, SIGTERM and SIGHUP (the console close
+/// events on Windows), once per process. If installing fails, the default
+/// behavior stays: worse cleanup, not wrong output.
 pub(crate) fn install() {
     INSTALL.call_once(|| {
         // Failure leaves the default disposition: worse cleanup, not wrong output.
@@ -36,6 +43,8 @@ pub(crate) fn install() {
     });
 }
 
+/// The handler. Runs on its own thread: restores the terminal if a prompt is in
+/// progress, deletes every registered temp file, and exits 130.
 fn on_signal() {
     if PROMPTING.load(Ordering::SeqCst) {
         // If the prompt ended a moment ago, this restores the same state the
@@ -82,24 +91,30 @@ pub(crate) fn terminal_hung_up() -> bool {
     false
 }
 
+/// Tracks a new temp file so a signal deletes it.
 pub(crate) fn register(path: &Path) {
     lock(&TEMPS).push(path.to_path_buf());
 }
 
+/// Stops tracking a temp file once it has been deleted or renamed.
 pub(crate) fn unregister(path: &Path) {
     lock(&TEMPS).retain(|p| p != path);
 }
 
+/// Deletes every tracked temp file, ignoring failures: the process is exiting.
 fn remove_all() {
     for p in lock(&TEMPS).drain(..) {
         let _ = std::fs::remove_file(p);
     }
 }
 
+/// Locks `m`, recovering from poisoning: the handler must still be able to
+/// clean up after a panic on another thread.
 fn lock<T>(m: &'static Mutex<T>) -> std::sync::MutexGuard<'static, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
+/// Saving and restoring the Unix terminal's termios around the prompt.
 #[cfg(unix)]
 mod tty {
     use std::{fs::File, sync::Mutex};
@@ -123,6 +138,7 @@ mod tty {
         present
     }
 
+    /// Puts the saved settings back, turning echo on again.
     pub(super) fn restore() {
         if let Some((f, t)) = super::lock(&SAVED).as_ref() {
             // Fails harmlessly once the terminal has hung up.
@@ -144,11 +160,13 @@ mod tty {
         }
     }
 
+    /// Drops the saved terminal once the prompt has ended.
     pub(super) fn forget() {
         *super::lock(&SAVED) = None;
     }
 }
 
+/// Saving and restoring the Windows console input mode around the prompt.
 #[cfg(windows)]
 mod con {
     use std::{fs::File, sync::Mutex};
@@ -160,6 +178,7 @@ mod con {
     /// this handle undoes what rpassword set through its own.
     static SAVED: Mutex<Option<(File, u32)>> = Mutex::new(None);
 
+    /// Records the console input mode before the prompt changes it.
     pub(super) fn save() {
         // No console: rpassword will fail on its own, nothing to restore.
         let saved = File::options()
@@ -171,12 +190,14 @@ mod con {
         *super::lock(&SAVED) = saved;
     }
 
+    /// Puts the saved mode back, turning echo on again.
     pub(super) fn restore() {
         if let Some((f, mode)) = super::lock(&SAVED).as_ref() {
             let _ = console::set_mode(f, *mode);
         }
     }
 
+    /// Drops the saved console once the prompt has ended.
     pub(super) fn forget() {
         *super::lock(&SAVED) = None;
     }

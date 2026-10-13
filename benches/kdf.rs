@@ -1,5 +1,11 @@
-//! benches/kdf.rs
+//! `benches/kdf.rs`
 //! Consolidated KDF benchmarks – multi-iter PBKDF2 + ACKDF
+
+// Bench crate: helpers and fixtures are explained by the benchmarks that use them.
+#![allow(clippy::missing_docs_in_private_items)]
+// `criterion_group!` generates an undocumented `pub fn benches`; this is a bench binary, not an API.
+#![allow(missing_docs)]
+
 use aescrypt_rs::{derive_ackdf_key, derive_pbkdf2_key};
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use secure_gate::Fixed;

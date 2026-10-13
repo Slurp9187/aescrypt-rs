@@ -92,7 +92,8 @@ pub enum AescryptError {
     ///
     /// - Invalid magic bytes (header is not `b"AES"`).
     /// - Reserved byte after the version is not `0x00` for v1–v3.
-    /// - More than 256 extension blocks in a v2/v3 header (DoS guard).
+    /// - More than 256 extension blocks in a v2/v3 header (a denial-of-service
+    ///   guard).
     /// - PBKDF2 iteration count outside
     ///   [`PBKDF2_MIN_ITER`](crate::constants::PBKDF2_MIN_ITER)
     ///   `..=` [`PBKDF2_MAX_ITER`](crate::constants::PBKDF2_MAX_ITER).

@@ -99,8 +99,8 @@ pub fn write_extensions<W: Write>(
 /// - [`AescryptError::UnsupportedVersion`] — `version < 3` (v0/v1/v2 do not
 ///   carry an iteration count in the header).
 /// - [`AescryptError::Header`] — `iterations` is outside
-///   [`PBKDF2_MIN_ITER`](crate::constants::PBKDF2_MIN_ITER) `..=`
-///   [`PBKDF2_MAX_ITER`](crate::constants::PBKDF2_MAX_ITER).
+///   [`PBKDF2_MIN_ITER`] `..=`
+///   [`PBKDF2_MAX_ITER`].
 /// - [`AescryptError::Io`] — `writer` returned an error.
 ///
 /// # Security

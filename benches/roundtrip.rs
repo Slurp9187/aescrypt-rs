@@ -1,5 +1,10 @@
-// benches/roundtrip.rs
-//! Round-trip (encrypt → decrypt) benchmarks – works with secure-gate 0.5.5+
+//! `benches/roundtrip.rs`
+//! Round-trip (encrypt → decrypt) benchmarks.
+
+// Bench crate: helpers and fixtures are explained by the benchmarks that use them.
+#![allow(clippy::missing_docs_in_private_items)]
+// `criterion_group!` generates an undocumented `pub fn benches`; this is a bench binary, not an API.
+#![allow(missing_docs)]
 
 use aescrypt_rs::{decrypt, encrypt};
 
