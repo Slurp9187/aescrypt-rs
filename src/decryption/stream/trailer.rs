@@ -100,3 +100,84 @@ pub(crate) fn write_final_pkcs7<W: Write>(
         .with_secret(|block| output.write_all(&block[..16 - padding as usize]))?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::aliases::Iv16;
+
+    /// Runs `write_final_pkcs7` on a context whose final decrypted block is
+    /// `block`, returning what it wrote or the error message.
+    fn final_block(block: [u8; 16]) -> Result<Vec<u8>, String> {
+        let mut ctx = DecryptionContext::new_with_iv(&Iv16::new([0u8; 16]));
+        ctx.plaintext_block = Block16::new(block);
+        ctx.need_write_plaintext = true;
+        let mut out = Vec::new();
+        match write_final_pkcs7(&ctx, &mut out) {
+            Ok(()) => Ok(out),
+            Err(AescryptError::Header(msg)) => Err(msg),
+            Err(e) => Err(format!("unexpected error: {e}")),
+        }
+    }
+
+    /// Valid padding strips exactly the padding bytes, for every length.
+    #[test]
+    fn valid_padding_is_stripped() {
+        for pad in 1..=16u8 {
+            let data_len = 16 - pad as usize;
+            let mut block = [0xAB; 16];
+            block[data_len..].fill(pad);
+            assert_eq!(
+                final_block(block).unwrap(),
+                vec![0xAB; data_len],
+                "pad {pad}"
+            );
+        }
+    }
+
+    /// Out-of-range padding values are rejected before the comparison.
+    #[test]
+    fn padding_value_out_of_range() {
+        for last in [0u8, 17, 0xFF] {
+            let mut block = [last; 16];
+            block[15] = last;
+            assert_eq!(
+                final_block(block).unwrap_err(),
+                "v3: invalid PKCS#7 padding",
+                "last byte {last}"
+            );
+        }
+    }
+
+    /// An in-range padding value whose bytes don't all match fails the
+    /// constant-time comparison against the block built in `expected_fixed`,
+    /// and nothing is written.
+    #[test]
+    fn padding_bytes_inconsistent() {
+        // Claims 4 padding bytes, but one of them is wrong.
+        let mut block = [0x11; 16];
+        block[12..].copy_from_slice(&[4, 4, 3, 4]);
+        assert_eq!(
+            final_block(block).unwrap_err(),
+            "v3: invalid PKCS#7 padding"
+        );
+
+        // Claims a full block of padding, but the first byte differs.
+        let mut block = [16u8; 16];
+        block[0] = 15;
+        assert_eq!(
+            final_block(block).unwrap_err(),
+            "v3: invalid PKCS#7 padding"
+        );
+    }
+
+    /// No final block at all is its own error.
+    #[test]
+    fn missing_final_block() {
+        let ctx = DecryptionContext::new_with_iv(&Iv16::new([0u8; 16]));
+        let err = write_final_pkcs7(&ctx, &mut Vec::new()).unwrap_err();
+        assert!(
+            matches!(err, AescryptError::Header(m) if m == "v3: missing final plaintext block")
+        );
+    }
+}
