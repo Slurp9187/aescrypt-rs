@@ -11,7 +11,7 @@ use std::{
 };
 
 use aescrypt_rs::aliases::PasswordString;
-use secure_gate::{Fixed, RevealSecret};
+use secure_gate::{ConstantTimeEq, Fixed, RevealSecret};
 use zeroize::Zeroize;
 
 use crate::{CliError, Mode, signals};
@@ -72,8 +72,7 @@ impl PasswordSource for TtyPrompt {
         }
 
         let confirm = prompt("Confirm password: ")?;
-        let same = first.with_secret(|a| confirm.with_secret(|b| a == b));
-        if !same {
+        if !first.ct_eq(&confirm) {
             return Err(CliError::Password("passwords do not match".into()));
         }
         warn_if_short(&first);

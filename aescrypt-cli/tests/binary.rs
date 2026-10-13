@@ -195,6 +195,30 @@ fn password_command_keeps_quotes() {
     assert_eq!(o.stdout, b"x");
 }
 
+/// With --force, a rename the OS refuses (a device name) reports the OS error,
+/// not advice to pass the --force that was already given.
+#[cfg(windows)]
+#[test]
+fn force_rename_failure_is_not_use_force() {
+    let dir = tempfile::tempdir().unwrap();
+    let plain = dir.path().join("a");
+    fs::write(&plain, b"x").unwrap();
+    let o = aescrypt(&[
+        "-e",
+        "--force",
+        "--iterations",
+        "5",
+        "--password-command",
+        "echo pw",
+        "-o",
+        "CON",
+        s(&plain),
+    ]);
+    assert_eq!(o.status.code(), Some(1), "{}", stderr(&o));
+    assert!(!stderr(&o).contains("use --force"), "{}", stderr(&o));
+    assert!(o.stdout.is_empty());
+}
+
 /// An unwritable stderr must not turn an ordinary failure into a panic (101).
 #[cfg(target_os = "linux")]
 #[test]

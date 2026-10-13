@@ -64,9 +64,11 @@ impl Staged {
             file.persist_noclobber(dest).map(drop)
         };
         // On failure the PersistError still owns the temp file and deletes it
-        // on drop.
+        // on drop. With --force, AlreadyExists is the OS refusing (e.g. a
+        // device name such as CON), so show its own message rather than
+        // suggesting the flag already given.
         result.map_err(|e| {
-            if e.error.kind() == io::ErrorKind::AlreadyExists {
+            if !force && e.error.kind() == io::ErrorKind::AlreadyExists {
                 CliError::refused(dest, "already exists (use --force to overwrite)")
             } else {
                 CliError::io(dest, e.error)
