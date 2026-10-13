@@ -1,8 +1,9 @@
 # aescrypt-cli
 
-aescrypt-cli is an independent tool. It is not affiliated with or endorsed by
-Paul E. Jones or the official AES Crypt project, and it is not the official
-`aescrypt` command-line program.
+> [!NOTE]
+> aescrypt-cli is an independent tool. It is not affiliated with or endorsed by
+> Paul E. Jones or the official AES Crypt project, and it is not the official
+> `aescrypt` command-line program.
 
 A command-line tool for [AES Crypt](https://www.aescrypt.com/) files, built on
 [`aescrypt-rs`](https://crates.io/crates/aescrypt-rs). It decrypts every
