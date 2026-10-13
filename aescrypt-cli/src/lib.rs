@@ -52,7 +52,7 @@ pub use password::{
 /// `concat!` can use it.
 macro_rules! lib_version {
     () => {
-        "0.2.0-rc.11"
+        "0.2.0-rc.12"
     };
 }
 
