@@ -47,7 +47,8 @@ A password comes from one of two places:
 
 - **The terminal (default).** You're asked twice when encrypting and once when
   decrypting. The prompt reads the terminal directly, so piping data through
-  stdin still works. Passwords shorter than 12 characters get a warning.
+  stdin still works. When encrypting, a password shorter than 12 characters
+  gets a warning.
 - **`--password-command CMD`**, for scripts and password managers. The
   command's output, minus one trailing newline, is the password:
 
@@ -55,7 +56,8 @@ A password comes from one of two places:
   aescrypt-cli -d --password-command 'pass show backups/aes' backup.tar.aes
   ```
 
-  The command runs through `sh -c` (`cmd /C` on Windows), with stdin closed so
+  The command runs through `sh -c` (`cmd /S /C` on Windows, which receives it
+  exactly as written, quotes included), with stdin closed so
   it can't consume data piped to aescrypt-cli. Its stderr is shown.
 
 ### Generated passphrases
@@ -70,7 +72,8 @@ generated passphrase can't end up in a log file.
 
 - **No partial or unverified output.** The AES Crypt format can only be
   verified once the whole file has been read. aescrypt-cli therefore writes to
-  a hidden `.aescrypt-cli-*.tmp` file next to the destination, and renames it
+  a `.aescrypt-cli-*.tmp` file next to the destination (hidden by its name on
+  Unix; visible on Windows while it runs), and renames it
   into place only after decryption has been verified. A wrong password or a
   damaged file leaves nothing behind. One exception is in the format itself:
   in v0–v2 files, the byte that records how long the last block is isn't
@@ -111,7 +114,7 @@ replacement doesn't keep the old file's owner, permissions or hard links.
 | Code | Meaning |
 | --- | --- |
 | 0 | every file succeeded |
-| 1 | at least one file failed (each failure is reported; other files still run) |
+| 1 | at least one file failed (each failure is reported; other files still run), or no password could be obtained, in which case no file was processed (confirmation mismatch, empty password, `--password-command` failure, no terminal) |
 | 2 | invalid command line |
 | 130 | interrupted (Ctrl-C, SIGTERM, or the terminal closed) |
 
