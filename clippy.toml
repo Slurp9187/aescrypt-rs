@@ -1,0 +1,3 @@
+# Words `clippy::doc_markdown` should accept in prose without backticks.
+# `..` keeps clippy's built-in list.
+doc-valid-idents = ["PowerShell", ".."]

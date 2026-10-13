@@ -1,6 +1,9 @@
-//! tests/run.rs
+//! `tests/run.rs`
 //! Drives `aescrypt_cli::run` in-process with a fixed password, covering the
-//! file-handling rules. Binary-level behaviour is in tests/binary.rs.
+//! file-handling rules. Binary-level behavior is in `tests/binary.rs`.
+
+// Test crate: helpers and fixtures are explained by the tests that use them.
+#![allow(clippy::missing_docs_in_private_items)]
 
 use std::{
     fs,

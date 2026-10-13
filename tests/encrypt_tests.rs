@@ -1,8 +1,12 @@
-//! tests/encrypt_tests.rs
+//! `tests/encrypt_tests.rs`
 //! Production iteration validation test
 //!
-//! This minimal test suite focuses on validating production settings (300k iterations).
-//! Comprehensive encryption testing is covered by vector_tests.rs.
+//! This minimal test suite focuses on validating production settings
+//! (`DEFAULT_PBKDF2_ITERATIONS`, 600,000 iterations).
+//! Comprehensive encryption testing is covered by `vector_tests.rs`.
+
+// Test crate: helpers and fixtures are explained by the tests that use them.
+#![allow(clippy::missing_docs_in_private_items)]
 
 use aescrypt_rs::constants::DEFAULT_PBKDF2_ITERATIONS;
 use aescrypt_rs::decrypt;

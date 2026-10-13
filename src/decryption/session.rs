@@ -41,7 +41,7 @@ use std::io::Read;
 /// Never panics on valid input. The internal `expect` calls on `setup_key`
 /// (`"setup_key is always 32 bytes"`) and on `computed_hmac`
 /// (`"computed hmac is 32 bytes"`) are structural invariants of
-/// [`Aes256Key32`](crate::aliases::Aes256Key32) and HMAC-SHA256.
+/// [`Aes256Key32`] and HMAC-SHA256.
 ///
 /// # Security
 ///

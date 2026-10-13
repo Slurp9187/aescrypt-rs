@@ -1,7 +1,12 @@
-//! benches/iterations.rs
+//! `benches/iterations.rs`
 //! Benchmark various iteration counts for encryption/decryption operations
 //!
 //! Tests performance impact of different PBKDF2 iteration counts
+
+// Bench crate: helpers and fixtures are explained by the benchmarks that use them.
+#![allow(clippy::missing_docs_in_private_items)]
+// `criterion_group!` generates an undocumented `pub fn benches`; this is a bench binary, not an API.
+#![allow(missing_docs)]
 
 use aescrypt_rs::{decrypt, encrypt};
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};

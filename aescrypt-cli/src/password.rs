@@ -82,6 +82,9 @@ impl PasswordSource for TtyPrompt {
     }
 }
 
+/// Prompts once on the terminal with echo off, in prompt mode for the signal
+/// handler. A closed terminal is [`CliError::TerminalLost`] (exit 130); a
+/// missing one is [`CliError::NoTty`].
 fn prompt(label: &str) -> Result<PasswordString, CliError> {
     signals::prompting(|had_terminal| match rpassword::prompt_password(label) {
         // On macOS a hang-up reads as an empty line rather than an error. Left
@@ -102,6 +105,8 @@ fn prompt(label: &str) -> Result<PasswordString, CliError> {
     })
 }
 
+/// Warns on stderr when an encryption password is shorter than
+/// [`SHORT_PASSWORD`] characters. Only the encrypt prompt calls it.
 fn warn_if_short(pw: &PasswordString) {
     if pw.with_secret(|s| s.chars().count()) < SHORT_PASSWORD {
         crate::say(&format!(
@@ -115,9 +120,12 @@ fn warn_if_short(pw: &PasswordString) {
 // --password-command
 // ---------------------------------------------------------------------------
 
-/// Runs a command and uses its stdout (minus one trailing newline) as the
-/// password, e.g. `pass show backup`. Never asks for confirmation.
+/// Runs a command and uses its stdout (minus a leading UTF-8 byte order mark
+/// and one trailing newline) as the password, e.g. `pass show backup`. Never
+/// asks for confirmation.
 pub struct CommandSource {
+    /// The command line, run by `sh -c` (`cmd /S /C` on Windows) exactly as
+    /// given.
     pub command: String,
 }
 
@@ -185,10 +193,12 @@ fn password_from_bytes(mut bytes: Vec<u8>, what: &str) -> Result<PasswordString,
 /// as a "password" would only leave a large copy behind.
 pub const PASSWORD_FILE_LIMIT: u64 = 64 * 1024;
 
-/// Reads the password from a file, minus one trailing newline. No shell is
-/// involved, so nothing needs quoting. On Unix, `--password-file <(pass show
-/// x)` keeps it off disk entirely. Never asks for confirmation.
+/// Reads the password from a file, minus a leading UTF-8 byte order mark and
+/// one trailing newline. No shell is involved, so nothing needs quoting. On
+/// Unix, `--password-file <(pass show x)` keeps it off disk entirely. Never
+/// asks for confirmation.
 pub struct FileSource {
+    /// The file to read; at most [`PASSWORD_FILE_LIMIT`] bytes.
     pub path: PathBuf,
 }
 
@@ -200,8 +210,9 @@ impl PasswordSource for FileSource {
         let file = File::open(&self.path).map_err(fail)?;
         #[cfg(unix)]
         warn_if_shared(&file, &self.path);
-        // Pre-sized for any plausible password, so the buffer does not grow
-        // and leave copies behind.
+        // Pre-sized for any plausible password: up to 4 KiB the buffer never
+        // grows, so no copies are left behind. A larger file (up to the limit)
+        // does grow it; those copies are not wiped.
         let mut bytes = Vec::with_capacity(4096);
         if let Err(e) = file.take(PASSWORD_FILE_LIMIT + 1).read_to_end(&mut bytes) {
             bytes.zeroize();
@@ -236,6 +247,7 @@ fn warn_if_shared(file: &File, path: &std::path::Path) {
     }
 }
 
+/// The shell that runs `--password-command`: `sh -c <command>`.
 #[cfg(unix)]
 fn shell(command: &str) -> Command {
     let mut c = Command::new("sh");
@@ -243,6 +255,8 @@ fn shell(command: &str) -> Command {
     c
 }
 
+/// The shell that runs `--password-command`: `cmd /S /C "<command>"`, with
+/// the command passed through unquoted.
 #[cfg(windows)]
 fn shell(command: &str) -> Command {
     use std::os::windows::process::CommandExt;
@@ -258,6 +272,8 @@ fn shell(command: &str) -> Command {
 // Generated passphrases
 // ---------------------------------------------------------------------------
 
+/// The RFC 4648 base32 alphabet, lowercased: generated passphrases use only
+/// these characters, so there is no 0/O or 1/l to confuse.
 const BASE32: &[u8; 32] = b"abcdefghijklmnopqrstuvwxyz234567";
 
 /// Bytes of entropy in a generated passphrase: 160 bits, encoded as exactly 32

@@ -1,6 +1,9 @@
-//! tests/binary.rs
+//! `tests/binary.rs`
 //! Runs the real `aescrypt-cli` binary: argument handling, --password-command,
 //! signals, and (Unix) the terminal prompt through a pseudo-terminal.
+
+// Test crate: helpers and fixtures are explained by the tests that use them.
+#![allow(clippy::missing_docs_in_private_items)]
 
 use std::{
     fs,
@@ -567,7 +570,7 @@ fn no_console() {
 /// kept waiting until Enter was pressed, so Ctrl-C looked ignored. The CLI
 /// runs in a real console with no window (`CREATE_NO_WINDOW`); a helper (this
 /// test binary again, running `windows_ctrl_c_sender`) attaches to that
-/// console and sends CTRL_C_EVENT, which is what the key does.
+/// console and sends `CTRL_C_EVENT`, which is what the key does.
 #[cfg(windows)]
 #[test]
 fn ctrl_c_at_prompt_exits_at_once() {

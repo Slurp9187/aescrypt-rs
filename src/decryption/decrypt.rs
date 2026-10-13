@@ -64,7 +64,7 @@ use std::io::{Read, Write};
 /// overwrite `output` on error and must not treat its contents as secret or
 /// trustworthy.
 ///
-/// ```no_run
+/// ```
 /// use aescrypt_rs::decrypt;
 /// use std::io::Cursor;
 ///
@@ -117,7 +117,7 @@ use std::io::{Read, Write};
 /// Keeping the secret wrapped in this crate's
 /// [`PasswordString`](crate::aliases::PasswordString):
 ///
-/// ```no_run
+/// ```
 /// use aescrypt_rs::{decrypt, aliases::PasswordString};
 /// use secure_gate::RevealSecret;
 /// use std::io::Cursor;
@@ -136,7 +136,7 @@ use std::io::{Read, Write};
 /// Threaded usage — the borrow is confined to the scoped thread, so the
 /// secret stays wrapped in the parent frame and still zeroizes on drop:
 ///
-/// ```no_run
+/// ```
 /// use aescrypt_rs::{decrypt, aliases::PasswordString};
 /// use secure_gate::RevealSecret;
 /// use std::io::Cursor;

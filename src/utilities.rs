@@ -98,6 +98,14 @@ pub const fn xor_blocks(block_a: &[u8], block_b: &[u8], output: &mut [u8]) {
     }
 }
 
+/// Reads until `buf` is full or the reader reports end of input, and returns
+/// how many bytes were read. Unlike `read_exact`, a short final read is not an
+/// error: streaming decryption needs to know exactly where the input ended.
+///
+/// # Errors
+///
+/// The first error `reader` returns, unchanged; bytes read before it are kept
+/// in `buf` but not counted. `ErrorKind::Interrupted` is not retried.
 #[inline(always)]
 pub(crate) fn read_until_full<R: std::io::Read>(
     reader: &mut R,

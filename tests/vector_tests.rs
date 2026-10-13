@@ -1,5 +1,8 @@
-//! tests/vector_tests.rs
+//! `tests/vector_tests.rs`
 //! Final merged vector test suite – fully compatible with v0–v3 JSON formats (2025)
+
+// Test crate: helpers and fixtures are explained by the tests that use them.
+#![allow(clippy::missing_docs_in_private_items)]
 
 use aescrypt_rs::aliases::{Aes256Key32, EncryptedSessionBlock48, Iv16};
 use aescrypt_rs::decrypt;

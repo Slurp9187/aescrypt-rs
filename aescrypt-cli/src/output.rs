@@ -21,13 +21,19 @@ use crate::{CliError, signals};
 
 /// A temp file registered with the signal handler for its whole life.
 pub(crate) struct Staged {
+    /// The open temp file. `None` once `persist` has taken it to rename;
+    /// otherwise dropping it deletes the file (after `copy_to`, too).
     file: Option<NamedTempFile>,
+    /// The temp file's path, kept for error messages and for unregistering it
+    /// from the signal handler on drop.
     path: PathBuf,
 }
 
 impl Staged {
-    /// Creates `.aescrypt-cli-*.tmp` in `dir`. Plaintext stays 0600; ciphertext
-    /// is created with 0666 so the process umask decides, like any new file.
+    /// Creates `.aescrypt-cli-*.tmp` in `dir`. On Unix, plaintext stays 0600
+    /// (tempfile's default); ciphertext is created with 0666 so the process
+    /// umask decides, like any new file. On Windows both inherit the folder's
+    /// permissions.
     pub(crate) fn new_in(dir: &Path, plaintext: bool) -> Result<Self, CliError> {
         let mut b = tempfile::Builder::new();
         b.prefix(".aescrypt-cli-").suffix(".tmp");
@@ -47,6 +53,13 @@ impl Staged {
         })
     }
 
+    /// A buffered writer into the temp file. The caller must flush it before
+    /// `persist` or `copy_to`.
+    ///
+    /// # Panics
+    ///
+    /// If the file is gone, which only `persist` does, and it consumes `self`:
+    /// this cannot happen.
     pub(crate) fn writer(&mut self) -> BufWriter<&mut File> {
         BufWriter::new(self.file.as_mut().expect("live temp file").as_file_mut())
     }

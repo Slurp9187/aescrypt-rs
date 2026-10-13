@@ -1,7 +1,9 @@
 //! # Secure-Gate Type Aliases
 //!
 //! This module provides type aliases for secure memory management using [`secure-gate`](https://github.com/Slurp9187/secure-gate).
-//! All types in this module provide automatic zeroization on drop and prevent accidental secret exposure.
+//! Every alias except [`HmacSha256`] wraps a `secure-gate` type, which zeroizes its
+//! contents on drop and only exposes them through scoped access. [`HmacSha256`] is
+//! the `hmac` crate's own type: its internal state is *not* zeroized on drop.
 //!
 //! ## Type Categories
 //!
@@ -54,34 +56,73 @@ use secure_gate::{Dynamic, Fixed};
 use hmac::Hmac;
 use sha2::Sha256;
 
+/// HMAC-SHA256, the MAC every format version uses: over the session block (v1–v3)
+/// and over the payload ciphertext (v0–v3).
+///
+/// This is the `hmac` crate's type, not a `secure-gate` wrapper. Its keyed
+/// internal state is **not** zeroized on drop; only the tags it produces are
+/// copied into zeroizing buffers ([`SessionHmacTag32`], [`Trailer32`]).
 pub type HmacSha256 = Hmac<Sha256>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SpanBuffer — generic secure stack buffer (direct alias to secure-gate's Fixed)
 // ─────────────────────────────────────────────────────────────────────────────
+/// An `N`-byte stack buffer that zeroizes on drop: `secure_gate::Fixed<[u8; N]>`.
+///
+/// The header and session parsers read every fixed-size field into one, so even
+/// public header bytes never sit in an unzeroized buffer. The other `*N` aliases
+/// below are the same type at a specific `N`.
 pub type SpanBuffer<const N: usize> = secure_gate::Fixed<[u8; N]>;
 
 // Semantic sub-types — readability aliases for `SpanBuffer<N>`. Not nominally
 // distinct: same-size aliases resolve to the same `Fixed<[u8; N]>` type and
 // are freely assignable to each other.
+/// The 32-byte running SHA-256 state of the ACKDF key derivation (v0–v2), kept
+/// in a zeroizing buffer between its 8192 rounds.
 pub type AckdfHashState32 = SpanBuffer<32>;
-pub type Block16 = SpanBuffer<16>; // one AES block
-pub type ExtensionChunk256 = SpanBuffer<256>; // v2/v3 extension payload chunk
-pub type Trailer32 = SpanBuffer<32>; // v0/v3 HMAC trailer
+/// One 16-byte AES block: a ciphertext or plaintext block during CBC
+/// encryption and decryption, in every version.
+pub type Block16 = SpanBuffer<16>;
+/// A 256-byte chunk used to read v2/v3 header extensions in pieces, so an
+/// extension's bytes are never held outside a zeroizing buffer.
+pub type ExtensionChunk256 = SpanBuffer<256>;
+/// The 32-byte payload HMAC at the end of a file: the whole trailer in v0 and
+/// v3. (v1 and v2 put a modulo byte in front of it, a 33-byte trailer.)
+pub type Trailer32 = SpanBuffer<32>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Dynamic secrets
 // ─────────────────────────────────────────────────────────────────────────────
+/// A password, as `secure_gate::Dynamic<String>`: heap-allocated, zeroized on
+/// drop, readable only inside a scoped `with_secret` call. The library takes
+/// it as UTF-8; v0–v2 key derivation converts it to UTF-16LE internally.
 pub type PasswordString = Dynamic<String>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fixed-size concrete secrets — alphabetical order
 // ─────────────────────────────────────────────────────────────────────────────
-pub type AckdfDerivedKey32 = Fixed<[u8; 32]>; // ACKDF-derived v0/v1/v2 setup key
-pub type Aes256Key32 = Fixed<[u8; 32]>; // session key, HMAC key
-pub type EncryptedSessionBlock48 = Fixed<[u8; 48]>; // encrypted session IV + key
-pub type Iv16 = Fixed<[u8; 16]>; // public IV, session IV
-pub type Pbkdf2DerivedKey32 = Fixed<[u8; 32]>; // PBKDF2-derived v3 setup key
-pub type RingBuffer64 = Fixed<[u8; 64]>; // streaming decryption ring buffer
-pub type Salt16 = Fixed<[u8; 16]>; // PBKDF2/ACKDF salt
-pub type SessionHmacTag32 = Fixed<[u8; 32]>; // session block HMAC
+/// The 32-byte setup key ACKDF derives from the password (v0–v2). It decrypts
+/// the session block (v1/v2), or the payload directly (v0).
+pub type AckdfDerivedKey32 = Fixed<[u8; 32]>;
+/// A 32-byte AES-256 key: the per-file session key, or a key used for HMAC.
+pub type Aes256Key32 = Fixed<[u8; 32]>;
+/// The 48-byte encrypted session block (v1–v3): the session IV and session key,
+/// encrypted under the setup key.
+pub type EncryptedSessionBlock48 = Fixed<[u8; 48]>;
+/// A 16-byte initialization vector: the public IV in the header (which is also
+/// the KDF salt), or the session IV inside the session block.
+pub type Iv16 = Fixed<[u8; 16]>;
+/// The 32-byte setup key PBKDF2-HMAC-SHA512 derives from the password (v3). It
+/// decrypts the session block.
+pub type Pbkdf2DerivedKey32 = Fixed<[u8; 32]>;
+/// The 64-byte ring buffer of streaming decryption: the previous ciphertext
+/// block (for CBC chaining), the current one, and the next 32 bytes held back
+/// until the end of input shows whether they are ciphertext or the trailer.
+pub type RingBuffer64 = Fixed<[u8; 64]>;
+/// A 16-byte KDF salt. In a file it is the header's public IV (ACKDF for
+/// v0–v2, PBKDF2 for v3); [`Pbkdf2Builder`](crate::Pbkdf2Builder) generates a
+/// random one.
+pub type Salt16 = Fixed<[u8; 16]>;
+/// The 32-byte HMAC over the encrypted session block (v1–v3), read from the
+/// header and compared in constant time.
+pub type SessionHmacTag32 = Fixed<[u8; 32]>;

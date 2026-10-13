@@ -60,6 +60,32 @@ include = [
 members = [".", "aescrypt-cli"]
 
 # ----------------------------------------------------------------------
+# Lints: documentation is required, not optional
+# ----------------------------------------------------------------------
+# Every member opts in with `[lints] workspace = true`. `fuzz/` is outside the
+# workspace on purpose and is not covered. Tests and benches allow
+# `missing_docs_in_private_items` at their crate root; nothing else does.
+[workspace.lints.rust]
+missing_docs = "deny"
+
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
+private_intra_doc_links = "deny"
+invalid_codeblock_attributes = "deny"
+invalid_rust_codeblocks = "deny"
+bare_urls = "deny"
+redundant_explicit_links = "deny"
+
+[workspace.lints.clippy]
+missing_errors_doc = "deny"
+missing_panics_doc = "deny"
+doc_markdown = "deny"
+missing_docs_in_private_items = "deny"
+
+[lints]
+workspace = true
+
+# ----------------------------------------------------------------------
 # docs.rs metadata
 # ----------------------------------------------------------------------
 [package.metadata.docs.rs]

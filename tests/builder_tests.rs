@@ -1,5 +1,8 @@
-//! tests/builder/builder_tests.rs
+//! `tests/builder_tests.rs`
 //! PBKDF2 builder – final, verified green on Windows (2025)
+
+// Test crate: helpers and fixtures are explained by the tests that use them.
+#![allow(clippy::missing_docs_in_private_items)]
 
 mod common;
 

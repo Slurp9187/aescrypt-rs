@@ -27,6 +27,9 @@ include = [
     "/README.md",
 ]
 
+[lints]
+workspace = true
+
 [[bin]]
 name = "aescrypt-cli"
 path = "src/main.rs"

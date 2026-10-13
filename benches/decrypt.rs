@@ -1,5 +1,11 @@
-// benches/decrypt.rs
-//! Decrypt-only benchmarks (pre-encrypted data) — secure-gate v0.5.5 + modern API
+//! `benches/decrypt.rs`
+//! Decrypt-only benchmarks: data is encrypted once up front, then only
+//! decryption is timed.
+
+// Bench crate: helpers and fixtures are explained by the benchmarks that use them.
+#![allow(clippy::missing_docs_in_private_items)]
+// `criterion_group!` generates an undocumented `pub fn benches`; this is a bench binary, not an API.
+#![allow(missing_docs)]
 
 use aescrypt_rs::{decrypt, encrypt};
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};

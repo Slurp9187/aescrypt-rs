@@ -69,7 +69,10 @@ use crate::error::AescryptError;
 /// [`secure-gate`]: https://github.com/Slurp9187/secure-gate
 #[derive(Debug)]
 pub struct Pbkdf2Builder {
+    /// PBKDF2 iteration count; [`DEFAULT_PBKDF2_ITERATIONS`] unless overridden.
     iterations: u32,
+    /// The 16-byte salt; random unless set with [`with_salt`](Self::with_salt).
+    /// Zeroized on drop.
     salt: Salt16,
 }
 

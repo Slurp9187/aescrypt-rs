@@ -5,11 +5,25 @@
 // API, and everything public here is `#[doc(hidden)]`.
 // ============================================================================
 
+//! The implementation of the `aescrypt-cli` binary.
+//!
+//! **Not an API.** This library target exists only so the tests can drive
+//! [`run`] with a fixed password source instead of a terminal. Everything
+//! public here is `#[doc(hidden)]`, carries no stability promise, and may
+//! change in any release. Use the `aescrypt-rs` crate to encrypt or decrypt
+//! from Rust.
+
 #![forbid(unsafe_code)]
 
+/// Errors, exit codes, and library failures described in terms a user can act on.
 mod error;
+/// Staged output: temp files that are synced and renamed into place, or copied
+/// to stdout, only after decryption verified.
 mod output;
+/// Password sources: the terminal prompt, `--password-command`,
+/// `--password-file`, and generated passphrases.
 mod password;
+/// Ctrl-C, SIGTERM and SIGHUP handling: temp-file cleanup and terminal restore.
 mod signals;
 
 use std::{
@@ -45,6 +59,9 @@ macro_rules! lib_version {
 #[doc(hidden)]
 pub const LIB_VERSION: &str = lib_version!();
 
+/// What `--version` prints after the program name, e.g.
+/// `0.1.0-rc.1 (aescrypt-rs 0.2.0-rc.11)`: both versions, because a bug
+/// report needs the library's too.
 const VERSION: &str = concat!(
     env!("CARGO_PKG_VERSION"),
     " (aescrypt-rs ",
@@ -246,6 +263,7 @@ fn files_exit_code(failures: &[CliError]) -> i32 {
     }
 }
 
+/// Prints an error that ends the run and returns its exit code.
 fn report_fatal(e: &CliError) -> i32 {
     say(&format!("aescrypt-cli: {e}"));
     e.exit_code()
@@ -297,28 +315,43 @@ pub fn run(
 // Planning
 // ---------------------------------------------------------------------------
 
+/// Where one job reads from.
 #[derive(Debug)]
 enum Source {
+    /// Standard input, given as `-`.
     Stdin,
+    /// A file that existed and was not a directory when the job was planned.
     File(PathBuf),
 }
 
+/// Where one job writes to.
 #[derive(Debug)]
 enum Sink {
+    /// Standard output, given as `-o -`.
     Stdout,
+    /// A file path; written through a staged temp file and renamed into place.
     File(PathBuf),
 }
 
+/// One input to process and where its output goes, decided before any
+/// password is asked for.
 #[derive(Debug)]
 struct Job {
+    /// The input.
     source: Source,
+    /// The output.
     sink: Sink,
 }
 
+/// Whether a path argument is `-`, meaning stdin or stdout.
 fn is_dash(p: &Path) -> bool {
     p.as_os_str() == OsStr::new("-")
 }
 
+/// Turns one input into a [`Job`], refusing anything that can be refused
+/// before the password prompt: a missing input or a directory, an output that
+/// exists without `--force`, an output that is the input, ciphertext to a
+/// terminal, and a name with no `.aes` to strip.
 fn plan(opts: &Opts, input: &Path, stdout_is_terminal: bool) -> Result<Job, CliError> {
     let source = if is_dash(input) {
         Source::Stdin
@@ -463,6 +496,10 @@ fn default_output(mode: Mode, input: &Path) -> Result<PathBuf, CliError> {
 // Execution
 // ---------------------------------------------------------------------------
 
+/// Runs one planned job. A file output is staged next to its destination and
+/// renamed into place after the library call succeeds; decrypting to stdout is
+/// staged in the temp directory and copied out only after verification;
+/// encrypting to stdout streams directly.
 fn execute(
     opts: &Opts,
     job: &Job,
@@ -544,12 +581,16 @@ fn crypt(
 /// Passes reads through, counting bytes and remembering byte 3 of the
 /// stream: the AES Crypt format version (`"AES"` then the version byte).
 struct VersionTap<'a> {
+    /// The real input.
     inner: &'a mut dyn Read,
+    /// Bytes read so far: 0 means the input was empty.
     pos: u64,
+    /// Byte 3 of the input once it has been read.
     version: Option<u8>,
 }
 
 impl<'a> VersionTap<'a> {
+    /// Wraps `inner`, with nothing read yet.
     fn new(inner: &'a mut dyn Read) -> Self {
         Self {
             inner,

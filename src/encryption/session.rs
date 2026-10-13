@@ -32,15 +32,15 @@ use secure_gate::{RevealSecret, RevealSecretMut};
 /// # Errors
 ///
 /// - [`AescryptError::Header`] — `iterations` is outside
-///   [`PBKDF2_MIN_ITER`](crate::constants::PBKDF2_MIN_ITER) `..=`
-///   [`PBKDF2_MAX_ITER`](crate::constants::PBKDF2_MAX_ITER).
+///   [`PBKDF2_MIN_ITER`] `..=`
+///   [`PBKDF2_MAX_ITER`].
 /// - [`AescryptError::Crypto`] — the underlying PBKDF2 implementation rejected
 ///   its parameters (forwarded from [`crate::derive_pbkdf2_key`]).
 ///
 /// # Security
 ///
 /// - 32-byte output written directly into the caller-provided
-///   [`Aes256Key32`](crate::aliases::Aes256Key32) without ever materializing
+///   [`Aes256Key32`] without ever materializing
 ///   the key in a non-zeroizing buffer.
 /// - `password` is a plain `&str` **borrow** — it is forwarded to
 ///   [`crate::derive_pbkdf2_key`] and read in place, never copied and never

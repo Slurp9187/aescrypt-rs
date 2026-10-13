@@ -2,6 +2,9 @@
 // FILE: aescrypt-cli/src/error.rs
 // ============================================================================
 
+//! [`CliError`], its exit codes, and the translation of library errors into
+//! words a user can act on.
+
 use std::{io, path::PathBuf};
 
 use aescrypt_rs::AescryptError;
@@ -36,23 +39,38 @@ pub enum CliError {
 
     /// I/O on a named path.
     #[error("{}: {source}", path.display())]
-    Io { path: PathBuf, source: io::Error },
+    Io {
+        /// The file involved, or `<stdin>` / `<stdout>`.
+        path: PathBuf,
+        /// The operating system's error.
+        source: io::Error,
+    },
 
     /// The library rejected the input.
     #[error("{}: {}", path.display(), describe(source, decrypt.as_ref()))]
     Crypto {
+        /// The input file, or `<stdin>`.
         path: PathBuf,
         /// How far a decryption got; `None` when encrypting.
         decrypt: Option<ReadState>,
+        /// The library's error, translated for display (see the private
+        /// `describe` below).
         source: AescryptError,
     },
 
-    /// A refusal decided before any work started (output exists, same file, …).
+    /// A refusal: decided while planning (output exists, same file, …), or at
+    /// the final rename when the output appeared after planning.
     #[error("{}: {msg}", path.display())]
-    Refused { path: PathBuf, msg: String },
+    Refused {
+        /// The path refused, usually the output.
+        path: PathBuf,
+        /// Why, worded to follow the path.
+        msg: String,
+    },
 }
 
 impl CliError {
+    /// A [`CliError::Io`] for `path`.
     pub(crate) fn io(path: impl Into<PathBuf>, source: io::Error) -> Self {
         Self::Io {
             path: path.into(),
@@ -60,6 +78,7 @@ impl CliError {
         }
     }
 
+    /// A [`CliError::Refused`] for `path`.
     pub(crate) fn refused(path: impl Into<PathBuf>, msg: impl Into<String>) -> Self {
         Self::Refused {
             path: path.into(),

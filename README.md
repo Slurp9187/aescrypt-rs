@@ -60,7 +60,7 @@ the password as `&str`. Nothing on that path copies it — the borrow reaches
 password's lifetime and its zeroization. Keep it in a zeroize-on-drop container
 and hand the API a scoped borrow:
 
-```rust,no_run
+```rust
 use aescrypt_rs::{encrypt, aliases::PasswordString, constants::DEFAULT_PBKDF2_ITERATIONS};
 use secure_gate::RevealSecret;
 use std::io::Cursor;
@@ -103,7 +103,7 @@ All public functions are **thread-safe** (`Send + Sync`). The library has no sha
 
 ### Example: Threaded Usage
 
-```rust,no_run
+```rust
 use aescrypt_rs::{encrypt, aliases::PasswordString, constants::DEFAULT_PBKDF2_ITERATIONS};
 use secure_gate::RevealSecret;
 use std::io::Cursor;
@@ -179,7 +179,7 @@ assert_eq!(version, 0);
 
 ### Standard encrypt / decrypt
 
-```rust,no_run
+```rust
 use aescrypt_rs::{encrypt, decrypt, constants::DEFAULT_PBKDF2_ITERATIONS};
 use std::io::Cursor;
 
@@ -200,7 +200,7 @@ For a real password, keep it wrapped and pass a scoped borrow — see
 
 For custom key derivation with a fluent API:
 
-```rust,no_run
+```rust
 use aescrypt_rs::{Pbkdf2Builder, aliases::{Aes256Key32, PasswordString}};
 use secure_gate::RevealSecret;
 
@@ -261,7 +261,7 @@ extract_session_data(&mut reader, version, &public_iv, &setup_key, &mut session_
 
 Configuration constants are available via the `constants` module:
 
-```rust,no_run
+```rust
 use aescrypt_rs::constants::{
     DEFAULT_PBKDF2_ITERATIONS, // 600,000 (recommended default)
     PBKDF2_MIN_ITER,           // 1

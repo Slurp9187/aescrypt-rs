@@ -11,7 +11,7 @@
 //!
 //! Encrypt and decrypt data using AES Crypt format v3:
 //!
-//! ```rust,no_run
+//! ```rust
 //! use aescrypt_rs::{encrypt, decrypt, constants::DEFAULT_PBKDF2_ITERATIONS};
 //! use std::io::Cursor;
 //!
@@ -34,7 +34,7 @@
 //! zeroize-on-drop container you already use. Keep the secret wrapped and hand
 //! the API a scoped borrow:
 //!
-//! ```rust,no_run
+//! ```rust
 //! use aescrypt_rs::{encrypt, aliases::PasswordString, constants::DEFAULT_PBKDF2_ITERATIONS};
 //! use secure_gate::RevealSecret;
 //! use std::io::Cursor;
@@ -126,8 +126,9 @@
 //!   to 15 trailing plaintext bytes and still verify. v3 is not affected (plaintext
 //!   length is recovered from PKCS#7 padding inside the authenticated ciphertext);
 //!   re-encrypt legacy files as v3 if this matters to you.
-//! - **PBKDF2 iteration bounds**: enforced by the encryption path to
-//!   `[`PBKDF2_MIN_ITER`](constants::PBKDF2_MIN_ITER) ..= [`PBKDF2_MAX_ITER`](constants::PBKDF2_MAX_ITER)`.
+//! - **PBKDF2 iteration bounds**: enforced by the encryption path, from
+//!   [`PBKDF2_MIN_ITER`](constants::PBKDF2_MIN_ITER) to
+//!   [`PBKDF2_MAX_ITER`](constants::PBKDF2_MAX_ITER) inclusive.
 //!   Lowering iterations weakens password resistance; do not go below
 //!   [`DEFAULT_PBKDF2_ITERATIONS`](constants::DEFAULT_PBKDF2_ITERATIONS).
 //!

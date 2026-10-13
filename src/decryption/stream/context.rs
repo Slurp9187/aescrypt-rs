@@ -34,11 +34,18 @@ use std::io::{Read, Write};
 /// - `current_index`: Points to the start of the current block being decrypted
 /// - `head_index`: Points to where new data will be written
 pub(crate) struct DecryptionContext {
+    /// The four 16-byte blocks described above; zeroized on drop.
     pub(crate) ring_buffer: RingBuffer64,
+    /// Start of the previous ciphertext block, the CBC chaining input.
     pub(crate) tail_index: usize,
+    /// Start of the ciphertext block being decrypted.
     pub(crate) current_index: usize,
+    /// Where the next bytes read from the input are written.
     pub(crate) head_index: usize,
+    /// The last decrypted block, held back until it is known not to be the
+    /// final, padded block; zeroized on drop.
     pub(crate) plaintext_block: Block16,
+    /// Whether `plaintext_block` holds a block that still has to be written.
     pub(crate) need_write_plaintext: bool,
 }
 
@@ -68,6 +75,12 @@ impl DecryptionContext {
         this
     }
 
+    /// Appends `src` to the ring buffer at `head_index` and advances it.
+    ///
+    /// # Panics
+    ///
+    /// If `src` does not fit between `head_index` and the end of the buffer.
+    /// Callers only pass reads sized to the space left, so this is unreachable.
     #[inline(always)]
     fn write_at_head(&mut self, src: &[u8]) {
         self.ring_buffer.with_secret_mut(|rb| {

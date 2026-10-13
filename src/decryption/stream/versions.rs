@@ -14,6 +14,19 @@ use hmac::Mac;
 use secure_gate::{ConstantTimeEq, RevealSecret};
 use std::io::{Read, Write};
 
+/// Finishes the payload HMAC and compares it with the trailer's, in constant
+/// time.
+///
+/// # Errors
+///
+/// [`AescryptError::Header`] with "HMAC verification failed" if they differ.
+/// What that means depends on the version: in v0, which has no session block,
+/// a wrong password; in v1–v3, whose session check has already passed, damaged
+/// or tampered data.
+///
+/// # Panics
+///
+/// Never in practice: an HMAC-SHA256 tag is always 32 bytes.
 fn verify_payload_hmac(hmac: HmacSha256, expected: &Trailer32) -> Result<(), AescryptError> {
     let computed = hmac.finalize().into_bytes();
     let computed_fixed = Trailer32::try_from(computed.as_ref()).expect("computed hmac is 32 bytes");

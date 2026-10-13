@@ -1,5 +1,8 @@
-//! tests/specific_kdf_tests.rs
+//! `tests/specific_kdf_tests.rs`
 //! Merged ACKDF/PBKDF2 vector tests — correct expected values (2025)
+
+// Test crate: helpers and fixtures are explained by the tests that use them.
+#![allow(clippy::missing_docs_in_private_items)]
 
 mod tests {
     use aescrypt_rs::aliases::{Aes256Key32, Salt16};
