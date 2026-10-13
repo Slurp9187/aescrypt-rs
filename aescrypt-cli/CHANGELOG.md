@@ -5,15 +5,17 @@ has its own changelog in `../CHANGELOG.md`.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-Until `aescrypt-rs` 0.2.0, versions mirror the library's.
+Versioned independently of `aescrypt-rs`; `--version` shows both.
 
-## [0.2.0-rc.11] - 2026-10-12
+## [0.1.0-rc.1] - Unreleased
 
 ### Added
 
 - First release: `aescrypt-cli -e|-d [-o OUTPUT] [--force] [--iterations N]
   [--password-command CMD | --password-file PATH] FILE...`, decrypting AES Crypt
-  v0–v3 and encrypting v3.
+  v0–v3 and encrypting v3. Built on `aescrypt-rs` 0.2.0-rc.11.
+- `--iterations` defaults to 600,000, the official AES Crypt tool's default.
+  Files interoperate with the official tool (4.7) in both directions.
 - Passwords come from a terminal prompt, `--password-command` or
   `--password-file`, never from a flag or an environment variable. An empty
   answer at the encrypt prompt generates a 160-bit passphrase.

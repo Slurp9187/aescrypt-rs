@@ -5,11 +5,19 @@ A command-line tool for [AES Crypt](https://www.aescrypt.com/) files, built on
 format version (v0–v3) and writes v3.
 
 ```sh
-cargo install aescrypt-cli --version 0.2.0-rc.11
+cargo install aescrypt-cli --version 0.1.0-rc.1
 ```
 
-Requires Rust 1.85 or newer. Until 0.2.0 is released only release candidates
+Requires Rust 1.85 or newer. Until 0.1.0 is released only release candidates
 exist, and `cargo install` wants the version named for those.
+
+## Support the Original Author
+
+AES Crypt was created and maintained for over two decades by **Paul E. Jones**.
+If you find AES Crypt (or this tool) useful, please consider supporting Paul directly:
+
+- Official apps & licenses: https://www.aescrypt.com/download/
+- Business/enterprise licensing: https://www.aescrypt.com/license.html
 
 ## Usage
 
@@ -36,7 +44,8 @@ as that option. Anyone who can create files in the folder could then turn on
 The flags follow the official `aescrypt` tool, except that there is no `-p`
 or `-k` (see below). Decrypting a file whose name doesn't end in `.aes` needs
 `-o`. `--iterations` sets the PBKDF2 work factor when encrypting (default
-300,000).
+600,000, the same as the official tool; accepted range 1 to 5,000,000, also the
+same).
 
 ## Passwords
 
@@ -163,8 +172,9 @@ replacement doesn't keep the old file's owner, permissions or hard links.
 
 ## Versioning
 
-Until `aescrypt-rs` 0.2.0 is released, aescrypt-cli carries the same version
-number as the library it's built with. `aescrypt-cli --version` shows both.
+aescrypt-cli is versioned on its own, independently of `aescrypt-rs`.
+`aescrypt-cli --version` shows both, for example
+`aescrypt-cli 0.1.0-rc.1 (aescrypt-rs 0.2.0-rc.11)`.
 
 ## License
 

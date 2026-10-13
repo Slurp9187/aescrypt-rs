@@ -4,10 +4,8 @@
 
 [package]
 name = "aescrypt-cli"
-# Mirrors aescrypt-rs until 0.2.0 stable: same version string, bumped together,
-# and the `=` pin below must name it. `tests::version_mirrors_library` enforces
-# that. After 0.2.0 the CLI is versioned on its own and that test is deleted.
-version = "0.2.0-rc.11"
+# Versioned on its own, independently of aescrypt-rs. `--version` shows both.
+version = "0.1.0-rc.1"
 edition = "2024"
 rust-version = "1.85"
 description = "Command-line tool for AES Crypt files (decrypts v0-v3, writes v3), built on aescrypt-rs"
