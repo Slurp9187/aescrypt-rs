@@ -4,13 +4,13 @@
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-orange)](https://releases.rs/docs/1.85.0/)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
 
-A command-line tool for [AES Crypt](https://www.aescrypt.com/) files, built on
-[`aescrypt-rs`](https://crates.io/crates/aescrypt-rs). It decrypts every
-format version (v0–v3) and writes v3.
-
 aescrypt-cli is an independent tool. It is not affiliated with or endorsed by
 Paul E. Jones or the official AES Crypt project, and it is not the official
 `aescrypt` command-line program.
+
+A command-line tool for [AES Crypt](https://www.aescrypt.com/) files, built on
+[`aescrypt-rs`](https://crates.io/crates/aescrypt-rs). It decrypts every
+format version (v0–v3) and writes v3.
 
 ```sh
 cargo install aescrypt-cli --version 0.1.0-rc.1
