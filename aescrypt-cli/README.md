@@ -14,7 +14,7 @@ format version (v0–v3) and writes v3.
 > `aescrypt` command-line program.
 
 ```sh
-cargo install aescrypt-cli --version 0.1.0-rc.1
+cargo install aescrypt-cli --version 0.1.0-rc.2
 ```
 
 Requires Rust 1.85 or newer. Until 0.1.0 is released only release candidates
@@ -183,7 +183,7 @@ replacement doesn't keep the old file's owner, permissions or hard links.
 
 aescrypt-cli is versioned on its own, independently of `aescrypt-rs`.
 `aescrypt-cli --version` shows both, for example
-`aescrypt-cli 0.1.0-rc.1 (aescrypt-rs 0.2.0-rc.12)`.
+`aescrypt-cli 0.1.0-rc.2 (aescrypt-rs 0.2.0-rc.12)`.
 
 ## License
 

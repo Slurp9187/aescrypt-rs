@@ -5,7 +5,7 @@
 [package]
 name = "aescrypt-cli"
 # Versioned on its own, independently of aescrypt-rs. `--version` shows both.
-version = "0.1.0-rc.1"
+version = "0.1.0-rc.2"
 edition = "2024"
 rust-version = "1.85"
 description = "Command-line tool for AES Crypt files (decrypts v0-v3, writes v3), built on aescrypt-rs"

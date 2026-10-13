@@ -7,6 +7,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Versioned independently of `aescrypt-rs`; `--version` shows both.
 
+## [0.1.0-rc.2] - Unreleased
+
+### Changed
+
+- The `--iterations` default now comes from the library's `DEFAULT_PBKDF2_ITERATIONS`
+  instead of a copy in the CLI. The value is unchanged at 600,000; the CLI kept its own
+  only because `aescrypt-rs` 0.2.0-rc.11 still defaulted to 300,000.
+
 ## [0.1.0-rc.1] - 2026-10-12
 
 ### Added
