@@ -1,0 +1,100 @@
+---
+name: aescrypt-rs-publish-prep
+description: This repo's release facts for the global publish-prep skill — the two crates (aescrypt-rs library, aescrypt-cli), their tags, which files carry each version, the CLI's exact pin on the library that must move in the same commit as a library bump, the CI-equivalent checks, release order, and Windows traps. Use when bumping either crate's version, cutting or tagging a release, publishing, or when cargo fails to resolve `aescrypt-rs` after a bump.
+---
+
+# Releasing aescrypt-rs and aescrypt-cli
+
+The order, tag mechanics and dry-run rules are in the global `publish-prep` skill, and what a
+changelog may claim is in `changelog-protocol`. **This file records only what is true of this
+repo.**
+
+## Two crates, two version lines
+
+| Crate | Manifest | Changelog | Tag |
+| --- | --- | --- | --- |
+| `aescrypt-rs` (library) | `Cargo.toml` | `CHANGELOG.md` | `v<version>`, e.g. `v0.2.0-rc.11` |
+| `aescrypt-cli` | `aescrypt-cli/Cargo.toml` | `aescrypt-cli/CHANGELOG.md` | `aescrypt-cli-v<version>`, e.g. `aescrypt-cli-v0.1.0-rc.1` |
+
+They are versioned independently; the CLI does **not** mirror the library's version (it did
+until 0.1.0-rc.1). `aescrypt-cli --version` prints both, e.g.
+`aescrypt-cli 0.1.0-rc.1 (aescrypt-rs 0.2.0-rc.11)`.
+
+## The CLI pins the library exactly — move the pin with every library bump
+
+`aescrypt-cli/Cargo.toml` has
+`aescrypt-rs = { path = "..", version = "=<library version>" }`: the path is for the
+workspace, and crates.io sees only the exact version. Release candidates break APIs between
+each other, so the pin is `=` on purpose; don't loosen it to a caret, and don't drop the
+`path` (the CLI's tests and CI would then stop exercising the library in the repo).
+
+So **a library bump is not complete until the CLI follows it**, in the same commit. Otherwise
+`cargo check` fails with `failed to select a version for the requirement aescrypt-rs = "=…"`.
+
+**Library bump touches:**
+1. `Cargo.toml`: `version`.
+2. `CHANGELOG.md`: open `## [<version>] - Unreleased`.
+3. `README.md`: the `aescrypt-rs = "<version>"` dependency snippet.
+4. `aescrypt-cli/Cargo.toml`: the `=<version>` pin.
+5. `aescrypt-cli/src/lib.rs`: the `lib_version!` macro. `tests::lib_pin_matches` fails if it
+   and the pin disagree.
+6. Both lockfiles: run `cargo check --workspace` at the root, and `cargo metadata --locked`
+   (or any build) in `fuzz/`. `fuzz/` is outside the workspace and has its own lockfile.
+
+**CLI bump touches:**
+1. `aescrypt-cli/Cargo.toml`: `version`.
+2. `aescrypt-cli/CHANGELOG.md`: open `## [<version>] - Unreleased`.
+3. Both install lines: `cargo install aescrypt-cli --version <version>` in
+   `aescrypt-cli/README.md` and `README.md`. While only release candidates exist, plain
+   `cargo install` ignores them, so the version must be named.
+4. The `--version` example in `aescrypt-cli/README.md` ("Versioning").
+
+## Release order
+
+**Library before CLI.** The CLI's dry run and publish resolve its `=` pin from crates.io, so
+a CLI that pins an unpublished library version cannot be packaged.
+
+If the library has already been bumped on `main` while a CLI release is still unpublished,
+publish the CLI from its tag, not from `main`:
+
+```text
+git worktree add --detach O:\Projects\Worktrees\aescrypt-rs-publish aescrypt-cli-v<version>
+cd O:\Projects\Worktrees\aescrypt-rs-publish
+cargo publish -p aescrypt-cli --locked
+```
+
+## Checks before a dry run (what CI runs)
+
+Rust 1.85 is pinned in `rust-toolchain.toml`, and the lint and docs jobs use it too.
+
+- `cargo +1.85 fmt --all --check`
+- `cargo +1.85 clippy --workspace --all-targets --all-features -- -D warnings`, plus the same
+  with `--target x86_64-unknown-linux-gnu` and `--target aarch64-apple-darwin`. The Windows
+  host never compiles the `cfg(unix)` code, and CI's macOS job only runs tests.
+- `cargo +1.85 test --workspace --all-features` (README examples run as doctests)
+- `RUSTDOCFLAGS=-D warnings cargo +1.85 doc --workspace --no-deps --all-features`, then again
+  with `--document-private-items`
+- `cargo +1.85 bench --no-run`
+- `cargo publish -p <crate> --locked --dry-run`
+- For the CLI, also test the **packaged** crate: `cargo package -p aescrypt-cli --no-verify`,
+  unpack the `.crate` outside the repo, run `cargo test` there. It sees the rewritten
+  `[dependencies.aescrypt-rs]` table, which `lib_pin_matches` must still read.
+
+## Registry index
+
+- Library: `https://index.crates.io/ae/sc/aescrypt-rs`
+- CLI: `https://index.crates.io/ae/sc/aescrypt-cli`
+
+A 404 means the crate has never been published.
+
+## Windows traps that have cost time here
+
+- **PowerShell `[IO.File]` and child processes ignore `Set-Location`.** Relative paths resolve
+  against the process directory, which is the shared checkout. Use absolute paths and set
+  `WorkingDirectory`, or scratch files land in the repo.
+- **PowerShell 5.1 mangles `"` inside native arguments**, so `git commit -m` with quotes
+  breaks. Write the message to a file and use `git commit -F`.
+- **`ctrl_c_at_prompt_exits_at_once` fails under Git Bash**, because of how Git Bash's console is
+  inherited. Run the CLI suite from PowerShell; CI is unaffected.
+- **Restoring a file with `Copy-Item` keeps its old timestamp**, so cargo may not rebuild it.
+  Touch the file afterwards.
