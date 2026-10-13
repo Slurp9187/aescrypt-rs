@@ -577,11 +577,23 @@ mod tests {
     /// The `=` pin on aescrypt-rs in Cargo.toml must be `LIB_VERSION`.
     #[test]
     fn lib_pin_matches() {
+        // Two shapes: the inline table in the repo's Cargo.toml, and the
+        // `[dependencies.aescrypt-rs]` table `cargo package` rewrites it into,
+        // which is what a published crate's tests read.
         let manifest = include_str!("../Cargo.toml");
-        let line = manifest
-            .lines()
-            .find(|l| l.starts_with("aescrypt-rs = "))
-            .expect("aescrypt-rs dependency line");
+        let mut lines = manifest.lines();
+        let line = lines
+            .by_ref()
+            .find(|l| l.starts_with("aescrypt-rs = ") || l.trim() == "[dependencies.aescrypt-rs]")
+            .expect("aescrypt-rs dependency");
+        let line = if line.starts_with('[') {
+            lines
+                .take_while(|l| !l.starts_with('['))
+                .find(|l| l.starts_with("version = "))
+                .expect("version under [dependencies.aescrypt-rs]")
+        } else {
+            line
+        };
         assert!(
             line.contains(&format!("version = \"={LIB_VERSION}\"")),
             "Cargo.toml pins {line}, LIB_VERSION is {LIB_VERSION}"

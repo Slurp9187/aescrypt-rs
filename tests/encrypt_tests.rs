@@ -1,7 +1,7 @@
 //! tests/encrypt_tests.rs
 //! Production iteration validation test
 //!
-//! This minimal test suite focuses on validating production settings (300k iterations).
+//! This minimal test suite focuses on validating production settings (600,000 iterations).
 //! Comprehensive encryption testing is covered by vector_tests.rs.
 
 use aescrypt_rs::constants::DEFAULT_PBKDF2_ITERATIONS;
