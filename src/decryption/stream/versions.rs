@@ -20,9 +20,12 @@ use std::io::{Read, Write};
 /// # Errors
 ///
 /// [`AescryptError::Header`] with "HMAC verification failed" if they differ.
-/// What that means depends on the version: in v0, which has no session block,
-/// a wrong password; in v1–v3, whose session check has already passed, damaged
-/// or tampered data.
+/// What that means depends on the version. In v0, which has no session block,
+/// it is a wrong password or damaged data, which v0 cannot tell apart. In
+/// v1–v3 it is damaged or tampered data, *if* the session check has already
+/// passed, as it has when the caller came through [`crate::decrypt()`]; a
+/// direct caller of [`decrypt_ciphertext_stream`] that skipped
+/// `extract_session_data` gets no such guarantee.
 ///
 /// # Panics
 ///
