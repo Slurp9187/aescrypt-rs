@@ -425,6 +425,44 @@ fn tampered_file_leaves_no_output() {
     );
 }
 
+/// The official v0–v2 vectors with their last ciphertext byte flipped, and a
+/// v0 file with the wrong password (v0 has no session block, so that fails
+/// only at the payload HMAC): no target and no temp file is left in the
+/// folder, and nothing reaches stdout.
+#[test]
+fn tampered_legacy_files_leave_no_output() {
+    let Some(data) = vector_dir() else {
+        eprintln!("skipped: ../tests/test_data not present (published tarball)");
+        return;
+    };
+    for version in 0..=2u8 {
+        let (_, mut cipher) = vectors(&data, version).pop().unwrap();
+        let trailer = if version == 0 { 32 } else { 33 };
+        let at = cipher.len() - trailer - 1;
+        cipher[at] ^= 1;
+
+        let dir = tempfile::tempdir().unwrap();
+        let enc = dir.path().join("f.aes");
+        fs::write(&enc, &cipher).unwrap();
+        let r = cli(&["-d", s(&enc)], "Hello", b"");
+        assert_eq!(r.1.len(), 1, "v{version}: {:?}", r.1);
+        assert_eq!(listing(dir.path()), ["f.aes"], "v{version}");
+
+        let r = cli(&["-d", "-o", "-", s(&enc)], "Hello", b"");
+        assert_eq!(r.1.len(), 1, "v{version}");
+        assert!(r.2.is_empty(), "v{version}: bytes reached stdout");
+    }
+
+    let (_, v0) = vectors(&data, 0).pop().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let enc = dir.path().join("f.aes");
+    fs::write(&enc, &v0).unwrap();
+    let r = cli(&["-d", s(&enc)], "not the password", b"");
+    assert_eq!(r.1.len(), 1);
+    assert!(r.1[0].to_string().contains("wrong password"), "{}", r.1[0]);
+    assert_eq!(listing(dir.path()), ["f.aes"]);
+}
+
 // ---------------------------------------------------------------------------
 // Permissions
 // ---------------------------------------------------------------------------
