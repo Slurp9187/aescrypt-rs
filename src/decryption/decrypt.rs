@@ -66,6 +66,10 @@ use std::io::{Read, Seek, SeekFrom, Write};
 /// overwrite `output` on error and must not treat its contents as secret or
 /// trustworthy.
 ///
+/// When `input` can seek, use [`decrypt_verified`] instead: it checks the
+/// HMAC before writing anything, so a failed verification leaves `output`
+/// untouched.
+///
 /// ```
 /// use aescrypt_rs::decrypt;
 /// use std::io::Cursor;

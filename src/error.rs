@@ -9,13 +9,14 @@
 //!
 //! | Variant                                | Typical producer                                                                                                                                                                                                                                                                                |
 //! | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-//! | [`AescryptError::Io`]                  | [`encrypt`], [`decrypt`], [`read_version`], every reader/writer helper in [`crate::encryption`] / [`crate::decryption`]                                                                                                                                                                        |
+//! | [`AescryptError::Io`]                  | [`encrypt`], [`decrypt`], [`decrypt_verified`], [`read_version`], every reader/writer helper in [`crate::encryption`] / [`crate::decryption`]                                                                                                                                                                        |
 //! | [`AescryptError::Crypto`]              | [`derive_ackdf_key`], [`derive_pbkdf2_key`], [`Pbkdf2Builder::derive_secure`], [`utf8_to_utf16le`]                                                                                                                                                                                              |
-//! | [`AescryptError::Header`]              | [`encrypt`], [`decrypt`], [`read_version`], [`derive_setup_key`], [`write_header`] / [`write_extensions`] / [`write_iterations`], [`read_file_version`], [`read_kdf_iterations`], [`consume_all_extensions`], [`extract_session_data`], [`decrypt_ciphertext_stream`] |
+//! | [`AescryptError::Header`]              | [`encrypt`], [`decrypt`], [`decrypt_verified`], [`read_version`], [`derive_setup_key`], [`write_header`] / [`write_extensions`] / [`write_iterations`], [`read_file_version`], [`read_kdf_iterations`], [`consume_all_extensions`], [`extract_session_data`], [`decrypt_ciphertext_stream`] |
 //! | [`AescryptError::UnsupportedVersion`]  | [`write_header`], [`write_extensions`], [`write_iterations`], [`read_file_version`]                                                                                                                                                                                                            |
 //!
 //! [`encrypt`]: crate::encrypt()
 //! [`decrypt`]: crate::decrypt()
+//! [`decrypt_verified`]: crate::decrypt_verified()
 //! [`read_version`]: crate::read_version
 //! [`derive_ackdf_key`]: crate::derive_ackdf_key
 //! [`derive_pbkdf2_key`]: crate::derive_pbkdf2_key

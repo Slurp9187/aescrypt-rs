@@ -53,6 +53,7 @@ If you find AES Crypt (or this Rust port) useful, please consider supporting Pau
 - **Constant-time operations**: All HMAC verifications and PKCS#7 padding validation use constant-time comparisons to prevent timing attacks
 - **Secure memory management**: Every key, IV, salt and intermediate buffer this crate *creates* is wrapped in a `secure-gate` type with automatic zeroization. Two things sit outside that: the caller-owned password (below), and third-party cipher/hasher internals this crate cannot reach — `aes` is built with its `zeroize` feature so the key schedule *is* wiped, but `hmac` 0.12 and `sha2` 0.10 expose no zeroize hook, so HMAC opad/ipad state and SHA-256 chaining state persist until their frames are reused. See the crate-level Security Model on [docs.rs](https://docs.rs/aescrypt-rs)
 - **Caller-owned passwords**: passwords are taken as `&str` borrows — read in place, never copied, never stored — so no `secure-gate` type appears in a signature you have to name, and this crate's `secure-gate` version stays an internal detail. Zeroizing the password itself is the caller's job; see [Password handling](#password-handling)
+- **Verify before release**: `decrypt_verified()` checks the HMAC (and v3's padding) before it writes any plaintext, so a tampered file or a wrong password writes nothing; it needs a seekable input. `decrypt()` reads once and verifies last; see [Verify before writing plaintext](#verify-before-writing-plaintext)
 - **Streaming architecture**: Constant-memory decryption using 64-byte ring buffer (no full-file buffering)
 
 ## Password handling
@@ -145,6 +146,7 @@ The library provides a minimal, focused API at the root level:
 
 - `encrypt()` - Encrypt data to AES Crypt v3 format
 - `decrypt()` - Decrypt AES Crypt files (v0-v3)
+- `decrypt_verified()` - Decrypt from a seekable input, checking the HMAC before writing any plaintext (v0-v3)
 - `read_version()` - Quick version detection without full decryption
 
 **Key derivation**:
@@ -199,6 +201,46 @@ assert_eq!(data, &plaintext[..]);
 
 For a real password, keep it wrapped and pass a scoped borrow — see
 [Password handling](#password-handling).
+
+### Verify before writing plaintext
+
+`decrypt()` reads its input once, so it writes plaintext before the HMAC at the end
+of the file is checked; on an error you must discard what it wrote. When the input
+can seek — a file, a `Cursor` — use `decrypt_verified()`. It reads the payload
+twice: first to check the HMAC (and, for v3, the padding), then to decrypt. A
+tampered file or a wrong password writes nothing at all. Wrap a `File` in a
+`BufReader`, which is also seekable.
+
+```rust
+use aescrypt_rs::{decrypt_verified, encrypt};
+use std::io::Cursor;
+
+let pw = "correct horse battery staple";
+let mut ciphertext = Vec::new();
+encrypt(Cursor::new(b"top secret"), &mut ciphertext, pw, 1)?;
+
+let mut plaintext = Vec::new();
+let outcome = decrypt_verified(Cursor::new(&ciphertext), &mut plaintext, pw)?;
+assert_eq!(plaintext, b"top secret");
+assert_eq!((outcome.version, outcome.plaintext_len), (3, 10));
+
+// Flip one ciphertext byte: verification fails and nothing is written.
+let n = ciphertext.len();
+ciphertext[n - 33] ^= 1;
+let mut out = Vec::new();
+assert!(decrypt_verified(Cursor::new(&ciphertext), &mut out, pw).is_err());
+assert!(out.is_empty());
+# Ok::<(), aescrypt_rs::AescryptError>(())
+```
+
+On any error the caller discards the output. Only two errors come after
+plaintext has been written: an I/O error during the second pass, and input that
+changed between the passes. The input must not change during the call.
+
+`outcome.length_authenticated()` is `false` for v0–v2. Those formats leave the
+length of the final block outside the HMAC, so up to 15 bytes at the end can be
+trimmed or exposed without failing verification. Every byte written is still
+authentic.
 
 ### PBKDF2 Key Derivation Builder
 
@@ -312,7 +354,7 @@ Passwords come from a terminal prompt, `--password-command` or
 
 ```toml
 [dependencies]
-aescrypt-rs = "0.2.0-rc.12"
+aescrypt-rs = "0.2.0-rc.13"
 ```
 
 When **0.2.0** is published to crates.io, you can switch the version requirement to `"0.2.0"` (or a caret range you prefer).
