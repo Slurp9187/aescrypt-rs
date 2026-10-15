@@ -188,7 +188,7 @@ pub mod utilities;
 // `secure-gate` type; keeping it behind `aliases::` keeps the crate root free of
 // the version coupling described in the crate-level "Dependency coupling"
 // section. Callers who want it can still `use aescrypt_rs::aliases::PasswordString`.
-pub use decryption::decrypt;
+pub use decryption::{DecryptOutcome, decrypt, decrypt_verified};
 pub use encryption::encrypt;
 pub use error::AescryptError;
 

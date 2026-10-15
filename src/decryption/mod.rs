@@ -30,7 +30,7 @@ pub(crate) mod read;
 pub(crate) mod session;
 pub(crate) mod stream;
 
-pub use decrypt::decrypt;
+pub use decrypt::{DecryptOutcome, decrypt, decrypt_verified};
 pub use read::{consume_all_extensions, read_exact_span, read_file_version, read_kdf_iterations};
 pub use session::extract_session_data;
 pub use stream::{StreamConfig, decrypt_ciphertext_stream};

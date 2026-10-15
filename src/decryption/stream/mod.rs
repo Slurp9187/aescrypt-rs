@@ -20,3 +20,4 @@ pub(crate) mod trailer;
 pub(crate) mod versions;
 
 pub use versions::{StreamConfig, decrypt_ciphertext_stream};
+pub(crate) use versions::{decrypt_verified_stream, verify_ciphertext_stream};
