@@ -52,7 +52,7 @@ zeroize = "1.8"
 
 # Saves and restores the terminal around the password prompt (src/signals.rs).
 [target.'cfg(unix)'.dependencies]
-rustix = { version = "1.0", features = ["termios"] }
+rustix = { version = "1.0", features = ["fs", "termios"] }
 
 # Saves and restores the console input mode around the password prompt. Safe
 # wrappers; already in the graph through same-file.
