@@ -5,12 +5,14 @@ use crate::decryption::read::{
     consume_all_extensions, read_exact_span, read_file_version, read_kdf_iterations,
 };
 use crate::decryption::session::extract_session_data;
-use crate::decryption::stream::{StreamConfig, decrypt_ciphertext_stream};
+use crate::decryption::stream::{
+    StreamConfig, decrypt_ciphertext_stream, decrypt_verified_stream, verify_ciphertext_stream,
+};
 
 use crate::aliases::{Aes256Key32, Iv16};
 use crate::error::AescryptError;
 use crate::{derive_ackdf_key, derive_pbkdf2_key};
-use std::io::{Read, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
 
 /// Decrypts an AES Crypt v0–v3 file streamed from `input` and writes the
 /// recovered plaintext to `output`.
@@ -63,6 +65,10 @@ use std::io::{Read, Write};
 /// contain **partial, unauthenticated plaintext**. Callers **must** discard or
 /// overwrite `output` on error and must not treat its contents as secret or
 /// trustworthy.
+///
+/// When `input` can seek, use [`decrypt_verified`] instead: it checks the
+/// HMAC before writing anything, so a failed verification leaves `output`
+/// untouched.
 ///
 /// ```
 /// use aescrypt_rs::decrypt;
@@ -167,13 +173,248 @@ where
     R: Read,
     W: Write,
 {
-    let (file_version, reserved_modulo) = read_file_version(&mut input)?;
-    consume_all_extensions(&mut input, file_version)?;
+    let session = open_session(&mut input, password)?;
 
-    let kdf_iterations = read_kdf_iterations(&mut input, file_version)?;
+    decrypt_ciphertext_stream(
+        &mut input,
+        &mut output,
+        &session.session_iv,
+        &session.session_key,
+        session.stream_config(),
+    )?;
+
+    Ok(())
+}
+
+/// Decrypts an AES Crypt v0–v3 file from a seekable `input`, checking the
+/// payload HMAC **before** any plaintext reaches `output`.
+///
+/// AES Crypt authenticates the ciphertext (encrypt-then-MAC), so this reads
+/// the payload twice and runs the KDF once:
+///
+/// 1. **Verify.** The header and session block are read and the key derived,
+///    as in [`decrypt`]. The ciphertext is then streamed through the HMAC and
+///    the tag compared in constant time. Nothing is decrypted or written,
+///    except that for v3 the final block alone is decrypted, inside a wrapper
+///    that is wiped and never written, to check its PKCS#7 padding.
+/// 2. **Decrypt.** `input` is sought back to where the payload starts (not
+///    to 0, so a file embedded at an offset works), and the payload is
+///    decrypted to `output` with the same session key, re-computing the HMAC
+///    as it goes. The tag, the trailer and the final-block length byte must
+///    all match what pass 1 verified.
+///
+/// Use [`decrypt`] when `input` cannot seek. Wrap a [`std::fs::File`] in a
+/// [`std::io::BufReader`] (which is also `Seek`): the payload is read in
+/// 16-byte blocks.
+///
+/// Returns a [`DecryptOutcome`] naming the format version and the number of
+/// plaintext bytes written.
+///
+/// # Errors
+///
+/// The same as [`decrypt`], plus:
+///
+/// - [`AescryptError::Io`] — `input.seek` or `input.stream_position` failed.
+/// - [`AescryptError::Header`] with
+///   `"input changed between verification and decryption"` — pass 2 read
+///   different ciphertext, a different tag or a different length byte from
+///   what pass 1 verified.
+///
+/// # Panics
+///
+/// Never panics on valid or malformed input; see [`decrypt`].
+///
+/// # Security
+///
+/// **Verify-then-decrypt.** When pass 1 fails — a tampered or truncated
+/// payload, a wrong password, invalid v3 padding, or a read error — `output`
+/// has received **nothing**. Every byte written in pass 2 belongs to
+/// ciphertext pass 1 authenticated.
+///
+/// On any `Err` the caller discards W. Two cases can still leave bytes in
+/// `output` when an error is returned:
+///
+/// - an I/O error in pass 2 (a cancelling reader, a failing writer): the
+///   bytes are authenticated plaintext, but incomplete;
+/// - `input` changing between the passes: pass 2 detects it and fails, but
+///   only after writing what it had decrypted. **`input` must not change
+///   during the call**: decrypt from a file nothing else writes to.
+///
+/// What verification proves depends on the version:
+///
+/// - **v3**: every byte and the exact length. On `Ok`, the output is the
+///   plaintext that was encrypted.
+/// - **v0–v2**: every byte, but not the length of the final block, whose
+///   length byte the legacy format leaves outside the HMAC. Up to 15 bytes
+///   can be trimmed from, or exposed at, the end without failing. No
+///   attacker-chosen byte can be released. See
+///   [`DecryptOutcome::length_authenticated`].
+///
+/// The session key is derived once and held only in its zeroizing wrapper
+/// until this returns. The two payload HMAC states (one per pass) are
+/// `hmac` 0.12 values that cannot be wiped; see the crate-level Security
+/// Model. Plaintext is never stored: [`DecryptOutcome`] holds only counts.
+///
+/// # Examples
+///
+/// ```
+/// use aescrypt_rs::{decrypt_verified, encrypt};
+/// use std::io::Cursor;
+///
+/// let mut ciphertext = Vec::new();
+/// encrypt(Cursor::new(b"hello"), &mut ciphertext, "pw", 1)?;
+///
+/// let mut plaintext = Vec::new();
+/// let outcome = decrypt_verified(Cursor::new(&ciphertext), &mut plaintext, "pw")?;
+/// assert_eq!(plaintext, b"hello");
+/// assert_eq!(outcome.version, 3);
+/// assert_eq!(outcome.plaintext_len, 5);
+/// assert!(outcome.length_authenticated());
+///
+/// // A tampered payload writes nothing at all.
+/// let last = ciphertext.len() - 33; // the last ciphertext byte, before the 32-byte tag
+/// ciphertext[last] ^= 1;
+/// let mut out = Vec::new();
+/// assert!(decrypt_verified(Cursor::new(&ciphertext), &mut out, "pw").is_err());
+/// assert!(out.is_empty());
+/// # Ok::<(), aescrypt_rs::AescryptError>(())
+/// ```
+pub fn decrypt_verified<R, W>(
+    mut input: R,
+    output: W,
+    password: &str,
+) -> Result<DecryptOutcome, AescryptError>
+where
+    R: Read + Seek,
+    W: Write,
+{
+    let session = open_session(&mut input, password)?;
+    let payload_start = input.stream_position()?;
+    let config = session.stream_config();
+
+    let verified = verify_ciphertext_stream(
+        &mut input,
+        &session.session_iv,
+        &session.session_key,
+        config,
+    )?;
+
+    input.seek(SeekFrom::Start(payload_start))?;
+    let mut counted = CountingWriter {
+        inner: output,
+        written: 0,
+    };
+    decrypt_verified_stream(
+        &mut input,
+        &mut counted,
+        &session.session_iv,
+        &session.session_key,
+        config,
+        &verified,
+    )?;
+
+    Ok(DecryptOutcome {
+        version: session.version,
+        plaintext_len: counted.written,
+    })
+}
+
+/// What [`decrypt_verified`] reports on success. Holds no secret.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct DecryptOutcome {
+    /// The file's format version, `0..=3`. Anything below 3 is a legacy file
+    /// a caller may want to re-encrypt.
+    pub version: u8,
+    /// Plaintext bytes written to the output.
+    pub plaintext_len: u64,
+}
+
+impl DecryptOutcome {
+    /// Whether the plaintext's exact length was authenticated: `true` for v3,
+    /// `false` for v0–v2, whose final-block length byte is outside the HMAC.
+    #[must_use]
+    pub fn length_authenticated(&self) -> bool {
+        self.version == 3
+    }
+}
+
+/// Passes writes through to `inner`, counting the bytes it accepts.
+struct CountingWriter<W> {
+    /// The caller's writer.
+    inner: W,
+    /// Bytes `inner` has accepted.
+    written: u64,
+}
+
+impl<W: Write> Write for CountingWriter<W> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let n = self.inner.write(buf)?;
+        self.written += n as u64;
+        Ok(n)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
+}
+
+/// Everything recovered from a file before its payload: the format version,
+/// the v0 modulo byte, and the session IV and key, each in its zeroizing
+/// wrapper.
+///
+/// Deliberately not `Clone`: there is one copy of the session key, and it is
+/// wiped when this is dropped.
+pub(crate) struct SessionState {
+    /// Format version, `0..=3`.
+    pub(crate) version: u8,
+    /// 5th header byte: the v0 modulo byte, `0x00` for v1–v3.
+    pub(crate) reserved_modulo: u8,
+    /// IV for the payload's CBC chain.
+    pub(crate) session_iv: Iv16,
+    /// Key for the payload's AES and HMAC.
+    pub(crate) session_key: Aes256Key32,
+}
+
+impl SessionState {
+    /// The per-version stream configuration for the payload.
+    ///
+    /// # Panics
+    ///
+    /// Never: `version` comes from [`read_file_version`], which rejects
+    /// anything above 3.
+    pub(crate) fn stream_config(&self) -> StreamConfig {
+        match self.version {
+            0 => StreamConfig::V0 {
+                reserved_modulo: self.reserved_modulo,
+            },
+            1 => StreamConfig::V1,
+            2 => StreamConfig::V2,
+            3 => StreamConfig::V3,
+            _ => unreachable!("file_version validated in read_file_version"),
+        }
+    }
+}
+
+/// Reads the header, derives the setup key and recovers the session block,
+/// leaving `input` at the first payload byte. The KDF runs here, once; the
+/// setup key is wiped when this returns.
+///
+/// # Errors
+///
+/// As for [`decrypt`], from the header parsers, the KDF and
+/// [`extract_session_data`].
+pub(crate) fn open_session<R>(input: &mut R, password: &str) -> Result<SessionState, AescryptError>
+where
+    R: Read,
+{
+    let (file_version, reserved_modulo) = read_file_version(input)?;
+    consume_all_extensions(input, file_version)?;
+
+    let kdf_iterations = read_kdf_iterations(input, file_version)?;
 
     // Public IV — secure from the start
-    let public_iv: Iv16 = read_exact_span(&mut input)?;
+    let public_iv: Iv16 = read_exact_span(input)?;
 
     // Setup key — secure buffer from birth
     let mut setup_key = Aes256Key32::new([0u8; 32]);
@@ -185,33 +426,21 @@ where
     }
 
     // Session key/IV — secure buffers from birth
-    let mut session_iv = Iv16::new([0u8; 16]);
-    let mut session_key = Aes256Key32::new([0u8; 32]);
+    let mut session = SessionState {
+        version: file_version,
+        reserved_modulo,
+        session_iv: Iv16::new([0u8; 16]),
+        session_key: Aes256Key32::new([0u8; 32]),
+    };
 
     extract_session_data(
-        &mut input,
+        input,
         file_version,
         &public_iv,
         &setup_key,
-        &mut session_iv,
-        &mut session_key,
+        &mut session.session_iv,
+        &mut session.session_key,
     )?;
 
-    let stream_config = match file_version {
-        0 => StreamConfig::V0 { reserved_modulo },
-        1 => StreamConfig::V1,
-        2 => StreamConfig::V2,
-        3 => StreamConfig::V3,
-        _ => unreachable!("file_version validated in read_file_version"),
-    };
-
-    decrypt_ciphertext_stream(
-        &mut input,
-        &mut output,
-        &session_iv,
-        &session_key,
-        stream_config,
-    )?;
-
-    Ok(())
+    Ok(session)
 }

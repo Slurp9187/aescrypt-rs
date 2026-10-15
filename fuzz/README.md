@@ -14,6 +14,7 @@ libFuzzer wrappers gated behind the nightly-only `fuzzing` feature.
 | `roundtrip_legacy` | hand-built v0–v2 file + mutations | untampered files round-trip exactly (continuous differential test of the builder vs. the read path); tampered files never panic and may only differ in final-block **length** (≤ 15 bytes), never in the decrypted prefix |
 | `stream_decrypt`   | `[config, modulo]` + ciphertext stream | ring-buffer / trailer / PKCS#7 path: no panic |
 | `parsers`          | arbitrary bytes → header chain | no panic |
+| `verified_differential` | arbitrary bytes → `decrypt_verified()` and `decrypt()` | both accept or both reject; equal plaintexts; a rejection writes 0 bytes |
 
 ## Running (Linux/macOS, nightly)
 

@@ -33,7 +33,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [decrypt_raw, roundtrip_v3, roundtrip_legacy, stream_decrypt, parsers]
+        target: [decrypt_raw, roundtrip_v3, roundtrip_legacy, stream_decrypt, parsers, verified_differential]
     steps:
       - uses: actions/checkout@v7
       - run: rustup toolchain install nightly --profile minimal

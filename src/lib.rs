@@ -4,7 +4,8 @@
 //!
 //! `aescrypt-rs` reads every published AES Crypt file format version (v0–v3) and writes
 //! the modern v3 format only. The public surface is intentionally small — most users
-//! only need [`encrypt()`], [`decrypt()`], and [`read_version()`] — but the lower-level
+//! only need [`encrypt()`], [`decrypt()`] (or [`decrypt_verified()`] when the input can
+//! seek), and [`read_version()`] — but the lower-level
 //! KDF, header, session, and streaming primitives are exposed for custom flows.
 //!
 //! # Quick Start
@@ -66,6 +67,7 @@
 //! | Operation        | v0  | v1  | v2  | v3  |
 //! | ---------------- | :-: | :-: | :-: | :-: |
 //! | [`decrypt()`]    |  Y  |  Y  |  Y  |  Y  |
+//! | [`decrypt_verified()`] |  Y  |  Y  |  Y  |  Y  |
 //! | [`encrypt()`]    |  –  |  –  |  –  |  Y  |
 //! | [`read_version()`] |  Y  |  Y  |  Y  |  Y  |
 //!
@@ -115,10 +117,16 @@
 //!     frames are reused. Recovering a key from that state is preimage-hard, but
 //!     HMAC state is sufficient to forge tags under the key it was built from. This
 //!     is a property of those crates, not a gap this crate can close.
-//! - **Decrypt-then-verify**: as defined by the AES Crypt format, the v3 payload HMAC
-//!   is verified **after** the ciphertext stream is decrypted. [`decrypt()`] therefore
+//!     [`decrypt_verified()`] builds two payload HMAC states, one per pass, both
+//!     from the session key; both are residue of this kind.
+//! - **Decrypt-then-verify**: [`decrypt()`] reads its input once, so the payload HMAC
+//!   is verified **after** the ciphertext stream is decrypted. It therefore
 //!   may write partial unauthenticated plaintext to its `output` before returning an
 //!   error — see [`decrypt()`] for the mandatory caller contract.
+//! - **Verify-then-decrypt**: [`decrypt_verified()`] takes a seekable input and reads
+//!   the payload twice — first to check the HMAC (and v3's padding), then to decrypt —
+//!   so a file that fails verification writes **nothing** to `output`. Prefer it
+//!   whenever the input can seek.
 //! - **Legacy v0–v2 length malleability**: the final-block length ("modulo") byte —
 //!   the 5th header byte for v0, the trailer byte for v1/v2 — is not covered by any
 //!   HMAC. This is inherent to the original AES Crypt v0–v2 wire format and cannot be
@@ -188,7 +196,7 @@ pub mod utilities;
 // `secure-gate` type; keeping it behind `aliases::` keeps the crate root free of
 // the version coupling described in the crate-level "Dependency coupling"
 // section. Callers who want it can still `use aescrypt_rs::aliases::PasswordString`.
-pub use decryption::decrypt;
+pub use decryption::{DecryptOutcome, decrypt, decrypt_verified};
 pub use encryption::encrypt;
 pub use error::AescryptError;
 

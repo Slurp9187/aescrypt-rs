@@ -20,17 +20,21 @@
 //!
 //! # Security
 //!
-//! See [`decrypt()`] for the **decrypt-then-verify** caveat: the v3 payload
+//! See [`decrypt()`] for the **decrypt-then-verify** caveat: the payload
 //! HMAC is checked only after the ciphertext stream has been processed, so
 //! partial unauthenticated plaintext may be written to the output before an
 //! error is returned. Callers must discard or overwrite the output on error.
+//!
+//! [`decrypt_verified()`] avoids it for seekable inputs: it checks the HMAC
+//! in a first pass and decrypts in a second, so a failed verification writes
+//! nothing.
 
 pub(crate) mod decrypt;
 pub(crate) mod read;
 pub(crate) mod session;
 pub(crate) mod stream;
 
-pub use decrypt::decrypt;
+pub use decrypt::{DecryptOutcome, decrypt, decrypt_verified};
 pub use read::{consume_all_extensions, read_exact_span, read_file_version, read_kdf_iterations};
 pub use session::extract_session_data;
 pub use stream::{StreamConfig, decrypt_ciphertext_stream};

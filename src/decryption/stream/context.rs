@@ -47,6 +47,8 @@ pub(crate) struct DecryptionContext {
     pub(crate) plaintext_block: Block16,
     /// Whether `plaintext_block` holds a block that still has to be written.
     pub(crate) need_write_plaintext: bool,
+    /// Ciphertext blocks processed by the loop so far.
+    pub(crate) blocks: u64,
 }
 
 impl DecryptionContext {
@@ -67,6 +69,7 @@ impl DecryptionContext {
             head_index: 16,
             plaintext_block: Block16::new([0u8; 16]),
             need_write_plaintext: false,
+            blocks: 0,
         };
         iv.with_secret(|iv_bytes| {
             this.ring_buffer
@@ -122,6 +125,58 @@ impl DecryptionContext {
         R: Read,
         W: Write,
     {
+        self.cbc_loop(input, hmac, |ctx| {
+            if ctx.need_write_plaintext {
+                ctx.plaintext_block.with_secret(|pb| output.write_all(pb))?;
+            }
+            ctx.decrypt_block_into_plaintext(cipher, ctx.current_index, ctx.tail_index);
+            Ok(())
+        })
+    }
+
+    /// Runs the same loop as [`Self::decrypt_cbc_loop`] but only feeds the
+    /// ciphertext to `hmac`: nothing is decrypted and nothing is written.
+    ///
+    /// The framing (the 48-byte priming read, the index advance, where the
+    /// trailer ends up) is shared with the decrypting loop, so the two passes
+    /// of [`crate::decrypt_verified()`] cannot disagree about where the
+    /// ciphertext ends.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AescryptError::Io`] if an I/O error occurs during reading.
+    #[inline(always)]
+    pub(crate) fn mac_cbc_loop<R>(
+        &mut self,
+        input: &mut R,
+        hmac: &mut HmacSha256,
+    ) -> Result<(), AescryptError>
+    where
+        R: Read,
+    {
+        self.cbc_loop(input, hmac, |_| Ok(()))
+    }
+
+    /// The ring-buffer loop both passes share. For each ciphertext block it
+    /// updates `hmac`, then calls `per_block` while `current_index` still
+    /// points at that block and `tail_index` at its CBC chaining input, then
+    /// advances.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AescryptError::Io`] on a read error, or whatever `per_block`
+    /// returns.
+    #[inline(always)]
+    fn cbc_loop<R, F>(
+        &mut self,
+        input: &mut R,
+        hmac: &mut HmacSha256,
+        mut per_block: F,
+    ) -> Result<(), AescryptError>
+    where
+        R: Read,
+        F: FnMut(&mut Self) -> Result<(), AescryptError>,
+    {
         // A plain 48-byte secure buffer, not a session block — this primes the
         // ciphertext ring, and `EncryptedSessionBlock48` (the same underlying
         // type) would misname what it holds.
@@ -133,32 +188,11 @@ impl DecryptionContext {
         initial_buffer.with_secret(|ib| self.write_at_head(&ib[..bytes_read]));
         if bytes_read == 48 {
             loop {
-                if self.need_write_plaintext {
-                    self.plaintext_block
-                        .with_secret(|pb| output.write_all(pb))?;
-                }
                 self.ring_buffer.with_secret(|rb| {
                     hmac.update(&rb[self.current_index..self.current_index + 16])
                 });
-                let mut block_bytes = Block16::new([0u8; 16]);
-                block_bytes.with_secret_mut(|bb| {
-                    self.ring_buffer.with_secret(|rb| {
-                        bb.copy_from_slice(&rb[self.current_index..self.current_index + 16]);
-                    });
-                });
-                // Decrypt in place inside the secure-gate wrapper (borrowed as a
-                // GenericArray): the plaintext-equivalent bytes never exist outside
-                // it, and the wrapper zeroizes on drop.
-                block_bytes
-                    .with_secret_mut(|bb| cipher.decrypt_block(AesBlock::from_mut_slice(bb)));
-                self.ring_buffer.with_secret(|rb| {
-                    self.plaintext_block.with_secret_mut(|pb| {
-                        block_bytes.with_secret(|bb| {
-                            xor_blocks(bb, &rb[self.tail_index..self.tail_index + 16], pb)
-                        });
-                    });
-                });
-                self.need_write_plaintext = true;
+                per_block(self)?;
+                self.blocks += 1;
                 self.tail_index = (self.tail_index + 16) % 64;
                 self.current_index = (self.current_index + 16) % 64;
                 if self.head_index == 64 {
@@ -175,6 +209,53 @@ impl DecryptionContext {
             }
         }
         Ok(())
+    }
+
+    /// Decrypts the ciphertext block at `block_index` into `plaintext_block`,
+    /// chaining off the block at `chain_index`, and marks it as pending.
+    #[inline(always)]
+    fn decrypt_block_into_plaintext(
+        &mut self,
+        cipher: &Aes256Dec,
+        block_index: usize,
+        chain_index: usize,
+    ) {
+        let mut block_bytes = Block16::new([0u8; 16]);
+        block_bytes.with_secret_mut(|bb| {
+            self.ring_buffer.with_secret(|rb| {
+                bb.copy_from_slice(&rb[block_index..block_index + 16]);
+            });
+        });
+        // Decrypt in place inside the secure-gate wrapper (borrowed as a
+        // GenericArray): the plaintext-equivalent bytes never exist outside
+        // it, and the wrapper zeroizes on drop.
+        block_bytes.with_secret_mut(|bb| cipher.decrypt_block(AesBlock::from_mut_slice(bb)));
+        self.ring_buffer.with_secret(|rb| {
+            self.plaintext_block.with_secret_mut(|pb| {
+                block_bytes
+                    .with_secret(|bb| xor_blocks(bb, &rb[chain_index..chain_index + 16], pb));
+            });
+        });
+        self.need_write_plaintext = true;
+    }
+
+    /// After [`Self::mac_cbc_loop`] and [`Self::advance_tail`] over a stream
+    /// with a 32-byte trailer, decrypts the final ciphertext block into
+    /// `plaintext_block` so its padding can be checked before any plaintext
+    /// is released. Nothing is written.
+    ///
+    /// With a 32-byte trailer the ring holds exactly four slots from
+    /// `tail_index`: the two trailer slots, then the block before the final
+    /// one (the session IV for a one-block payload), then the final block.
+    /// Does nothing when the payload had no blocks.
+    #[inline(always)]
+    pub(crate) fn decrypt_final_block(&mut self, cipher: &Aes256Dec) {
+        if self.blocks == 0 {
+            return;
+        }
+        let final_index = (self.tail_index + 48) % 64;
+        let chain_index = (self.tail_index + 32) % 64;
+        self.decrypt_block_into_plaintext(cipher, final_index, chain_index);
     }
 
     /// Advance the tail index to the next block in the ring buffer.

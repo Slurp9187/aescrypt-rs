@@ -5,6 +5,36 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-rc.13] - Unreleased
+
+### Added
+
+- **`decrypt_verified`**, which checks the payload HMAC before any plaintext reaches
+  the output (#58). It takes `R: Read + Seek` and reads the payload twice. Pass 1
+  derives the key once, streams the ciphertext through the HMAC and compares the
+  tag. For v3 it also checks the final block's PKCS#7 padding, decrypting that one
+  block into a wiped buffer that is never written. Pass 2 seeks back to where the
+  payload starts and decrypts it, with the same session key. The tag, the trailer
+  and the final-block length byte must match pass 1's, or it fails with
+  `"input changed between verification and decryption"`. A tampered or truncated
+  payload, a wrong password, or invalid v3 padding writes **0 bytes**. That
+  includes a wrong v0 password, where `decrypt` writes garbage before failing. On
+  success the output is identical to `decrypt`'s. It returns a
+  `#[non_exhaustive] DecryptOutcome { version, plaintext_len }`, which holds no
+  secret; `length_authenticated()` is `false` for v0–v2, whose final-block length
+  byte is outside the HMAC. Memory stays bounded: the same 64-byte ring serves both
+  passes, and a counting-allocator test (`tests/streaming_memory.rs`) checks that
+  heap growth does not depend on file size.
+- A `verified_differential` fuzz target that runs `decrypt_verified` and `decrypt`
+  side by side.
+
+### Changed
+
+- `decrypt` itself is unchanged in behavior. Internally its header, KDF and
+  session-block steps moved into a shared helper, and its ring loop is shared with
+  `decrypt_verified`'s MAC-only first pass.
+- `aescrypt-cli`'s exact pin on this crate moves to `=0.2.0-rc.13`.
+
 ## [0.2.0-rc.12] - 2026-10-12
 
 ### Added
