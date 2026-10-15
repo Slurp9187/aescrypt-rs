@@ -13,12 +13,12 @@ repo.**
 
 | Crate | Manifest | Changelog | Tag |
 | --- | --- | --- | --- |
-| `aescrypt-rs` (library) | `Cargo.toml` | `CHANGELOG.md` | `v<version>`, e.g. `v0.2.0-rc.11` |
-| `aescrypt-cli` | `aescrypt-cli/Cargo.toml` | `aescrypt-cli/CHANGELOG.md` | `aescrypt-cli-v<version>`, e.g. `aescrypt-cli-v0.1.0-rc.1` |
+| `aescrypt-rs` (library) | `Cargo.toml` | `CHANGELOG.md` | `v<version>`, e.g. `v0.2.0-rc.13` |
+| `aescrypt-cli` | `aescrypt-cli/Cargo.toml` | `aescrypt-cli/CHANGELOG.md` | `aescrypt-cli-v<version>`, e.g. `aescrypt-cli-v0.1.0-rc.2` |
 
 They are versioned independently; the CLI does **not** mirror the library's version (it did
 until 0.1.0-rc.1). `aescrypt-cli --version` prints both, e.g.
-`aescrypt-cli 0.1.0-rc.1 (aescrypt-rs 0.2.0-rc.11)`.
+`aescrypt-cli 0.1.0-rc.2 (aescrypt-rs 0.2.0-rc.13)`.
 
 ## The CLI pins the library exactly — move the pin with every library bump
 
