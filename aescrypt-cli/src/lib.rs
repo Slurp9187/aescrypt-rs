@@ -29,14 +29,14 @@ mod signals;
 use std::{
     ffi::{OsStr, OsString},
     fs::File,
-    io::{self, BufReader, BufWriter, IsTerminal, Read, Write},
+    io::{self, BufReader, BufWriter, IsTerminal, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
 };
 
 use aescrypt_rs::{
     aliases::PasswordString,
     constants::{DEFAULT_PBKDF2_ITERATIONS, PBKDF2_MAX_ITER, PBKDF2_MIN_ITER},
-    decrypt, encrypt,
+    decrypt, decrypt_verified, encrypt,
 };
 use clap::{ArgGroup, Parser};
 use secure_gate::RevealSecret;
@@ -504,17 +504,13 @@ fn execute(
         Source::Stdin => PathBuf::from("<stdin>"),
         Source::File(p) => p.clone(),
     };
-    let mut file_reader;
-    let reader: &mut dyn Read = match &job.source {
-        Source::Stdin => &mut *streams.stdin,
-        Source::File(p) => {
-            file_reader = BufReader::new(File::open(p).map_err(|e| CliError::io(p, e))?);
-            &mut file_reader
-        }
+    let mut input = match &job.source {
+        Source::Stdin => Input::Stdin(VersionTap::new(&mut *streams.stdin)),
+        Source::File(p) => Input::File(VersionTap::new(BufReader::new(
+            File::open(p).map_err(|e| CliError::io(p, e))?,
+        ))),
     };
-
-    let mut tap = VersionTap::new(reader);
-    let mut run_lib = |w: &mut dyn Write| crypt(opts, password, &label, &mut tap, w);
+    let mut run_lib = |w: &mut dyn Write| crypt(opts, password, &label, &mut input, w);
 
     match (&job.sink, opts.mode) {
         // Ciphertext is not sensitive: stream it straight out.
@@ -546,46 +542,70 @@ fn execute(
     }
 }
 
+/// One job's input, wrapped so failures can name the format version.
+enum Input<'a> {
+    /// A file. It can seek, so decryption checks the HMAC before writing any
+    /// plaintext (`decrypt_verified`, which reads the file twice).
+    File(VersionTap<BufReader<File>>),
+    /// Standard input. It cannot seek, so decryption is one pass and writes
+    /// plaintext before the HMAC is checked; the caller stages the output and
+    /// discards it on error.
+    Stdin(VersionTap<&'a mut dyn Read>),
+}
+
+impl Input<'_> {
+    /// What had been read when the library call returned.
+    fn read_state(&self) -> error::ReadState {
+        let (version, bytes) = match self {
+            Input::File(t) => (t.version, t.pos),
+            Input::Stdin(t) => (t.version, t.pos),
+        };
+        error::ReadState { version, bytes }
+    }
+}
+
 /// Runs the library call. Errors carry the file's format version, because
 /// what a failure means depends on it (see `error::describe`).
 fn crypt(
     opts: &Opts,
     password: &PasswordString,
     label: &Path,
-    tap: &mut VersionTap<'_>,
+    input: &mut Input<'_>,
     w: &mut dyn Write,
 ) -> Result<(), CliError> {
     password
-        .with_secret(|pw| match opts.mode {
-            Mode::Encrypt => encrypt(&mut *tap, w, pw, opts.iterations),
-            Mode::Decrypt => decrypt(&mut *tap, w, pw),
+        .with_secret(|pw| match (opts.mode, &mut *input) {
+            (Mode::Encrypt, Input::File(t)) => encrypt(t, w, pw, opts.iterations),
+            (Mode::Encrypt, Input::Stdin(t)) => encrypt(t, w, pw, opts.iterations),
+            (Mode::Decrypt, Input::File(t)) => decrypt_verified(t, w, pw).map(drop),
+            (Mode::Decrypt, Input::Stdin(t)) => decrypt(t, w, pw),
         })
         .map_err(|source| CliError::Crypto {
             path: label.to_path_buf(),
             // Only a ciphertext has a format version; byte 3 of a plaintext
             // being encrypted means nothing.
-            decrypt: (opts.mode == Mode::Decrypt).then_some(error::ReadState {
-                version: tap.version,
-                bytes: tap.pos,
-            }),
+            decrypt: (opts.mode == Mode::Decrypt).then(|| input.read_state()),
             source,
         })
 }
 
-/// Passes reads through, counting bytes and remembering byte 3 of the
-/// stream: the AES Crypt format version (`"AES"` then the version byte).
-struct VersionTap<'a> {
+/// Passes reads (and, for a file, seeks) through, counting bytes read and
+/// remembering byte 3 of the stream: the AES Crypt format version (`"AES"`
+/// then the version byte).
+struct VersionTap<R> {
     /// The real input.
-    inner: &'a mut dyn Read,
-    /// Bytes read so far: 0 means the input was empty.
+    inner: R,
+    /// Bytes read so far, across both passes of a verified decrypt: 0 means
+    /// the input was empty.
     pos: u64,
-    /// Byte 3 of the input once it has been read.
+    /// Byte 3 of the input once it has been read. Caught while the header is
+    /// read, before `decrypt_verified` seeks back for its second pass.
     version: Option<u8>,
 }
 
-impl<'a> VersionTap<'a> {
+impl<R> VersionTap<R> {
     /// Wraps `inner`, with nothing read yet.
-    fn new(inner: &'a mut dyn Read) -> Self {
+    fn new(inner: R) -> Self {
         Self {
             inner,
             pos: 0,
@@ -594,7 +614,7 @@ impl<'a> VersionTap<'a> {
     }
 }
 
-impl Read for VersionTap<'_> {
+impl<R: Read> Read for VersionTap<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let n = self.inner.read(buf)?;
         if self.version.is_none() && self.pos <= 3 && self.pos + n as u64 > 3 {
@@ -602,6 +622,12 @@ impl Read for VersionTap<'_> {
         }
         self.pos += n as u64;
         Ok(n)
+    }
+}
+
+impl<R: Seek> Seek for VersionTap<R> {
+    fn seek(&mut self, to: SeekFrom) -> io::Result<u64> {
+        self.inner.seek(to)
     }
 }
 
@@ -663,5 +689,134 @@ mod tests {
     fn cli_definition_is_valid() {
         use clap::CommandFactory;
         Cli::command().debug_assert();
+    }
+
+    // -- Which library call decrypt uses (#59) -------------------------------
+    //
+    // Staging hides the difference at the CLI boundary: either way a failed
+    // decrypt leaves no output. These tests look underneath, at the bytes the
+    // library call writes into the stage.
+
+    /// Counts what is written and keeps nothing.
+    #[derive(Default)]
+    struct Count(usize);
+
+    impl Write for Count {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.0 += buf.len();
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    fn decrypt_opts() -> Opts {
+        Opts {
+            mode: Mode::Decrypt,
+            files: Vec::new(),
+            output: None,
+            force: false,
+            iterations: 5,
+            password_file: None,
+        }
+    }
+
+    /// Tampered files of every version available, each paired with its
+    /// version and password: a fresh v3 file, and the largest official v0–v2
+    /// vector when the repository's test data is present (it is not in the
+    /// published tarball). The last ciphertext byte is flipped.
+    fn tampered_files() -> Vec<(u8, &'static str, Vec<u8>)> {
+        let mut files = Vec::new();
+        let mut v3 = Vec::new();
+        encrypt(io::Cursor::new(vec![7u8; 100_000]), &mut v3, "pw", 5).unwrap();
+        files.push((3, "pw", v3));
+
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/test_data/aes_test_files");
+        for version in 0..=2u8 {
+            let Ok(entries) = std::fs::read_dir(dir.join(format!("v{version}"))) else {
+                eprintln!("skipped v{version}: test data not present");
+                continue;
+            };
+            let largest = entries
+                .map(|e| std::fs::read(e.unwrap().path()).unwrap())
+                .max_by_key(Vec::len)
+                .unwrap();
+            files.push((version, "Hello", largest));
+        }
+
+        for (version, _, bytes) in &mut files {
+            let trailer = if matches!(*version, 1 | 2) { 33 } else { 32 };
+            let last_ciphertext_byte = bytes.len() - trailer - 1;
+            bytes[last_ciphertext_byte] ^= 1;
+        }
+        files
+    }
+
+    /// A file input is decrypted with `decrypt_verified`: a tampered file
+    /// writes nothing at all, not even into the stage.
+    #[test]
+    fn tampered_file_input_writes_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        for (version, pw, bytes) in tampered_files() {
+            let path = dir.path().join(format!("v{version}.aes"));
+            std::fs::write(&path, &bytes).unwrap();
+            let mut input =
+                Input::File(VersionTap::new(BufReader::new(File::open(&path).unwrap())));
+            let mut out = Count::default();
+            let password = PasswordString::new(pw.to_string());
+
+            let err = crypt(&decrypt_opts(), &password, &path, &mut input, &mut out)
+                .expect_err("tampered file decrypted");
+            assert!(
+                err.to_string().contains("damaged or was tampered with"),
+                "v{version}: {err}"
+            );
+            assert_eq!(
+                out.0, 0,
+                "v{version}: plaintext written before the HMAC check"
+            );
+            assert_eq!(input.read_state().version, Some(version));
+        }
+    }
+
+    /// Standard input cannot seek, so it stays on the one-pass `decrypt`,
+    /// which writes plaintext before the check. That is what staging is for;
+    /// this pins the split.
+    #[test]
+    fn tampered_stdin_input_is_one_pass() {
+        let (_, pw, bytes) = tampered_files().swap_remove(0);
+        let mut stdin = io::Cursor::new(bytes);
+        let mut input = Input::Stdin(VersionTap::new(&mut stdin));
+        let mut out = Count::default();
+        let password = PasswordString::new(pw.to_string());
+
+        assert!(
+            crypt(
+                &decrypt_opts(),
+                &password,
+                Path::new("<stdin>"),
+                &mut input,
+                &mut out
+            )
+            .is_err()
+        );
+        assert!(out.0 > 0, "stdin unexpectedly verified first");
+    }
+
+    /// A clean file input decrypts to the original through the verified path.
+    #[test]
+    fn clean_file_input_round_trips() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("a.aes");
+        let mut cipher = Vec::new();
+        encrypt(io::Cursor::new(b"hello, verified"), &mut cipher, "pw", 5).unwrap();
+        std::fs::write(&path, cipher).unwrap();
+
+        let mut input = Input::File(VersionTap::new(BufReader::new(File::open(&path).unwrap())));
+        let mut out = Vec::new();
+        let password = PasswordString::new("pw".to_string());
+        crypt(&decrypt_opts(), &password, &path, &mut input, &mut out).unwrap();
+        assert_eq!(out, b"hello, verified");
     }
 }
