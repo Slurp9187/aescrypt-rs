@@ -77,3 +77,11 @@ test = false
 doc = false
 bench = false
 required-features = ["fuzzing"]
+
+[[bin]]
+name = "verified_differential"
+path = "fuzz_targets/verified_differential.rs"
+test = false
+doc = false
+bench = false
+required-features = ["fuzzing"]

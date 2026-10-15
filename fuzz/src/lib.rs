@@ -19,10 +19,10 @@ use aes::cipher::{BlockEncrypt, KeyInit};
 use aes::{Aes256Enc, Block};
 use aescrypt_rs::aliases::{AckdfDerivedKey32, Aes256Key32, Iv16, Salt16};
 use aescrypt_rs::decryption::{
-    consume_all_extensions, decrypt_ciphertext_stream, read_file_version, read_kdf_iterations,
-    StreamConfig,
+    StreamConfig, consume_all_extensions, decrypt_ciphertext_stream, read_file_version,
+    read_kdf_iterations,
 };
-use aescrypt_rs::{decrypt, derive_ackdf_key, encrypt, read_version};
+use aescrypt_rs::{decrypt, decrypt_verified, derive_ackdf_key, encrypt, read_version};
 use arbitrary::Arbitrary;
 use hmac::{Hmac, Mac};
 use secure_gate::RevealSecret;
@@ -271,6 +271,42 @@ pub fn fuzz_stream_decrypt(data: &[u8]) {
     let iv = Iv16::new([0x24u8; 16]);
     let mut out = Vec::new();
     let _ = decrypt_ciphertext_stream(Cursor::new(&data[2..]), &mut out, &iv, &key, config);
+}
+
+/// Target 6: raw bytes → `decrypt_verified()` and `decrypt()`, side by side.
+///
+/// Oracle, panicking on any breach:
+/// - both accept or both reject the input;
+/// - when both accept, the plaintexts are equal and `plaintext_len` matches;
+/// - when `decrypt_verified` rejects, it wrote **nothing**. Over an
+///   in-memory `Cursor` pass 2 reads exactly what pass 1 verified and never
+///   fails on I/O, so every rejection must come before the first write.
+///
+/// The v3 iteration count is clamped as in [`fuzz_decrypt_raw`].
+pub fn fuzz_verified_differential(data: &[u8]) {
+    let password = "fuzz-password";
+    let mut input = data.to_vec();
+    clamp_v3_iters(&mut input);
+
+    let mut verified_out = Vec::new();
+    let verified = decrypt_verified(Cursor::new(&input), &mut verified_out, password);
+    let mut one_pass_out = Vec::new();
+    let one_pass = decrypt(Cursor::new(&input), &mut one_pass_out, password);
+
+    match (&verified, &one_pass) {
+        (Ok(outcome), Ok(())) => {
+            assert_eq!(verified_out, one_pass_out, "plaintexts differ");
+            assert_eq!(outcome.plaintext_len, verified_out.len() as u64);
+        }
+        (Err(_), Err(_)) => {
+            assert!(
+                verified_out.is_empty(),
+                "decrypt_verified wrote {} bytes before failing: {verified:?}",
+                verified_out.len()
+            );
+        }
+        _ => panic!("disagreement: decrypt_verified {verified:?}, decrypt {one_pass:?}"),
+    }
 }
 
 /// Target 2 input: valid v3 file + optional byte mutations / truncation.
@@ -595,6 +631,55 @@ mod tests {
         fuzz_stream_decrypt(&input);
     }
 
+    /// Valid files of every version, then every single-byte flip of a v3
+    /// file and of a v1 file's payload: the oracle in
+    /// [`fuzz_verified_differential`] must hold for each.
+    #[test]
+    fn smoke_verified_differential() {
+        let password = "fuzz-password";
+        fuzz_verified_differential(&[]);
+        fuzz_verified_differential(b"AES\x03\x00");
+
+        let v3 = build_v3_file(password, b"thirty-three bytes of plaintext!!", 1);
+        let v1 = build_legacy_file(
+            1,
+            password,
+            b"legacy seed text",
+            &[2; 16],
+            &[3; 16],
+            &[4; 32],
+            &[],
+        );
+        for file in [&v3, &v1] {
+            fuzz_verified_differential(file);
+        }
+        for v in [0u8, 2] {
+            fuzz_verified_differential(&build_legacy_file(
+                v,
+                password,
+                b"seed",
+                &[v; 16],
+                &[1; 16],
+                &[2; 32],
+                &[],
+            ));
+        }
+
+        for at in 0..v3.len() {
+            let mut tampered = v3.clone();
+            tampered[at] ^= 0x01;
+            fuzz_verified_differential(&tampered);
+        }
+        // v1's payload and trailer only: the header goes through ACKDF, which
+        // is slow, and is already covered above.
+        let payload_start = v1.len() - 16 - 33;
+        for at in payload_start..v1.len() {
+            let mut tampered = v1.clone();
+            tampered[at] ^= 0x01;
+            fuzz_verified_differential(&tampered);
+        }
+    }
+
     /// Regenerates the committed seed corpora. Run explicitly:
     /// `cargo test --no-default-features --manifest-path fuzz/Cargo.toml \
     ///     generate_seed_corpus -- --ignored`
@@ -653,6 +738,17 @@ mod tests {
         write("decrypt_raw", "v2.aes", &v2);
         write("decrypt_raw", "header_v3", b"AES\x03\x00");
         write("decrypt_raw", "header_v0", b"AES");
+
+        // verified_differential: the same files, the same fixed password.
+        for (name, bytes) in [
+            ("v3_iter1.aes", &v3),
+            ("v3_empty_iter1.aes", &v3_empty),
+            ("v0.aes", &v0),
+            ("v1.aes", &v1),
+            ("v2.aes", &v2),
+        ] {
+            write("verified_differential", name, bytes);
+        }
 
         // parsers: header stubs + a v2 extension section.
         write("parsers", "header_v3", b"AES\x03\x00");
