@@ -167,13 +167,75 @@ where
     R: Read,
     W: Write,
 {
-    let (file_version, reserved_modulo) = read_file_version(&mut input)?;
-    consume_all_extensions(&mut input, file_version)?;
+    let session = open_session(&mut input, password)?;
 
-    let kdf_iterations = read_kdf_iterations(&mut input, file_version)?;
+    decrypt_ciphertext_stream(
+        &mut input,
+        &mut output,
+        &session.session_iv,
+        &session.session_key,
+        session.stream_config(),
+    )?;
+
+    Ok(())
+}
+
+/// Everything recovered from a file before its payload: the format version,
+/// the v0 modulo byte, and the session IV and key, each in its zeroizing
+/// wrapper.
+///
+/// Deliberately not `Clone`: there is one copy of the session key, and it is
+/// wiped when this is dropped.
+pub(crate) struct SessionState {
+    /// Format version, `0..=3`.
+    pub(crate) version: u8,
+    /// 5th header byte: the v0 modulo byte, `0x00` for v1–v3.
+    pub(crate) reserved_modulo: u8,
+    /// IV for the payload's CBC chain.
+    pub(crate) session_iv: Iv16,
+    /// Key for the payload's AES and HMAC.
+    pub(crate) session_key: Aes256Key32,
+}
+
+impl SessionState {
+    /// The per-version stream configuration for the payload.
+    ///
+    /// # Panics
+    ///
+    /// Never: `version` comes from [`read_file_version`], which rejects
+    /// anything above 3.
+    pub(crate) fn stream_config(&self) -> StreamConfig {
+        match self.version {
+            0 => StreamConfig::V0 {
+                reserved_modulo: self.reserved_modulo,
+            },
+            1 => StreamConfig::V1,
+            2 => StreamConfig::V2,
+            3 => StreamConfig::V3,
+            _ => unreachable!("file_version validated in read_file_version"),
+        }
+    }
+}
+
+/// Reads the header, derives the setup key and recovers the session block,
+/// leaving `input` at the first payload byte. The KDF runs here, once; the
+/// setup key is wiped when this returns.
+///
+/// # Errors
+///
+/// As for [`decrypt`], from the header parsers, the KDF and
+/// [`extract_session_data`].
+pub(crate) fn open_session<R>(input: &mut R, password: &str) -> Result<SessionState, AescryptError>
+where
+    R: Read,
+{
+    let (file_version, reserved_modulo) = read_file_version(input)?;
+    consume_all_extensions(input, file_version)?;
+
+    let kdf_iterations = read_kdf_iterations(input, file_version)?;
 
     // Public IV — secure from the start
-    let public_iv: Iv16 = read_exact_span(&mut input)?;
+    let public_iv: Iv16 = read_exact_span(input)?;
 
     // Setup key — secure buffer from birth
     let mut setup_key = Aes256Key32::new([0u8; 32]);
@@ -185,33 +247,21 @@ where
     }
 
     // Session key/IV — secure buffers from birth
-    let mut session_iv = Iv16::new([0u8; 16]);
-    let mut session_key = Aes256Key32::new([0u8; 32]);
+    let mut session = SessionState {
+        version: file_version,
+        reserved_modulo,
+        session_iv: Iv16::new([0u8; 16]),
+        session_key: Aes256Key32::new([0u8; 32]),
+    };
 
     extract_session_data(
-        &mut input,
+        input,
         file_version,
         &public_iv,
         &setup_key,
-        &mut session_iv,
-        &mut session_key,
+        &mut session.session_iv,
+        &mut session.session_key,
     )?;
 
-    let stream_config = match file_version {
-        0 => StreamConfig::V0 { reserved_modulo },
-        1 => StreamConfig::V1,
-        2 => StreamConfig::V2,
-        3 => StreamConfig::V3,
-        _ => unreachable!("file_version validated in read_file_version"),
-    };
-
-    decrypt_ciphertext_stream(
-        &mut input,
-        &mut output,
-        &session_iv,
-        &session_key,
-        stream_config,
-    )?;
-
-    Ok(())
+    Ok(session)
 }

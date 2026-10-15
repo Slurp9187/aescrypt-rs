@@ -66,6 +66,22 @@ pub(crate) fn write_final_pkcs7<W: Write>(
     ctx: &DecryptionContext,
     output: &mut W,
 ) -> Result<(), AescryptError> {
+    let data_len = validate_final_pkcs7(ctx)?;
+    ctx.plaintext_block
+        .with_secret(|block| output.write_all(&block[..data_len]))?;
+    Ok(())
+}
+
+/// Checks the PKCS#7 padding of the final plaintext block (v3 only) and
+/// returns how many of its bytes are data. Writes nothing.
+///
+/// # Errors
+///
+/// [`AescryptError::Header`] when there is no final block
+/// (`"v3: missing final plaintext block"`) or its padding is invalid
+/// (`"v3: invalid PKCS#7 padding"`).
+#[inline(always)]
+pub(crate) fn validate_final_pkcs7(ctx: &DecryptionContext) -> Result<usize, AescryptError> {
     if !ctx.need_write_plaintext {
         return Err(AescryptError::Header(
             "v3: missing final plaintext block".into(),
@@ -96,9 +112,7 @@ pub(crate) fn write_final_pkcs7<W: Write>(
         return Err(AescryptError::Header("v3: invalid PKCS#7 padding".into()));
     }
 
-    ctx.plaintext_block
-        .with_secret(|block| output.write_all(&block[..16 - padding as usize]))?;
-    Ok(())
+    Ok(padding_start)
 }
 
 #[cfg(test)]
