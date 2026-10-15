@@ -8,6 +8,14 @@
 // the temp file flushed to disk and renamed into place (or, for stdout, copied
 // out). On any error the temp file is dropped, which deletes it; on Ctrl-C the
 // signal handler deletes it.
+//
+// A decrypted file input goes through `decrypt_verified`, which checks the
+// HMAC before writing anything, so a temp file for a file that fails
+// verification stays empty. stdin can't seek and is decrypted in one pass, so
+// its temp file can hold unverified plaintext until the error deletes it.
+// A forced kill (`kill -9`, `taskkill /F`) can't be caught and leaves the
+// temp file; deleting it at the OS level needs `unsafe` platform calls, which
+// this crate forbids.
 
 use std::{
     fs::File,

@@ -15,8 +15,16 @@ Versioned independently of `aescrypt-rs`; `--version` shows both.
   instead of a copy in the CLI. The value is unchanged at 600,000; the CLI kept its own
   only because `aescrypt-rs` 0.2.0-rc.11 still defaulted to 300,000.
 - Built on `aescrypt-rs` 0.2.0-rc.13 (was 0.2.0-rc.12), which this release pins
-  exactly, so `aescrypt-rs` 0.2.0-rc.13 must be published first. The CLI still
-  decrypts with the one-pass `decrypt`; using `decrypt_verified` for file inputs is #59.
+  exactly, so `aescrypt-rs` 0.2.0-rc.13 must be published first.
+- Decrypting an input file now checks its integrity before writing any plaintext
+  (#59). The file is read twice, through the library's `decrypt_verified`. A wrong
+  password, a damaged or tampered file, or invalid padding now writes no plaintext at
+  all. Before, the plaintext went into the staging temp file and was deleted when the
+  check failed; the destination was never touched. Decrypting a large file takes about
+  twice the reading time. Decrypting from stdin (`-`) still reads once, because a pipe
+  can't be read twice, and its output is still staged and discarded on failure. A new
+  message, "the file changed while it was being decrypted; no output was kept", covers a
+  file that changes between the two reads (exit code 1).
 
 ## [0.1.0-rc.1] - 2026-10-12
 

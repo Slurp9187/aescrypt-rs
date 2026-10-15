@@ -101,12 +101,17 @@ generated passphrase can't end up in a log file.
 
 ## Safety
 
-- **No partial or unverified output.** The AES Crypt format can only be
-  verified once the whole file has been read. aescrypt-cli therefore writes to
-  a `.aescrypt-cli-*.tmp` file next to the destination (hidden by its name on
-  Unix; visible on Windows while it runs), and renames it
-  into place only after decryption has been verified. A wrong password or a
-  damaged file leaves nothing behind. One exception is in the format itself:
+- **Verified before anything is written.** The AES Crypt format can only be
+  verified once the whole file has been read, so aescrypt-cli reads an input
+  file twice when decrypting. The first pass checks the file's integrity and
+  writes nothing. The second decrypts, and only then is any plaintext written.
+  A wrong password or a damaged or tampered file writes no plaintext anywhere,
+  not even to a temp file. Decrypting a large file takes about twice the
+  reading time.
+- **No partial output.** Output goes to a `.aescrypt-cli-*.tmp` file next to
+  the destination (hidden by its name on Unix; visible on Windows while it
+  runs), which is renamed into place only after decryption has succeeded. A
+  failure leaves nothing behind. One exception is in the format itself:
   in v0–v2 files, the byte that records how long the last block is isn't
   covered by the integrity check, so if only that byte is damaged, the file
   still decrypts, and the output can be up to 15 bytes too short or too long.
@@ -114,13 +119,21 @@ generated passphrase can't end up in a log file.
 - **Decrypting to stdout** stages the plaintext in the system temp directory
   and only copies it out after verification. Nothing unverified reaches a
   pipe. This needs temporary disk space equal to the file's size.
+- **Decrypting from stdin (`-`)** reads its input once, because a pipe can't be
+  read twice. Plaintext is written to the temp file as it's decrypted and
+  checked at the end. On failure, the temp file is deleted and nothing reaches
+  the destination or stdout.
 - **Ctrl-C, `kill`, or closing the terminal** deletes any in-progress temp
   file. At the password prompt it exits immediately and turns terminal echo
   back on, on Windows as well as Unix. A forced kill can't be caught, so it
   leaves the temp file behind: `kill -9` on Unix, and `taskkill /F` or
   `Stop-Process` on Windows. Delete any leftover `.aescrypt-cli-*.tmp` file
   by hand. The destination is never touched: nothing has been renamed into
-  place yet.
+  place yet. When a file is being decrypted, a leftover temp file is empty if
+  the kill came during the first pass, and otherwise holds only verified
+  plaintext. Having the operating system delete it automatically when the
+  process dies would need platform calls that this tool's no-`unsafe` rule
+  doesn't allow, so that is a known limit.
 - **Crash safety.** Output is flushed to disk before it's renamed, so a crash
   can't leave an empty file under the final name.
 - **No overwriting.** An existing output file is never replaced without
