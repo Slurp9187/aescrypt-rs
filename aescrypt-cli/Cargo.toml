@@ -5,7 +5,7 @@
 [package]
 name = "aescrypt-cli"
 # Versioned on its own, independently of aescrypt-rs. `--version` shows both.
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 edition = "2024"
 rust-version = "1.85"
 description = "Command-line tool for AES Crypt files (decrypts v0-v3, writes v3), built on aescrypt-rs"
@@ -50,9 +50,11 @@ tempfile = "3.10"
 thiserror = "2.0"
 zeroize = "1.8"
 
-# Saves and restores the terminal around the password prompt (src/signals.rs).
+# Saves and restores the terminal around the password prompt (src/signals.rs),
+# and on Linux creates the unnamed O_TMPFILE stage and links it into place
+# (src/output.rs). Both through safe APIs.
 [target.'cfg(unix)'.dependencies]
-rustix = { version = "1.0", features = ["termios"] }
+rustix = { version = "1.0", features = ["fs", "termios"] }
 
 # Saves and restores the console input mode around the password prompt. Safe
 # wrappers; already in the graph through same-file.

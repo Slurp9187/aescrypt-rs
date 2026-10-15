@@ -482,6 +482,71 @@ fn password_file_mode_warning() {
     }
 }
 
+/// A forced kill in the middle of decrypting (`TerminateProcess` on Windows,
+/// `SIGKILL` on Linux: nothing in the process can catch either) leaves no temp
+/// file and no output, because the operating system deletes the stage when
+/// the process dies (#64). macOS has no equivalent, so this runs on Windows
+/// and Linux only; the README documents the limit elsewhere.
+#[cfg(any(windows, target_os = "linux"))]
+#[test]
+fn hard_kill_leaves_no_temp_file() {
+    use std::io::Read;
+    use std::time::{Duration, Instant};
+
+    let dir = tempfile::tempdir().unwrap();
+    // Only the stage could ever appear here.
+    let out_dir = tempfile::tempdir().unwrap();
+    let enc = dir.path().join("big.aes");
+    // Large enough that a debug build is still decrypting when the kill lands.
+    aescrypt_rs::encrypt(
+        std::io::repeat(7).take(48 << 20),
+        std::io::BufWriter::new(fs::File::create(&enc).unwrap()),
+        "kill-test",
+        5,
+    )
+    .unwrap();
+    let pw = dir.path().join("pw");
+    fs::write(&pw, "kill-test").unwrap();
+    let out = out_dir.path().join("big");
+
+    let mut child = Command::new(BIN)
+        .args(["-d", "--password-file", s(&pw), "-o", s(&out), s(&enc)])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let in_out_dir = || fs::read_dir(out_dir.path()).unwrap().count();
+    if cfg!(windows) {
+        // The delete-on-close stage has a name while it is open.
+        let deadline = Instant::now() + Duration::from_secs(20);
+        while in_out_dir() == 0 {
+            assert!(Instant::now() < deadline, "temp file never appeared");
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    } else {
+        // An O_TMPFILE stage has no name, so there is nothing to wait for.
+        std::thread::sleep(Duration::from_millis(1500));
+    }
+    assert!(
+        child.try_wait().unwrap().is_none(),
+        "finished before the kill; the test needs a bigger file"
+    );
+    child.kill().unwrap();
+    child.wait().unwrap();
+
+    // The OS deletes the file as the last handle closes; allow it a moment.
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while in_out_dir() != 0 && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let left: Vec<_> = fs::read_dir(out_dir.path())
+        .unwrap()
+        .map(|e| e.unwrap().file_name())
+        .collect();
+    assert!(left.is_empty(), "left behind after a hard kill: {left:?}");
+}
+
 /// Plaintext reaches stdout only after verification, and the staging file in
 /// the temp dir is gone afterwards.
 #[test]
@@ -722,10 +787,16 @@ mod unix {
         stdin.write_all(&cipher[..cipher.len() / 2]).unwrap();
         stdin.flush().unwrap();
 
-        let deadline = Instant::now() + Duration::from_secs(20);
-        while fs::read_dir(out_dir.path()).unwrap().count() == 0 {
-            assert!(Instant::now() < deadline, "temp file never appeared");
-            thread::sleep(Duration::from_millis(20));
+        if cfg!(target_os = "linux") {
+            // The stage is an O_TMPFILE with no name, so nothing appears to
+            // wait for; the half-fed pipe holds the CLI mid-decrypt.
+            thread::sleep(Duration::from_millis(500));
+        } else {
+            let deadline = Instant::now() + Duration::from_secs(20);
+            while fs::read_dir(out_dir.path()).unwrap().count() == 0 {
+                assert!(Instant::now() < deadline, "temp file never appeared");
+                thread::sleep(Duration::from_millis(20));
+            }
         }
         // SAFETY: plain FFI call with a pid we own.
         unsafe {

@@ -14,7 +14,7 @@ format version (v0–v3) and writes v3.
 > `aescrypt` command-line program.
 
 ```sh
-cargo install aescrypt-cli --version 0.1.0-rc.2
+cargo install aescrypt-cli --version 0.1.0-rc.3
 ```
 
 Requires Rust 1.85 or newer. Until 0.1.0 is released only release candidates
@@ -108,10 +108,12 @@ generated passphrase can't end up in a log file.
   A wrong password or a damaged or tampered file writes no plaintext anywhere,
   not even to a temp file. Decrypting a large file takes about twice the
   reading time.
-- **No partial output.** Output goes to a `.aescrypt-cli-*.tmp` file next to
-  the destination (hidden by its name on Unix; visible on Windows while it
-  runs), which is renamed into place only after decryption has succeeded. A
-  failure leaves nothing behind. One exception is in the format itself:
+- **No partial output.** Output goes to a temp file next to the destination,
+  which is put in place only after decryption has succeeded. A failure leaves
+  nothing behind. On Windows the temp file is a `.aescrypt-cli-*.tmp` file,
+  visible while it runs. On Linux it has no name at all. On macOS it's a
+  `.aescrypt-cli-*.tmp` file, hidden by its name. One exception is in the
+  format itself:
   in v0–v2 files, the byte that records how long the last block is isn't
   covered by the integrity check, so if only that byte is damaged, the file
   still decrypts, and the output can be up to 15 bytes too short or too long.
@@ -125,15 +127,18 @@ generated passphrase can't end up in a log file.
   the destination or stdout.
 - **Ctrl-C, `kill`, or closing the terminal** deletes any in-progress temp
   file. At the password prompt it exits immediately and turns terminal echo
-  back on, on Windows as well as Unix. A forced kill can't be caught, so it
-  leaves the temp file behind: `kill -9` on Unix, and `taskkill /F` or
-  `Stop-Process` on Windows. Delete any leftover `.aescrypt-cli-*.tmp` file
-  by hand. The destination is never touched: nothing has been renamed into
-  place yet. When a file is being decrypted, a leftover temp file is empty if
-  the kill came during the first pass, and otherwise holds only verified
-  plaintext. Having the operating system delete it automatically when the
-  process dies would need platform calls that this tool's no-`unsafe` rule
-  doesn't allow, so that is a known limit.
+  back on, on Windows as well as Unix.
+- **A forced kill leaves nothing on Windows and Linux.** No process can catch
+  `kill -9`, `taskkill /F` or `Stop-Process -Force`, so there the operating
+  system deletes the temp file itself when the process dies. On Windows the
+  file is opened delete-on-close and given its final name with a hard link.
+  On Linux it is an unnamed `O_TMPFILE`, given its name with `linkat`. A
+  filesystem that refuses either (FAT has no hard links, some network
+  filesystems have no `O_TMPFILE`) falls back to an ordinary temp file. On
+  macOS, a forced kill leaves the `.aescrypt-cli-*.tmp` file behind; delete it
+  by hand. When a file input is being decrypted, that leftover is empty if the
+  kill came during the first pass, and otherwise holds only verified
+  plaintext. The destination is never touched.
 - **Crash safety.** Output is flushed to disk before it's renamed, so a crash
   can't leave an empty file under the final name.
 - **No overwriting.** An existing output file is never replaced without
@@ -196,7 +201,7 @@ replacement doesn't keep the old file's owner, permissions or hard links.
 
 aescrypt-cli is versioned on its own, independently of `aescrypt-rs`.
 `aescrypt-cli --version` shows both, for example
-`aescrypt-cli 0.1.0-rc.2 (aescrypt-rs 0.2.0-rc.13)`.
+`aescrypt-cli 0.1.0-rc.3 (aescrypt-rs 0.2.0-rc.13)`.
 
 ## License
 
