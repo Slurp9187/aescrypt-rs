@@ -7,6 +7,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Versioned independently of `aescrypt-rs`; `--version` shows both.
 
+## [0.1.0-rc.3] - Unreleased
+
+### Fixed
+
+- A forced kill (`kill -9`, `taskkill /F`, `Stop-Process -Force`) no longer leaves the
+  staged temp file, which could hold plaintext, on Windows or Linux (#64). No process
+  can catch those, so the operating system now deletes the temp file itself when the
+  process dies:
+  - on Windows, the file is opened delete-on-close and given its final name with a hard
+    link;
+  - on Linux, it's an unnamed `O_TMPFILE`, given its name with `linkat`.
+
+  Both use safe APIs; the CLI still forbids `unsafe`. Without `--force` an existing
+  output is still never replaced. A filesystem that refuses (FAT has no hard links, some
+  network filesystems have no `O_TMPFILE`) falls back to the previous named temp file.
+  macOS still leaves the temp file after a forced kill.
+
 ## [0.1.0-rc.2] - 2026-10-15
 
 ### Changed
