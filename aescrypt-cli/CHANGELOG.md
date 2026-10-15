@@ -14,6 +14,8 @@ Versioned independently of `aescrypt-rs`; `--version` shows both.
 - The `--iterations` default now comes from the library's `DEFAULT_PBKDF2_ITERATIONS`
   instead of a copy in the CLI. The value is unchanged at 600,000; the CLI kept its own
   only because `aescrypt-rs` 0.2.0-rc.11 still defaulted to 300,000.
+- Built on `aescrypt-rs` 0.2.0-rc.13 (was 0.2.0-rc.12). The CLI still decrypts with
+  the one-pass `decrypt`; using `decrypt_verified` for file inputs is #59.
 
 ## [0.1.0-rc.1] - 2026-10-12
 
