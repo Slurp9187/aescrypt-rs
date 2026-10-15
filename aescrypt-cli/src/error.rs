@@ -168,6 +168,9 @@ fn describe(e: &AescryptError, decrypt: Option<&ReadState>) -> String {
         | "v3: expected 32-byte HMAC trailer"
         | "v3: missing final plaintext block" => "the file is truncated or damaged",
         "v3: invalid PKCS#7 padding" => "the file is damaged or was tampered with",
+        "input changed between verification and decryption" => {
+            "the file changed while it was being decrypted; no output was kept"
+        }
         _ => return e.to_string(),
     };
     format!("{hint} ({msg})")
@@ -207,6 +210,16 @@ mod tests {
             ("HMAC verification failed", 2, false),
             ("HMAC verification failed", 3, false),
             ("v3: invalid PKCS#7 padding", 3, false),
+            (
+                "input changed between verification and decryption",
+                0,
+                false,
+            ),
+            (
+                "input changed between verification and decryption",
+                3,
+                false,
+            ),
         ];
         for (msg, version, expected) in cases {
             let e = CliError::Crypto {
@@ -224,5 +237,27 @@ mod tests {
                 "{msg} v{version}: {e}"
             );
         }
+    }
+
+    /// `decrypt_verified`'s second pass reading something other than what its
+    /// first pass verified gets a message of its own, and exit code 1.
+    #[test]
+    fn input_changed_is_described() {
+        let e = CliError::Crypto {
+            path: "f.aes".into(),
+            decrypt: Some(ReadState {
+                version: Some(3),
+                bytes: 100,
+            }),
+            source: AescryptError::Header(
+                "input changed between verification and decryption".into(),
+            ),
+        };
+        let shown = e.to_string();
+        assert!(
+            shown.contains("the file changed while it was being decrypted; no output was kept"),
+            "{shown}"
+        );
+        assert_eq!(e.exit_code(), 1);
     }
 }
