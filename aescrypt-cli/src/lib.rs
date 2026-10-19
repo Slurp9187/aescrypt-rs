@@ -52,7 +52,7 @@ pub use password::{
 /// `concat!` can use it.
 macro_rules! lib_version {
     () => {
-        "0.2.0-rc.13"
+        "0.2.0-rc.14"
     };
 }
 
@@ -60,7 +60,7 @@ macro_rules! lib_version {
 pub const LIB_VERSION: &str = lib_version!();
 
 /// What `--version` prints after the program name, e.g.
-/// `0.1.0-rc.3 (aescrypt-rs 0.2.0-rc.13)`: both versions, because a bug
+/// `0.1.0-rc.3 (aescrypt-rs 0.2.0-rc.14)`: both versions, because a bug
 /// report needs the library's too.
 const VERSION: &str = concat!(
     env!("CARGO_PKG_VERSION"),

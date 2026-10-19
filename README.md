@@ -354,7 +354,7 @@ Passwords come from a terminal prompt, `--password-command` or
 
 ```toml
 [dependencies]
-aescrypt-rs = "0.2.0-rc.13"
+aescrypt-rs = "0.2.0-rc.14"
 ```
 
 When **0.2.0** is published to crates.io, you can switch the version requirement to `"0.2.0"` (or a caret range you prefer).

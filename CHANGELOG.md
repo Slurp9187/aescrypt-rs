@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-rc.14] - Unreleased
+
+### Changed
+
+- `secure-gate` is re-pinned from `=0.9.0-rc.12` to `=0.9.0-rc.13`, so that the
+  encrypted-file-vault dependency graph, which depends on this crate, can carry a
+  single copy of `secure-gate`. No API change in this crate: its public
+  signatures, aliases and behavior are unchanged. secure-gate rc.13's one breaking
+  change, rejecting `derive: [ConstantTimeEq]` on the shaped newtype arms, does not
+  reach this crate, which declares no newtypes and only imports the trait to call
+  `ct_eq`. Its new `sealed` feature is opt-in and not enabled here.
+- `aescrypt-cli`'s exact pin on this crate moves to `=0.2.0-rc.14`, and its own
+  `secure-gate` pin to `=0.9.0-rc.13`, matching this crate's.
+
 ## [0.2.0-rc.13] - 2026-10-15
 
 ### Added
