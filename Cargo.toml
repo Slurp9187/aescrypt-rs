@@ -6,7 +6,7 @@
 name = "aescrypt-rs"
 # `aescrypt-cli` is versioned on its own and pins a published release of this
 # crate with `=`; a bump here does not bump it.
-version = "0.2.0-rc.14"
+version = "0.2.0-rc.15"
 edition = "2024"
 rust-version = "1.85"
 description = "AES Crypt (v0-v3) Rust encryption/decryption library"
@@ -115,7 +115,7 @@ pbkdf2 = "0.12"
 #
 # NOTE: `secure-gate = "0.9"` resolves to NOTHING — a caret matches a pre-release
 # only when the requirement itself carries one for the same major.minor.patch.
-secure-gate = { version = "=0.9.0-rc.13", features = ["rand", "ct-eq"] }
+secure-gate = { version = "=0.9.0-rc.15", features = ["rand", "ct-eq"] }
 sha2 = "0.10"
 thiserror = "2.0"
 

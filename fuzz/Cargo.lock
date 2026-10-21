@@ -16,7 +16,7 @@ dependencies = [
 
 [[package]]
 name = "aescrypt-rs"
-version = "0.2.0-rc.14"
+version = "0.2.0-rc.15"
 dependencies = [
  "aes",
  "hmac",
@@ -274,9 +274,9 @@ checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
 
 [[package]]
 name = "secure-gate"
-version = "0.9.0-rc.13"
+version = "0.9.0-rc.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74e6c70a4204d574cb3c853940dea00482a38795893c940a8e340d4f27231468"
+checksum = "4a61215834c24de98e1326f8e7d471fda47419ef1369786add84de59daad7735"
 dependencies = [
  "base16ct",
  "base32ct",
