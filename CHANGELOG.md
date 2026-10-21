@@ -5,6 +5,19 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-rc.15] - 2026-10-20
+
+### Changed
+
+- `secure-gate` is re-pinned from `=0.9.0-rc.13` to `=0.9.0-rc.15`, keeping the
+  encrypted-file-vault dependency graph on a single copy of `secure-gate`. No API
+  change in this crate: its public signatures, aliases and behavior are unchanged.
+  Every change in secure-gate rc.14 and rc.15, including rc.15's removal of
+  `LockError::page_too_large`, is confined to the opt-in `sealed` feature, which is
+  not enabled here.
+- `aescrypt-cli`'s exact pin on this crate moves to `=0.2.0-rc.15`, and its own
+  `secure-gate` pin to `=0.9.0-rc.15`, matching this crate's.
+
 ## [0.2.0-rc.14] - 2026-10-18
 
 ### Changed

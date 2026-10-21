@@ -14,7 +14,7 @@ file records only what is true of this crate.**
 ## Dependency
 
 ```toml
-secure-gate = { version = "=0.9.0-rc.13", features = ["rand", "ct-eq"] }
+secure-gate = { version = "=0.9.0-rc.15", features = ["rand", "ct-eq"] }
 ```
 
 **Pinned, and the reasoning is already in `Cargo.toml` rather than here** — including the
@@ -26,9 +26,10 @@ fuzz crate depends on this one, so a drift between the two produces two secure-g
 one graph. Bumping means changing both pins and running `cargo update -p secure-gate` in
 **both** lockfiles.
 
-**Every rule in the global skill is read against rc.13** (pinned since aescrypt-rs
-0.2.0-rc.14). This crate declares no newtypes, so the rc.13 `derive: [ConstantTimeEq]` break
-did not hit it, and the opt-in `sealed` feature is not enabled. A secure-gate bump is still a
+**Every rule in the global skill is read against rc.15** (pinned since aescrypt-rs
+0.2.0-rc.15). This crate declares no newtypes, so the rc.13 `derive: [ConstantTimeEq]` break
+did not hit it, and the opt-in `sealed` feature is not enabled, so rc.14 and rc.15, which
+change only `sealed`, did not either. A secure-gate bump is still a
 coordinated ecosystem wave, since several first-party crates pin exactly and two different exact
 requirements in one compatibility range cannot resolve.
 
