@@ -7,7 +7,8 @@ use crate::aliases::{Aes256Key32, Block16, Iv16, heap_span};
 use crate::constants::SPAN;
 use crate::error::AescryptError;
 use crate::utilities::read_until_full;
-use aes::cipher::{BlockEncrypt, KeyInit};
+use aes::cipher::consts::U16;
+use aes::cipher::{BlockBackend, BlockClosure, BlockEncrypt, BlockSizeUser, KeyInit};
 use aes::{Aes256Enc, Block as AesBlock};
 use hmac::Mac;
 use secure_gate::{RevealSecret, RevealSecretMut};
@@ -16,10 +17,10 @@ use std::io::{Read, Write};
 /// Bytes encrypted before the HMAC catches up, inside one span. CBC encryption
 /// and SHA-256 are each a serial chain, but independent of each other; feeding
 /// the MAC a piece that was just encrypted keeps both chains in flight and the
-/// piece still in L1. At 64 MiB on a Ryzen 9 9950X3D, 256 bytes beat the whole
-/// span in every alternating run (615-635 MiB/s against 539-607), and 4 KiB
-/// was no better than the span. The output is the same at any value
-/// (`tests/span_golden_tests.rs`).
+/// piece still in L1. In three alternating rounds of `benches/throughput.rs` on
+/// one desktop, [`CbcSpan`] per 256 bytes was about 10% faster than either
+/// [`CbcSpan`] per whole span or per-block `encrypt_block` at 256 bytes, which
+/// tied. The output is the same at any value (`tests/span_golden_tests.rs`).
 const INTERLEAVE: usize = 256;
 
 /// Encrypts the payload stream of an AES Crypt v3 file with PKCS#7 padding and
@@ -133,7 +134,10 @@ where
         span.with_secret_mut(|s| {
             prev_block.with_secret_mut(|prev| {
                 for piece in s[..len].chunks_mut(INTERLEAVE) {
-                    cbc_encrypt_in_place(&cipher, prev, piece);
+                    cipher.encrypt_with_backend(CbcSpan {
+                        prev: &mut *prev,
+                        data: &mut *piece,
+                    });
                     hmac.update(piece);
                 }
             })
@@ -151,14 +155,33 @@ where
 
 /// CBC-encrypts `data` (a multiple of 16 bytes) in place, chaining off `prev`
 /// and leaving the last ciphertext block in it.
-#[inline(always)]
-fn cbc_encrypt_in_place(cipher: &Aes256Enc, prev: &mut [u8; 16], data: &mut [u8]) {
-    for block in data.chunks_exact_mut(16) {
-        for (b, p) in block.iter_mut().zip(prev.iter()) {
-            *b ^= *p;
+///
+/// A `BlockClosure`, so the whole loop runs inside the AES backend's own
+/// `#[target_feature(enable = "aes")]` function: one feature check and call per
+/// piece, where `encrypt_block` paid both for every block. Each block is
+/// encrypted in place inside the span wrapper, and `prev` is the `Block16`
+/// wrapper's own storage, so no plaintext block is copied out (the `cbc`
+/// crate's backend copies each one to the stack).
+struct CbcSpan<'a> {
+    /// The previous ciphertext block; the last one written, afterwards.
+    prev: &'a mut [u8; 16],
+    /// Whole blocks of plaintext, encrypted in place.
+    data: &'a mut [u8],
+}
+
+impl BlockSizeUser for CbcSpan<'_> {
+    type BlockSize = U16;
+}
+
+impl BlockClosure for CbcSpan<'_> {
+    #[inline(always)]
+    fn call<B: BlockBackend<BlockSize = U16>>(self, backend: &mut B) {
+        for block in self.data.chunks_exact_mut(16) {
+            for (b, p) in block.iter_mut().zip(self.prev.iter()) {
+                *b ^= *p;
+            }
+            backend.proc_block_inplace(AesBlock::from_mut_slice(block));
+            self.prev.copy_from_slice(block);
         }
-        // Encrypt in place inside the span wrapper (borrowed as a GenericArray).
-        cipher.encrypt_block(AesBlock::from_mut_slice(block));
-        prev.copy_from_slice(block);
     }
 }
