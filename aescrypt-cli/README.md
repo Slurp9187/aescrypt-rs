@@ -103,12 +103,12 @@ generated passphrase can't end up in a log file.
 ## Safety
 
 - **Verified before anything is written.** The AES Crypt format can only be
-  verified once the whole file has been read, so aescrypt-cli reads an input
-  file twice when decrypting. The first pass checks the file's integrity and
-  writes nothing. The second decrypts, and only then is any plaintext written.
-  A wrong password or a damaged or tampered file writes no plaintext anywhere,
-  not even to a temp file. Decrypting a large file takes about twice the
-  reading time.
+  verified once the whole file has been read, so aescrypt-cli reads its input
+  twice when decrypting. The first pass checks the file's integrity and writes
+  nothing. The second decrypts, and only then is any plaintext written. A wrong
+  password or a damaged or tampered file writes no plaintext anywhere, not even
+  to a temp file. This holds for stdin too (see below). Decrypting a large file
+  takes about twice the reading time.
 - **No partial output.** Output goes to a temp file next to the destination,
   which is put in place only after decryption has succeeded. A failure leaves
   nothing behind. On Windows the temp file is a `.aescrypt-cli-*.tmp` file,
@@ -119,13 +119,16 @@ generated passphrase can't end up in a log file.
   covered by the integrity check, so if only that byte is damaged, the file
   still decrypts, and the output can be up to 15 bytes too short or too long.
   v3 files, which aescrypt-cli writes, check it.
-- **Decrypting to stdout** stages the plaintext in the system temp directory
-  and only copies it out after verification. Nothing unverified reaches a
-  pipe. This needs temporary disk space equal to the file's size.
-- **Decrypting from stdin (`-`)** reads its input once, because a pipe can't be
-  read twice. Plaintext is written to the temp file as it's decrypted and
-  checked at the end. On failure, the temp file is deleted and nothing reaches
-  the destination or stdout.
+- **Plaintext is never written to a temp file that is thrown away.**
+  - **Decrypting to stdout** writes the plaintext straight to stdout, in the
+    second pass, after the first has verified the file. Nothing unverified
+    reaches a pipe. Only a read or write error during that second pass can
+    leave partial output.
+  - **Decrypting from stdin (`-`)**: a pipe can't be read twice, so its
+    *ciphertext* is copied to a temp file first, next to the destination, or
+    in the system temp directory when writing to stdout. It is then decrypted
+    from there like a file. Ciphertext on disk is harmless. This needs
+    temporary disk space equal to the encrypted file's size.
 - **Ctrl-C, `kill`, or closing the terminal** deletes any in-progress temp
   file. At the password prompt it exits immediately and turns terminal echo
   back on, on Windows as well as Unix.

@@ -423,6 +423,39 @@ fn tampered_file_leaves_no_output() {
         "{} unverified bytes reached stdout",
         r.2.len()
     );
+
+    // The same file through stdin (#72): its ciphertext is staged and checked
+    // before anything is written, to a file or to stdout.
+    let out = dir.path().join("from-stdin");
+    let r = cli(&["-d", "-o", s(&out), "-"], PW, &bytes);
+    assert_eq!(r.1.len(), 1);
+    assert_eq!(listing(dir.path()), ["a.txt.aes"]);
+
+    let r = cli(&["-d", "-o", "-", "-"], PW, &bytes);
+    assert_eq!(r.1.len(), 1);
+    assert!(
+        r.2.is_empty(),
+        "{} unverified bytes from stdin reached stdout",
+        r.2.len()
+    );
+}
+
+/// A clean stdin decrypts to stdout and to a file through the staged,
+/// verify-first path (#72), and leaves no stage behind.
+#[test]
+fn stdin_decrypts_verified_to_stdout_and_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let enc = encrypt_file(dir.path(), "a.txt", &[9u8; 70_000]);
+    let cipher = fs::read(&enc).unwrap();
+
+    let r = cli(&["-d", "-o", "-", "-"], PW, &cipher);
+    ok(&r);
+    assert_eq!(r.2, vec![9u8; 70_000]);
+
+    let out = dir.path().join("plain");
+    ok(&cli(&["-d", "-o", s(&out), "-"], PW, &cipher));
+    assert_eq!(fs::read(&out).unwrap(), vec![9u8; 70_000]);
+    assert_eq!(listing(dir.path()), ["a.txt.aes", "plain"]);
 }
 
 /// The official v0–v2 vectors with their last ciphertext byte flipped, and a

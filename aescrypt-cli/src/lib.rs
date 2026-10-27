@@ -37,7 +37,7 @@ use std::{
 use aescrypt_rs::{
     aliases::PasswordString,
     constants::{DEFAULT_PBKDF2_ITERATIONS, PBKDF2_MAX_ITER, PBKDF2_MIN_ITER},
-    decrypt, decrypt_verified, encrypt,
+    decrypt_verified, encrypt,
 };
 use clap::{ArgGroup, Parser};
 use secure_gate::RevealSecret;
@@ -487,10 +487,16 @@ fn default_output(mode: Mode, input: &Path) -> Result<PathBuf, CliError> {
 // Execution
 // ---------------------------------------------------------------------------
 
-/// Runs one planned job. A file output is staged next to its destination and
-/// renamed into place after the library call succeeds; decrypting to stdout is
-/// staged in the temp directory and copied out only after verification;
-/// encrypting to stdout streams directly.
+/// Runs one planned job. Decryption always goes through `decrypt_verified`,
+/// which checks the HMAC (and v3's padding) before writing any plaintext, so no
+/// plaintext ever lands in a temp file that is then thrown away (#72):
+///
+/// - stdin can't seek, so its ciphertext is staged first: next to the
+///   destination, or in the temp directory for stdout.
+/// - Decrypting to stdout writes straight to it, in the verified second pass.
+/// - A file output is staged next to its destination and renamed into place
+///   after the library call succeeds.
+/// - Encrypting to stdout streams directly.
 fn execute(
     opts: &Opts,
     job: &Job,
@@ -501,9 +507,19 @@ fn execute(
         Source::Stdin => PathBuf::from("<stdin>"),
         Source::File(p) => p.clone(),
     };
-    let mut input = match &job.source {
-        Source::Stdin => Input::Stdin(VersionTap::new(&mut *streams.stdin)),
-        Source::File(p) => Input::File(VersionTap::new(BufReader::new(
+    // Declared before `input`, which borrows its file.
+    let mut staged_stdin = None;
+    let mut input = match (&job.source, opts.mode) {
+        (Source::Stdin, Mode::Decrypt) => {
+            let dir = match &job.sink {
+                Sink::File(dest) => output::parent_dir(dest).to_path_buf(),
+                Sink::Stdout => std::env::temp_dir(),
+            };
+            let stage = staged_stdin.insert(stage_ciphertext(&mut *streams.stdin, &dir)?);
+            Input::Staged(VersionTap::new(stage.file()))
+        }
+        (Source::Stdin, Mode::Encrypt) => Input::Stdin(VersionTap::new(&mut *streams.stdin)),
+        (Source::File(p), _) => Input::File(VersionTap::new(BufReader::new(
             File::open(p).map_err(|e| CliError::io(p, e))?,
         ))),
     };
@@ -516,27 +532,35 @@ fn execute(
             run_lib(&mut w)?;
             w.flush().map_err(|e| CliError::io("<stdout>", e))
         }
-        // Plaintext reaches stdout only after it has been authenticated.
+        // Pass 1 has verified before pass 2 writes, so plaintext goes straight
+        // to stdout. Only an I/O error in pass 2 can leave a partial output.
         (Sink::Stdout, Mode::Decrypt) => {
-            let mut staged = output::Staged::new_in(&std::env::temp_dir(), true)?;
-            {
-                let mut w = staged.writer();
-                run_lib(&mut w)?;
-                w.flush().map_err(|e| CliError::io(&label, e))?;
-            }
-            staged.copy_to(&mut *streams.stdout)
+            run_lib(&mut *streams.stdout)?;
+            streams
+                .stdout
+                .flush()
+                .map_err(|e| CliError::io("<stdout>", e))
         }
         (Sink::File(dest), mode) => {
             let mut staged =
                 output::Staged::new_in(output::parent_dir(dest), mode == Mode::Decrypt)?;
-            {
-                let mut w = staged.writer();
-                run_lib(&mut w)?;
-                w.flush().map_err(|e| CliError::io(dest, e))?;
-            }
+            run_lib(staged.file())?;
             staged.persist(dest, opts.force)
         }
     }
+}
+
+/// Copies all of `src` (stdin's ciphertext) into a temp file in `dir` and
+/// rewinds it, so it can be decrypted with `decrypt_verified`, which reads its
+/// input twice. Only ciphertext is staged: it is harmless on disk. Ctrl-C and
+/// every exit path delete the stage like any other.
+fn stage_ciphertext(src: &mut dyn Read, dir: &Path) -> Result<output::Staged, CliError> {
+    let mut stage = output::Staged::new_in(dir, false)?;
+    let file = stage.file();
+    io::copy(src, file).map_err(|e| CliError::io("<stdin>", e))?;
+    file.seek(SeekFrom::Start(0))
+        .map_err(|e| CliError::io(dir, e))?;
+    Ok(stage)
 }
 
 /// One job's input, wrapped so failures can name the format version.
@@ -544,10 +568,11 @@ enum Input<'a> {
     /// A file. It can seek, so decryption checks the HMAC before writing any
     /// plaintext (`decrypt_verified`, which reads the file twice).
     File(VersionTap<BufReader<File>>),
-    /// Standard input. It cannot seek, so decryption is one pass and writes
-    /// plaintext before the HMAC is checked; the caller stages the output and
-    /// discards it on error.
+    /// Standard input, read once, for encryption only.
     Stdin(VersionTap<&'a mut dyn Read>),
+    /// Standard input's ciphertext, staged to a temp file by
+    /// `stage_ciphertext` so it can be decrypted verify-first like a file.
+    Staged(VersionTap<&'a mut File>),
 }
 
 impl Input<'_> {
@@ -556,6 +581,7 @@ impl Input<'_> {
         let (version, bytes) = match self {
             Input::File(t) => (t.version, t.pos),
             Input::Stdin(t) => (t.version, t.pos),
+            Input::Staged(t) => (t.version, t.pos),
         };
         error::ReadState { version, bytes }
     }
@@ -575,7 +601,11 @@ fn crypt(
             (Mode::Encrypt, Input::File(t)) => encrypt(t, w, pw, opts.iterations),
             (Mode::Encrypt, Input::Stdin(t)) => encrypt(t, w, pw, opts.iterations),
             (Mode::Decrypt, Input::File(t)) => decrypt_verified(t, w, pw).map(drop),
-            (Mode::Decrypt, Input::Stdin(t)) => decrypt(t, w, pw),
+            (Mode::Decrypt, Input::Staged(t)) => decrypt_verified(t, w, pw).map(drop),
+            // `execute` stages stdin before decrypting, and only then.
+            (Mode::Decrypt, Input::Stdin(_)) | (Mode::Encrypt, Input::Staged(_)) => {
+                unreachable!("stdin is staged for decryption and only for decryption")
+            }
         })
         .map_err(|source| CliError::Crypto {
             path: label.to_path_buf(),
@@ -794,28 +824,51 @@ mod tests {
         }
     }
 
-    /// Standard input cannot seek, so it stays on the one-pass `decrypt`,
-    /// which writes plaintext before the check. That is what staging is for;
-    /// this pins the split.
+    /// Standard input is staged as ciphertext and decrypted verify-first like
+    /// a file (#72): a tampered stdin writes nothing at all.
     #[test]
-    fn tampered_stdin_input_is_one_pass() {
-        let (_, pw, bytes) = tampered_files().swap_remove(0);
-        let mut stdin = io::Cursor::new(bytes);
-        let mut input = Input::Stdin(VersionTap::new(&mut stdin));
-        let mut out = Count::default();
-        let password = PasswordString::new(pw.to_string());
+    fn tampered_stdin_input_writes_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        for (version, pw, bytes) in tampered_files() {
+            let mut stdin = io::Cursor::new(bytes);
+            let mut stage = stage_ciphertext(&mut stdin, dir.path()).unwrap();
+            let mut input = Input::Staged(VersionTap::new(stage.file()));
+            let mut out = Count::default();
+            let password = PasswordString::new(pw.to_string());
 
-        assert!(
-            crypt(
+            let err = crypt(
                 &decrypt_opts(),
                 &password,
                 Path::new("<stdin>"),
                 &mut input,
-                &mut out
+                &mut out,
             )
-            .is_err()
+            .expect_err("tampered stdin decrypted");
+            assert!(
+                err.to_string().contains("damaged or was tampered with"),
+                "v{version}: {err}"
+            );
+            assert_eq!(out.0, 0, "v{version}: plaintext written before the check");
+            assert_eq!(input.read_state().version, Some(version));
+        }
+    }
+
+    /// What `stage_ciphertext` puts on disk is the input, byte for byte (the
+    /// ciphertext), rewound for reading: never plaintext.
+    #[test]
+    fn stdin_stage_holds_the_ciphertext() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut cipher = Vec::new();
+        encrypt(io::Cursor::new(b"secret words"), &mut cipher, "pw", 5).unwrap();
+
+        let mut stage = stage_ciphertext(&mut io::Cursor::new(cipher.clone()), dir.path()).unwrap();
+        let mut on_disk = Vec::new();
+        stage.file().read_to_end(&mut on_disk).unwrap();
+        assert_eq!(on_disk, cipher);
+        assert!(
+            !on_disk.windows(12).any(|w| w == b"secret words"),
+            "plaintext in the stage"
         );
-        assert!(out.0 > 0, "stdin unexpectedly verified first");
     }
 
     /// A clean file input decrypts to the original through the verified path.

@@ -3,11 +3,25 @@
 // Writing results without ever leaving a partial or unverified file behind.
 // ============================================================================
 //
-// Every result goes to a temp file first. Only once the library call has
-// returned Ok — for decryption, that is after the HMAC and padding checks — is
-// the temp file flushed to disk and put in place (or, for stdout, copied out).
-// On any error the temp file is dropped, which deletes it; on Ctrl-C the
-// signal handler deletes it.
+// Every file result goes to a temp file next to its destination first. Only
+// once the library call has returned Ok is the temp file flushed to disk and
+// put in place. On any error the temp file is dropped, which deletes it; on
+// Ctrl-C the signal handler deletes it.
+//
+// No plaintext is ever written to a temp file that is then thrown away (#72).
+// Decryption always goes through `decrypt_verified`, which checks the HMAC (and
+// v3's padding) before writing anything:
+//
+// - A file input is read twice in place.
+// - stdin can't seek, so its *ciphertext* is staged in a temp file first (next
+//   to the destination, or in the temp directory for stdout) and decrypted
+//   from there. Ciphertext on disk is harmless.
+// - Decrypting to stdout writes the plaintext straight to stdout, in pass 2,
+//   after pass 1 has verified: there is no plaintext temp file to copy from.
+//
+// The stage is written through its `File`, not a `BufWriter`: the library
+// already writes 64 KiB spans, and a buffer would keep an unwiped copy of the
+// last plaintext it held.
 //
 // Where the operating system can do it, the temp file is one it deletes itself
 // when the last handle closes, so a forced kill (`kill -9`, `taskkill /F`),
@@ -22,14 +36,14 @@
 // the filesystem refuses (no `O_TMPFILE`, no `/proc`, no hard links), it is an
 // ordinary named temp file, renamed into place: a forced kill leaves that one.
 //
-// A decrypted file input goes through `decrypt_verified`, which checks the
-// HMAC before writing anything, so a temp file for a file that fails
-// verification stays empty. stdin can't seek and is decrypted in one pass, so
-// its temp file can hold unverified plaintext until the error deletes it.
+// A decryption that fails verification therefore leaves its output temp file
+// empty. Plaintext reaches one only in pass 2, after verification, so only an
+// I/O error in pass 2 can leave a partial (verified) plaintext temp file to be
+// deleted.
 
 use std::{
     fs::File,
-    io::{self, BufWriter, Seek, SeekFrom, Write},
+    io::{self, Seek, SeekFrom},
     path::{Path, PathBuf},
 };
 
@@ -123,15 +137,16 @@ impl Staged {
         })
     }
 
-    /// A buffered writer into the temp file. The caller must flush it before
-    /// `persist` or `copy_to`.
+    /// The temp file itself, unbuffered: to write a result into, or to read a
+    /// staged ciphertext back from. No buffer sits between, so nothing keeps an
+    /// unwiped copy of what passed through.
     ///
     /// # Panics
     ///
     /// If the file is gone, which only `persist` does, and it consumes `self`:
     /// this cannot happen.
-    pub(crate) fn writer(&mut self) -> BufWriter<&mut File> {
-        BufWriter::new(self.stage.as_mut().expect("live temp file").file_mut())
+    pub(crate) fn file(&mut self) -> &mut File {
+        self.stage.as_mut().expect("live temp file").file_mut()
     }
 
     /// Flushes to disk and puts the file in place at `dest`. Without `force` an
@@ -171,18 +186,6 @@ impl Staged {
         };
         result?;
         sync_parent(dest);
-        Ok(())
-    }
-
-    /// Copies the finished temp file to `out`. The temp file is deleted after.
-    pub(crate) fn copy_to(mut self, out: &mut dyn Write) -> Result<(), CliError> {
-        let stage = self.stage.as_mut().expect("live temp file");
-        let label = stage.label().to_path_buf();
-        let file = stage.file_mut();
-        file.seek(SeekFrom::Start(0))
-            .map_err(|e| CliError::io(&label, e))?;
-        io::copy(file, out).map_err(|e| CliError::io("<stdout>", e))?;
-        out.flush().map_err(|e| CliError::io("<stdout>", e))?;
         Ok(())
     }
 }

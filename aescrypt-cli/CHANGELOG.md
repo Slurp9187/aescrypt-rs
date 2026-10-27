@@ -28,6 +28,25 @@ Versioned independently of `aescrypt-rs`; `--version` shows both.
   the `aescrypt-rs` this build linked. It was a copy kept by hand in the CLI's source,
   which every library bump had to edit. The output is unchanged in form.
 
+### Fixed
+
+- **Plaintext is no longer written to temp files that get thrown away** (#72).
+  - **Decrypting to stdout** used to stage the whole plaintext in the system temp
+    directory and copy it out, then delete the file without overwriting it. It now
+    writes straight to stdout in `decrypt_verified`'s second pass, after the first
+    has verified.
+  - **Decrypting from stdin** used to run the one-pass decrypt, writing unverified
+    plaintext to a temp file that was deleted on failure. It now stages stdin's
+    *ciphertext* (next to the destination, or in the temp directory for stdout)
+    and decrypts it verify-first, like a file. A tampered or truncated stdin now
+    writes nothing at all.
+  - **Buffers:** the temp files are written without a `BufWriter`, whose buffer kept
+    an unwiped copy of the last plaintext it held. The library already writes
+    64 KiB spans, so the buffer bought nothing.
+  - **Still outside the CLI's reach:** the standard library's own stdout buffer,
+    which holds small writes; and partial output if a read or write fails during
+    the verified second pass.
+
 ### Removed
 
 - The hidden `LIB_VERSION` constant, the copy `--version` used to read. It was
