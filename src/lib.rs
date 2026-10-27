@@ -118,7 +118,12 @@
 //!     HMAC state is sufficient to forge tags under the key it was built from. This
 //!     is a property of those crates, not a gap this crate can close.
 //!     [`decrypt_verified()`] builds two payload HMAC states, one per pass, both
-//!     from the session key; both are residue of this kind.
+//!     from the session key; both are residue of this kind. So is the block
+//!     batch of `aes`'s software backend, which `aes` 0.8 uses on x86 without
+//!     AES-NI and on aarch64 unless built with `--cfg aes_armv8`. It copies each
+//!     block into a stack batch it does not wipe: plaintext XOR the previous
+//!     ciphertext block when encrypting, and the block before its CBC XOR when
+//!     decrypting.
 //! - **Decrypt-then-verify**: [`decrypt()`] reads its input once, so the payload HMAC
 //!   is verified **after** the ciphertext stream is decrypted. It therefore
 //!   may write partial unauthenticated plaintext to its `output` before returning an
