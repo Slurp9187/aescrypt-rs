@@ -15,7 +15,7 @@
 - **Write**: Modern **v3 only** (PBKDF2-HMAC-SHA512, PKCS#7 padding, proper session-key encryption)
 - **Detect**: `read_version()` — header-only version check in <1 μs (ideal for batch tools)
 - AES-256-CBC with **HMAC-SHA256** (payload + session) authentication — **PBKDF2-HMAC-SHA512** key derivation
-- Constant-memory streaming: 64 KiB spans, one read, HMAC update and write each
+- Constant-memory streaming in spans of up to 64 KiB, with one HMAC update and one write each
 - **Zero-cost secure memory & cryptographically secure RNG** via [`secure-gate`](https://github.com/Slurp9187/secure-gate)
 - **Constant-time security**: All HMAC comparisons and padding validation use constant-time operations
 - No `unsafe` in this crate — enforced via `#![forbid(unsafe_code)]` (dependencies may use `unsafe` internally, e.g. crypto backends)
@@ -54,7 +54,7 @@ If you find AES Crypt (or this Rust port) useful, please consider supporting Pau
 - **Secure memory management**: Every key, IV, salt and intermediate buffer this crate *creates* is wrapped in a `secure-gate` type with automatic zeroization. Two things sit outside that: the caller-owned password (below), and third-party cipher/hasher internals this crate cannot reach — `aes` is built with its `zeroize` feature so the key schedule *is* wiped, but `hmac` 0.12 and `sha2` 0.10 expose no zeroize hook, so HMAC opad/ipad state and SHA-256 chaining state persist until their frames are reused. See the crate-level Security Model on [docs.rs](https://docs.rs/aescrypt-rs)
 - **Caller-owned passwords**: passwords are taken as `&str` borrows — read in place, never copied, never stored — so no `secure-gate` type appears in a signature you have to name, and this crate's `secure-gate` version stays an internal detail. Zeroizing the password itself is the caller's job; see [Password handling](#password-handling)
 - **Verify before release**: `decrypt_verified()` checks the HMAC (and v3's padding) before it writes any plaintext, so a tampered file or a wrong password writes nothing; it needs a seekable input. `decrypt()` reads once and verifies last; see [Verify before writing plaintext](#verify-before-writing-plaintext)
-- **Streaming architecture**: Constant-memory encryption and decryption in 64 KiB spans (one read, one HMAC update and one write per span; no full-file buffering)
+- **Streaming architecture**: Constant-memory encryption and decryption in spans of up to 64 KiB, with one HMAC update and one write per span and no full-file buffering. Spans start at 1 KiB and grow only as the input does, so small files stay cheap.
 
 ## Password handling
 

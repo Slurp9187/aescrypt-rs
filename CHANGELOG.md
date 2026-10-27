@@ -58,7 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     wiped them. With growing spans, encrypt and decrypt are as fast as 0.2.0-rc.15
     or faster at every size from 1 KiB, on the same desktop. An empty file costs
     about 0.3 µs more. A streaming caller sees a few smaller reads (1, 3, 12 and
-    48 KiB) at the start of a large file, then 64 KiB reads. Writes are unchanged,
+    48 KiB) at the start of a large file, then reads of up to 64 KiB (65 504 bytes when
+    decrypting, since 32 bytes carry over between spans). Writes are unchanged,
     because a span reaches its full size before any of it is processed.
   - **Output arrives a span at a time.** On a slow stream (a pipe, a socket),
     nothing is written until 64 KiB has arrived or the input ends, where it used

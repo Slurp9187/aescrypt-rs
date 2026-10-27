@@ -46,10 +46,18 @@ unsafe impl GlobalAlloc for Counting {
 static ALLOCATOR: Counting = Counting;
 
 /// Heap growth allowed during one decrypt, whatever the file size: the two
-/// boxed 64 KiB spans the loop decrypts between (#68; 131 056 bytes measured),
-/// plus 64 KiB for the I/O error paths and anything the standard library
-/// allocates lazily. The `BufReader` is created before measuring.
-const BOUND: usize = 2 * 64 * 1024 + 64 * 1024;
+/// spans the loop decrypts between (#68; 64 KiB and 64 KiB − 16, 131 056 bytes
+/// measured), plus 32 KiB for the I/O error paths and anything the standard
+/// library allocates lazily. Keep the allowance under one more span (64 KiB):
+/// pass 1's span still alive during pass 2 would be 196 592 bytes, and must fail
+/// here. The `BufReader` is created before measuring.
+const BOUND: usize = 2 * 64 * 1024 + 32 * 1024;
+
+/// Heap growth allowed while decrypting a 100-byte file from memory. Spans
+/// start at 1 KiB and grow only while fills come back full, so a small file
+/// must not allocate the full 64 KiB spans; that fixed cost made small files
+/// 2–5× slower than 0.2.0-rc.15 in a first version (#68).
+const SMALL_FILE_BOUND: usize = 8 * 1024;
 
 const MIB: u64 = 1024 * 1024;
 
@@ -150,4 +158,25 @@ fn decrypt_memory_does_not_grow_with_the_file() {
         );
         assert!(one_pass <= BOUND, "decrypt grew {one_pass} B at {len} B");
     }
+
+    // A small file stays small: no full-size span for a 100-byte payload.
+    let mut small = Vec::new();
+    encrypt(PatternReader { pos: 0, len: 100 }, &mut small, "pw", 1).unwrap();
+    let mut check = PatternCheck { pos: 0 };
+    let verified = peak_growth(|| {
+        decrypt_verified(std::io::Cursor::new(&small), &mut check, "pw").unwrap();
+    });
+    assert_eq!(check.pos, 100);
+    let mut check = PatternCheck { pos: 0 };
+    let one_pass = peak_growth(|| decrypt(std::io::Cursor::new(&small), &mut check, "pw").unwrap());
+    assert_eq!(check.pos, 100);
+    eprintln!("100 B: peak heap growth decrypt_verified {verified} B, decrypt {one_pass} B");
+    assert!(
+        verified <= SMALL_FILE_BOUND,
+        "decrypt_verified of 100 B grew {verified} B"
+    );
+    assert!(
+        one_pass <= SMALL_FILE_BOUND,
+        "decrypt of 100 B grew {one_pass} B"
+    );
 }

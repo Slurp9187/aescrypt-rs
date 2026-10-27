@@ -68,9 +68,10 @@ const _: () = assert!(SPAN % INTERLEAVE == 0);
 ///
 /// - `session_key` is consumed only inside scoped [`secure-gate`] reveals; it
 ///   never escapes a `with_secret` closure.
-/// - The plaintext span is a 64 KiB `secure_gate::Dynamic<[u8]>`, allocated
-///   zeroed on the heap; a boxed slice cannot reallocate, and it is wiped on
-///   drop. It holds plaintext only until
+/// - The plaintext span is a `secure_gate::Dynamic<[u8]>` that starts at 1 KiB
+///   and is replaced by larger ones, up to 64 KiB, while fills come back full.
+///   Each is allocated zeroed on the heap, and is a boxed slice that cannot
+///   reallocate. Each is wiped on drop, the smaller ones as they are replaced. It holds plaintext only until
 ///   the in-place encryption overwrites it with ciphertext.
 /// - `session_iv` **must** be unique per file. [`crate::encrypt()`] generates
 ///   it via the [`secure-gate`] CSPRNG (`Iv16::from_random`).
