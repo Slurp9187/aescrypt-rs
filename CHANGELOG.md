@@ -21,7 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   MAC and write 16 bytes at a time: 4.2 million reads and writes per pass over a
   64 MiB file. Now each call reads up to 64 KiB, updates the HMAC once, and writes
   once. Decryption runs all of a span's CBC blocks through AES-NI's 8-block
-  pipeline. Both passes of `decrypt_verified` share the same framing.
+  pipeline. Encryption, which CBC makes serial, runs each 256-byte piece inside one
+  call into the AES backend instead of one call per block; that saves a feature
+  check and call per block on x86 with AES-NI. Both passes of `decrypt_verified`
+  share the same framing.
   - **The file format is byte-identical.** `tests/span_golden_tests.rs` checks what
     the crate writes against an independent reference at sizes around the block
     and the span, and pins a digest of its v3 files generated before the change.
@@ -32,12 +35,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     the padding check. New tests tamper with and truncate multi-span files for
     v0–v3 and require 0 bytes written. Each guard was removed once and seen to
     fail.
-  - **Throughput**, 64 MiB from memory to `io::sink()` on a Ryzen 9 9950X3D:
-    `encrypt` 435 MiB/s before, 544-635 after (four runs; this machine is
-    shared, so encrypt varied about 10% between runs); `decrypt` 515 MiB/s before,
-    1.68 GiB/s after; `decrypt_verified` 335 MiB/s before, 1.02 GiB/s after. The
-    gain is larger for a writer that pays per call, which no longer receives
-    16-byte writes.
+  - **Writes per call.** Decrypting 1 MiB makes at most 19 writes, where it made
+    about 65 000. That is where most of the gain is for a writer that pays per call,
+    such as a file or a pipe, and it holds on any machine.
+  - **Throughput**, relative to 0.2.0-rc.15 on the crate's 64 MiB benchmark (from
+    memory to `io::sink()`, one KDF iteration): encryption about 1.5× as fast,
+    decryption about 3.5×, `decrypt_verified` about 3×. Both versions were measured
+    back to back on one high-end desktop (Ryzen 9 9950X3D, with AES-NI and SHA-NI).
+    Absolute speed depends on the CPU and will be lower on most machines; the
+    ratios were not measured anywhere else.
   - **Memory stays constant, at a higher level.** Encryption holds one 64 KiB
     span on the heap, and decryption holds two (about 128 KiB, the same at 1 MiB
     and 64 MiB) where it used to hold a 64-byte ring; the MAC-only first pass of
@@ -51,6 +57,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **A `File` no longer needs a `BufReader`** for speed. The docs that advised one
     for `decrypt_verified` now say so.
 - `aescrypt-cli`'s exact pin on this crate moves to `=0.2.0-rc.16`.
+- **Correction to 0.2.0-rc.10.** That entry says plaintext-equivalent bytes "never
+  exist outside a zeroize-on-drop buffer, on any code path". That holds for this
+  crate's own code, but not inside `aes`. Its software backend copies each block into
+  a stack batch it does not wipe: during encryption, plaintext XOR the previous
+  ciphertext block; during decryption, the block before its CBC XOR. `aes` 0.8 uses
+  that backend on x86 without AES-NI and on aarch64 unless built with
+  `--cfg aes_armv8`. This is upstream residue of the kind the crate-level Security
+  Model already lists for the hashers; nothing here can wipe it.
 
 ### Removed
 
