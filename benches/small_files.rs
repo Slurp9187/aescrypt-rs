@@ -11,8 +11,11 @@
 //! where a call grows to the next span.
 //!
 //! It uses only the public API, so it also runs against an older release. To
-//! compare with 0.2.0-rc.15, run both builds with one target directory, so
-//! that criterion finds the saved baseline:
+//! compare with 0.2.0-rc.15, run both builds with one `CARGO_TARGET_DIR`, so
+//! that criterion finds the saved baseline. It must be the environment
+//! variable: criterion finds its output folder from `CARGO_TARGET_DIR` or
+//! `cargo metadata`, and never sees `--target-dir` or `--config`, so with
+//! those each build saves to its own `target/criterion`.
 //!
 //! ```text
 //! git worktree add --detach ../aescrypt-rs-rc15 v0.2.0-rc.15
@@ -20,10 +23,11 @@
 //! #   [[bench]]
 //! #   name = "small_files"
 //! #   harness = false
+//! export CARGO_TARGET_DIR="$PWD/../bench-target"
 //! cd ../aescrypt-rs-rc15
-//! cargo bench --bench small_files --target-dir ../bench-target -- --save-baseline rc15
+//! cargo bench --bench small_files -- --save-baseline rc15
 //! cd -
-//! cargo bench --bench small_files --target-dir ../bench-target -- --baseline rc15
+//! cargo bench --bench small_files -- --baseline rc15
 //! ```
 
 // Bench crate: helpers and fixtures are explained by the benchmarks that use them.
