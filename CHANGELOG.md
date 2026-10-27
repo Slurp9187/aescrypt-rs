@@ -47,9 +47,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Memory follows the payload, up to a constant.** Each call starts with a
     1 KiB span and grows it 4× (to 4, 16, then 64 KiB) only while its fills come back
     full. A small file therefore holds a few KiB, where it used to hold a 64-byte
-    ring. A large one holds at most one 64 KiB span when encrypting, and two (about
-    128 KiB, the same at 1 MiB and 64 MiB) when decrypting; the MAC-only first pass
-    of `decrypt_verified` holds one. Each span is a `secure_gate::Dynamic<[u8]>`, a
+    ring. A large file holds one 64 KiB span when encrypting, and briefly 80 KiB
+    while the last growth step copies the 16 KiB span into it before that one is
+    wiped and freed. It holds two (about 128 KiB, the same at 1 MiB and 64 MiB) when
+    decrypting, and the growth steps stay below that; the MAC-only first pass of
+    `decrypt_verified` holds one. Each span is a `secure_gate::Dynamic<[u8]>`, a
     boxed slice that cannot grow, allocated zeroed on the heap and wiped on drop; a
     span that grows is copied into the larger one and wiped.
   - **Small files are not slower.** A first version of this change used fixed
