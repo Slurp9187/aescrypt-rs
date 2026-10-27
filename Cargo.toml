@@ -6,7 +6,7 @@
 name = "aescrypt-rs"
 # `aescrypt-cli` is versioned on its own and pins a published release of this
 # crate with `=`; a bump here does not bump it.
-version = "0.2.0-rc.15"
+version = "0.2.0-rc.16"
 edition = "2024"
 rust-version = "1.85"
 description = "AES Crypt (v0-v3) Rust encryption/decryption library"

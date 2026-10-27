@@ -37,7 +37,7 @@ pub const TEST_ITERATION_VALUES: &[u32] = &[1, TEST_ITERATIONS, 10];
 // `smoke_legacy_builder_roundtrips` differential-tests the legacy builder
 // against the real decryptor.
 
-/// The CREATED_BY extension the official deterministic v3 vectors carry.
+/// The `CREATED_BY` extension the official deterministic v3 vectors carry.
 #[allow(dead_code)] // Used across multiple test files
 pub const V3_CREATED_BY_EXTENSION: [u8; 29] = [
     0x00, 0x1B, b'C', b'R', b'E', b'A', b'T', b'E', b'D', b'_', b'B', b'Y', 0x00, b'a', b'e', b's',
@@ -45,8 +45,17 @@ pub const V3_CREATED_BY_EXTENSION: [u8; 29] = [
 ];
 
 /// Writes a complete v3 file through the crate's own write path with a fixed
-/// session, matching the official deterministic vectors (CREATED_BY extension,
-/// version byte in the session HMAC).
+/// session, matching the official deterministic vectors (`CREATED_BY`
+/// extension, version byte in the session HMAC).
+///
+/// # Errors
+///
+/// Whatever the crate's write helpers or `encrypt_stream` return: an I/O error
+/// on `source` or `destination`, or an iteration count out of range.
+///
+/// # Panics
+///
+/// Never: the setup key is always a valid 32-byte HMAC key.
 #[allow(dead_code)] // Used across multiple test files
 pub fn encrypt_with_fixed_session<R: std::io::Read, W: std::io::Write>(
     mut source: R,
@@ -97,6 +106,10 @@ pub fn encrypt_with_fixed_session<R: std::io::Read, W: std::io::Write>(
 }
 
 /// AES-256-CBC over `padded` (a multiple of 16 bytes), one block at a time.
+///
+/// # Panics
+///
+/// If `padded` is not a whole number of blocks.
 #[allow(dead_code)] // Used across multiple test files
 pub fn reference_cbc_encrypt(key: &[u8; 32], iv: &[u8; 16], padded: &[u8]) -> Vec<u8> {
     use aes::cipher::{BlockEncrypt, KeyInit};
@@ -118,6 +131,10 @@ pub fn reference_cbc_encrypt(key: &[u8; 32], iv: &[u8; 16], padded: &[u8]) -> Ve
 }
 
 /// HMAC-SHA256 of `data` under `key`.
+///
+/// # Panics
+///
+/// Never: any 32-byte key is a valid HMAC key.
 #[allow(dead_code)] // Used across multiple test files
 pub fn reference_hmac(key: &[u8; 32], data: &[u8]) -> [u8; 32] {
     use hmac::Mac;
@@ -144,6 +161,10 @@ pub fn reference_v3_payload(key: &[u8; 32], iv: &[u8; 16], plaintext: &[u8]) -> 
 /// byte is `len % 16`. v0 has no session block and puts the modulo in header
 /// byte 5; v1/v2 put it before the payload HMAC; v2 adds an empty extension
 /// section. Ported from `build_legacy_file` in `fuzz/src/lib.rs`.
+///
+/// # Panics
+///
+/// If `password` is rejected by the key derivation, which a `&str` never is.
 #[allow(dead_code)] // Used across multiple test files
 pub fn build_legacy_file(
     version: u8,
@@ -206,14 +227,17 @@ pub fn pattern(len: usize) -> Vec<u8> {
         .collect()
 }
 
-// Fixed session for reproducible files: the public IV (also the KDF salt), and
-// for v1–v3 the session IV and key. Never use fixed values outside tests.
+// Fixed session for reproducible files. Never use fixed values outside tests.
+
+/// Public IV of the fixed-session files; also the KDF salt.
 #[allow(dead_code)] // Used across multiple test files
 pub const PUBLIC_IV: [u8; 16] = [0x11; 16];
+/// Session IV of the fixed-session files (v1–v3).
 #[allow(dead_code)] // Used across multiple test files
 pub const SESSION_IV: [u8; 16] = [
     0x7b, 0x68, 0x69, 0xff, 0xd7, 0xd1, 0x06, 0xbf, 0xee, 0x4e, 0xab, 0x45, 0x06, 0x98, 0xc3, 0xb1,
 ];
+/// Session key of the fixed-session files (v1–v3).
 #[allow(dead_code)] // Used across multiple test files
 pub const SESSION_KEY: [u8; 32] = [
     0xa1, 0xfb, 0xa1, 0xaf, 0x16, 0x9f, 0x1a, 0x48, 0x9a, 0xec, 0x5d, 0x2e, 0x01, 0x93, 0x44, 0x7c,
@@ -222,6 +246,10 @@ pub const SESSION_KEY: [u8; 32] = [
 
 /// A file of `version` holding `plaintext`, built with the fixed session above:
 /// v0–v2 by the independent legacy builder, v3 by the crate's own write path.
+///
+/// # Panics
+///
+/// If writing the v3 file to a `Vec` fails, which it cannot.
 #[allow(dead_code)] // Used across multiple test files
 pub fn build_fixed_file(version: u8, plaintext: &[u8]) -> Vec<u8> {
     use aescrypt_rs::aliases::{Aes256Key32, Iv16};

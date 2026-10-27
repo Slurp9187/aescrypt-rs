@@ -16,9 +16,10 @@ use std::io::{Read, Write};
 /// Bytes encrypted before the HMAC catches up, inside one span. CBC encryption
 /// and SHA-256 are each a serial chain, but independent of each other; feeding
 /// the MAC a piece that was just encrypted keeps both chains in flight and the
-/// piece still in L1. At 64 MiB on a Ryzen 9 9950X3D, 256 bytes measured 635 MiB/s,
-/// against 603 for the whole span and 602 for 4 KiB; the output is the same
-/// at any value (`tests/span_golden_tests.rs`).
+/// piece still in L1. At 64 MiB on a Ryzen 9 9950X3D, 256 bytes beat the whole
+/// span in every alternating run (615-635 MiB/s against 539-607), and 4 KiB
+/// was no better than the span. The output is the same at any value
+/// (`tests/span_golden_tests.rs`).
 const INTERLEAVE: usize = 256;
 
 /// Encrypts the payload stream of an AES Crypt v3 file with PKCS#7 padding and
