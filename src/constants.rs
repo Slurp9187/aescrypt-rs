@@ -64,3 +64,10 @@ pub const PBKDF2_MAX_ITER: u32 = 5_000_000;
 /// documented reason. Raising it (up to [`PBKDF2_MAX_ITER`]) is always safe but
 /// proportionally slows down [`crate::encrypt()`] and [`crate::decrypt()`].
 pub const DEFAULT_PBKDF2_ITERATIONS: u32 = 600_000;
+
+/// Bytes the streaming loops read, process and write per call: 64 KiB.
+///
+/// Encryption fills one span of plaintext, encrypts it in place and writes it
+/// with one `write_all`; decryption reads a span of ciphertext and writes its
+/// plaintext the same way. The wire format does not depend on it.
+pub(crate) const SPAN: usize = 64 * 1024;
