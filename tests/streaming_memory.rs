@@ -46,7 +46,7 @@ unsafe impl GlobalAlloc for Counting {
 static ALLOCATOR: Counting = Counting;
 
 /// Heap growth allowed during one decrypt, whatever the file size: the two
-/// boxed 64 KiB spans the loop decrypts between (#68; 131 152 bytes measured),
+/// boxed 64 KiB spans the loop decrypts between (#68; 131 056 bytes measured),
 /// plus 64 KiB for the I/O error paths and anything the standard library
 /// allocates lazily. The `BufReader` is created before measuring.
 const BOUND: usize = 2 * 64 * 1024 + 64 * 1024;

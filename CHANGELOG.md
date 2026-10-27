@@ -44,11 +44,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     back to back on one high-end desktop (Ryzen 9 9950X3D, with AES-NI and SHA-NI).
     Absolute speed depends on the CPU and will be lower on most machines; the
     ratios were not measured anywhere else.
-  - **Memory stays constant, at a higher level.** Encryption holds one 64 KiB
-    span on the heap, and decryption holds two (about 128 KiB, the same at 1 MiB
-    and 64 MiB) where it used to hold a 64-byte ring; the MAC-only first pass of
-    `decrypt_verified` holds one. Each is a `secure_gate::Dynamic<[u8]>`, a boxed
-    slice that cannot grow, allocated zeroed on the heap and wiped on drop.
+  - **Memory follows the payload, up to a constant.** Each call starts with a
+    1 KiB span and grows it 4× (to 4, 16, then 64 KiB) only while its fills come back
+    full. A small file therefore holds a few KiB, where it used to hold a 64-byte
+    ring. A large one holds at most one 64 KiB span when encrypting, and two (about
+    128 KiB, the same at 1 MiB and 64 MiB) when decrypting; the MAC-only first pass
+    of `decrypt_verified` holds one. Each span is a `secure_gate::Dynamic<[u8]>`, a
+    boxed slice that cannot grow, allocated zeroed on the heap and wiped on drop; a
+    span that grows is copied into the larger one and wiped.
+  - **Small files are not slower.** A first version of this change used fixed
+    64 KiB spans. That made files under about 10 KiB 2–5× slower per call than
+    0.2.0-rc.15 (with a 1-iteration KDF), because every call allocated, zeroed and
+    wiped them. With growing spans, encrypt and decrypt are as fast as 0.2.0-rc.15
+    or faster at every size from 1 KiB, on the same desktop. An empty file costs
+    about 0.3 µs more. A streaming caller sees a few smaller reads (1, 3, 12 and
+    48 KiB) at the start of a large file, then 64 KiB reads. Writes are unchanged,
+    because a span reaches its full size before any of it is processed.
   - **Output arrives a span at a time.** On a slow stream (a pipe, a socket),
     nothing is written until 64 KiB has arrived or the input ends, where it used
     to follow the input 16 bytes at a time.
@@ -57,6 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **A `File` no longer needs a `BufReader`** for speed. The docs that advised one
     for `decrypt_verified` now say so.
 - `aescrypt-cli`'s exact pin on this crate moves to `=0.2.0-rc.16`.
+- The rustdoc's MSRV note says edition 2024; it still said 2021.
 - **Correction to 0.2.0-rc.10.** That entry says plaintext-equivalent bytes "never
   exist outside a zeroize-on-drop buffer, on any code path". That holds for this
   crate's own code, but not inside `aes`. Its software backend copies each block into
