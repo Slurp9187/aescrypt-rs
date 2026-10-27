@@ -141,7 +141,6 @@ where
     let mut hmac = payload_hmac(encryption_key);
     let mut ctx = DecryptionContext::new_with_iv(initial_vector);
     ctx.mac_cbc_loop(&mut input_reader, &mut hmac)?;
-    ctx.advance_tail();
 
     let (tag, modulo) = read_trailer(&ctx, config)?;
     verify_payload_hmac(hmac, &tag)?;
@@ -238,10 +237,11 @@ pub enum StreamConfig {
 /// writes the recovered plaintext to `output_writer`, and verifies the
 /// version-appropriate HMAC trailer.
 ///
-/// `decrypt_ciphertext_stream` is the per-block worker for [`crate::decrypt()`].
+/// `decrypt_ciphertext_stream` is the streaming worker for [`crate::decrypt()`].
 /// It consumes the encrypted payload (everything after the encrypted session
-/// block on disk), decrypts each 16-byte CBC block into the
-/// [`crate::decryption`] ring buffer, and finally validates the trailer:
+/// block on disk) a span of up to 64 KiB at a time, decrypts each span's CBC
+/// blocks together, writes their plaintext with one call, holds back the
+/// trailer until the input ends, and finally validates the trailer:
 ///
 /// - [`StreamConfig::V0`] / [`StreamConfig::V3`]: 32-byte contiguous
 ///   HMAC-SHA256 tag.
@@ -266,14 +266,15 @@ pub enum StreamConfig {
 ///
 /// # Security
 ///
-/// - **Decrypt-then-verify**. Plaintext blocks are written to `output_writer`
-///   as they are produced. The HMAC tag is checked **after** the stream ends,
+/// - **Decrypt-then-verify**. Plaintext is written to `output_writer` a span
+///   (up to 64 KiB) at a time as it is produced, every block but the final
+///   one. The HMAC tag is checked **after** the stream ends,
 ///   so partial unauthenticated plaintext may already be on `output_writer`
 ///   when this function returns an error. See [`crate::decrypt()`] for the
 ///   caller contract.
 /// - HMAC and PKCS#7 padding comparisons use [`secure-gate`]'s
 ///   `ConstantTimeEq`.
-/// - All session keys, IVs, ring-buffer slots, and trailers live in
+/// - All session keys, IVs, span buffers, and trailers live in
 ///   [`secure-gate`] aliases that zeroize on drop.
 ///
 /// # Compatibility
@@ -330,7 +331,6 @@ where
 
     let mut ctx = DecryptionContext::new_with_iv(initial_vector);
     ctx.decrypt_cbc_loop(&mut input_reader, &mut output_writer, &cipher, &mut hmac)?;
-    ctx.advance_tail();
 
     let (expected_hmac, modulo) = read_trailer(&ctx, config)?;
     match verified {

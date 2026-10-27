@@ -205,3 +205,46 @@ pub fn pattern(len: usize) -> Vec<u8> {
         .map(|i| (i.wrapping_mul(31) ^ (i >> 9)) as u8)
         .collect()
 }
+
+// Fixed session for reproducible files: the public IV (also the KDF salt), and
+// for v1–v3 the session IV and key. Never use fixed values outside tests.
+#[allow(dead_code)] // Used across multiple test files
+pub const PUBLIC_IV: [u8; 16] = [0x11; 16];
+#[allow(dead_code)] // Used across multiple test files
+pub const SESSION_IV: [u8; 16] = [
+    0x7b, 0x68, 0x69, 0xff, 0xd7, 0xd1, 0x06, 0xbf, 0xee, 0x4e, 0xab, 0x45, 0x06, 0x98, 0xc3, 0xb1,
+];
+#[allow(dead_code)] // Used across multiple test files
+pub const SESSION_KEY: [u8; 32] = [
+    0xa1, 0xfb, 0xa1, 0xaf, 0x16, 0x9f, 0x1a, 0x48, 0x9a, 0xec, 0x5d, 0x2e, 0x01, 0x93, 0x44, 0x7c,
+    0x3b, 0x9d, 0x20, 0x55, 0xe6, 0x0f, 0x71, 0xc8, 0x28, 0xb4, 0x6a, 0x13, 0xd7, 0x8e, 0x42, 0x09,
+];
+
+/// A file of `version` holding `plaintext`, built with the fixed session above:
+/// v0–v2 by the independent legacy builder, v3 by the crate's own write path.
+#[allow(dead_code)] // Used across multiple test files
+pub fn build_fixed_file(version: u8, plaintext: &[u8]) -> Vec<u8> {
+    use aescrypt_rs::aliases::{Aes256Key32, Iv16};
+    if version < 3 {
+        return build_legacy_file(
+            version,
+            TEST_PASSWORD,
+            plaintext,
+            &PUBLIC_IV,
+            &SESSION_IV,
+            &SESSION_KEY,
+        );
+    }
+    let mut out = Vec::new();
+    encrypt_with_fixed_session(
+        std::io::Cursor::new(plaintext),
+        &mut out,
+        TEST_PASSWORD,
+        TEST_ITERATIONS,
+        &Iv16::new(PUBLIC_IV),
+        &Iv16::new(SESSION_IV),
+        &Aes256Key32::new(SESSION_KEY),
+    )
+    .unwrap();
+    out
+}

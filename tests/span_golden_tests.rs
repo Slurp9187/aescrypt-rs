@@ -25,8 +25,7 @@ use std::io::{self, Cursor, Read};
 
 mod common;
 use common::{
-    TEST_ITERATIONS, TEST_PASSWORD, build_legacy_file, encrypt_with_fixed_session, pattern,
-    reference_v3_payload,
+    SESSION_IV, SESSION_KEY, TEST_PASSWORD, build_fixed_file, pattern, reference_v3_payload,
 };
 
 const SPAN: usize = 64 * 1024;
@@ -54,17 +53,6 @@ const SIZES: &[usize] = &[
     1024 * 1024 + 7,
 ];
 
-const PUBLIC_IV: [u8; 16] = [0x11; 16];
-const SESSION_IV: [u8; 16] = [
-    0x7b, 0x68, 0x69, 0xff, 0xd7, 0xd1, 0x06, 0xbf, 0xee, 0x4e, 0xab, 0x45, 0x06, 0x98, 0xc3,
-    0xb1,
-];
-const SESSION_KEY: [u8; 32] = [
-    0xa1, 0xfb, 0xa1, 0xaf, 0x16, 0x9f, 0x1a, 0x48, 0x9a, 0xec, 0x5d, 0x2e, 0x01, 0x93, 0x44,
-    0x7c, 0x3b, 0x9d, 0x20, 0x55, 0xe6, 0x0f, 0x71, 0xc8, 0x28, 0xb4, 0x6a, 0x13, 0xd7, 0x8e,
-    0x42, 0x09,
-];
-
 /// SHA-256 over every file of a version, in `SIZES` order, each prefixed by
 /// its length as a little-endian `u64`. Generated at `d12acc3`, before the
 /// span loop: these must never change.
@@ -87,31 +75,6 @@ impl<R: Read> Read for Choppy<R> {
         let n = buf.len().min(self.max);
         self.inner.read(&mut buf[..n])
     }
-}
-
-fn build(version: u8, plaintext: &[u8]) -> Vec<u8> {
-    if version < 3 {
-        return build_legacy_file(
-            version,
-            TEST_PASSWORD,
-            plaintext,
-            &PUBLIC_IV,
-            &SESSION_IV,
-            &SESSION_KEY,
-        );
-    }
-    let mut out = Vec::new();
-    encrypt_with_fixed_session(
-        Cursor::new(plaintext),
-        &mut out,
-        TEST_PASSWORD,
-        TEST_ITERATIONS,
-        &Iv16::new(PUBLIC_IV),
-        &Iv16::new(SESSION_IV),
-        &Aes256Key32::new(SESSION_KEY),
-    )
-    .unwrap();
-    out
 }
 
 fn encrypt_stream_to_vec<R: Read>(source: R) -> Vec<u8> {
@@ -160,7 +123,7 @@ fn files_match_golden_for_every_version() {
     for version in 0..=3u8 {
         let mut hasher = Sha256::new();
         for &len in SIZES {
-            let file = build(version, &pattern(len));
+            let file = build_fixed_file(version, &pattern(len));
             hasher.update((len as u64).to_le_bytes());
             hasher.update(&file);
         }
@@ -177,7 +140,7 @@ fn every_version_decrypts_at_every_size() {
     for version in 0..=3u8 {
         for &len in SIZES {
             let plaintext = pattern(len);
-            let file = build(version, &plaintext);
+            let file = build_fixed_file(version, &plaintext);
 
             let mut one_pass = Vec::new();
             decrypt(Cursor::new(&file), &mut one_pass, TEST_PASSWORD).unwrap();

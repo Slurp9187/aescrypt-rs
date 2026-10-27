@@ -40,9 +40,7 @@ fn bench_throughput(c: &mut Criterion) {
         b.iter(|| decrypt(Cursor::new(black_box(&encrypted)), sink(), PASSWORD).unwrap());
     });
     group.bench_function("decrypt_verified", |b| {
-        b.iter(|| {
-            decrypt_verified(Cursor::new(black_box(&encrypted)), sink(), PASSWORD).unwrap()
-        });
+        b.iter(|| decrypt_verified(Cursor::new(black_box(&encrypted)), sink(), PASSWORD).unwrap());
     });
 
     group.finish();

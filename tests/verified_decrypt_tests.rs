@@ -11,6 +11,7 @@
 //! | G3 pass 2 must match pass 1 | `input_changed_between_passes_*` |
 //! | G4 seek to the recorded payload start | `input_at_an_offset_decrypts_the_same` |
 //! | G6 reader errors surface in pass 1 | `reader_cancel_in_pass_one_writes_nothing` |
+//! | Span loop (#68): no plaintext before the tag, across spans | `multi_span_tamper_writes_nothing`, `multi_span_truncation_writes_nothing` |
 
 // Test crate: helpers and fixtures are explained by the tests that use them.
 #![allow(clippy::missing_docs_in_private_items)]
@@ -30,7 +31,7 @@ use std::io::{self, Cursor, Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 
 mod common;
-use common::{TEST_ITERATIONS, TEST_PASSWORD};
+use common::{TEST_ITERATIONS, TEST_PASSWORD, build_fixed_file, pattern};
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -591,4 +592,140 @@ fn legacy_length_byte_is_not_authenticated() {
             "v{version}"
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// Span loop (#68): files several 64 KiB spans long
+// ---------------------------------------------------------------------------
+
+/// The span the streaming loops read and write, `crate::constants::SPAN`.
+const SPAN: usize = 64 * 1024;
+
+/// Plaintext length of the multi-span files: four spans and a partial block.
+const MULTI_SPAN_LEN: usize = 4 * SPAN + 5;
+
+/// Where the payload ciphertext starts in a multi-span file of `version`.
+fn payload_start(version: u8, file: &[u8]) -> usize {
+    let ciphertext = if version == 3 {
+        (MULTI_SPAN_LEN / 16 + 1) * 16
+    } else {
+        MULTI_SPAN_LEN.div_ceil(16) * 16
+    };
+    file.len() - ciphertext - trailer_len(version)
+}
+
+/// A flipped ciphertext bit in a later span, or in the last block, is caught
+/// by pass 1 before any plaintext of the earlier spans is released.
+#[test]
+fn multi_span_tamper_writes_nothing() {
+    for version in 0..=3u8 {
+        let clean = build_fixed_file(version, &pattern(MULTI_SPAN_LEN));
+        let start = payload_start(version, &clean);
+        let last_ciphertext_byte = clean.len() - trailer_len(version) - 1;
+        for offset in [start + 3 * SPAN + 5, last_ciphertext_byte] {
+            let mut file = clean.clone();
+            file[offset] ^= 0x01;
+
+            let (result, written) = verified_count(&file, TEST_PASSWORD);
+            assert_eq!(
+                header_message(result),
+                "HMAC verification failed",
+                "v{version}, byte {offset}"
+            );
+            assert_eq!(written, 0, "v{version}, byte {offset}: plaintext released");
+            assert!(one_pass_count(&file, TEST_PASSWORD).0.is_err());
+        }
+    }
+}
+
+/// A file cut at a span boundary, at the edge of the first fill, mid-span, or
+/// 1 to 47 bytes short (every carry length the framing can see) is refused
+/// with nothing written.
+#[test]
+fn multi_span_truncation_writes_nothing() {
+    for version in 0..=3u8 {
+        let clean = build_fixed_file(version, &pattern(MULTI_SPAN_LEN));
+        let start = payload_start(version, &clean);
+        let mut cuts = vec![start + SPAN, start + SPAN + 48, start + 2 * SPAN + 777];
+        cuts.extend((1..=47).map(|short| clean.len() - short));
+        for cut in cuts {
+            let file = &clean[..cut];
+
+            let (result, written) = verified_count(file, TEST_PASSWORD);
+            assert!(result.is_err(), "v{version}, cut at {cut}");
+            assert_eq!(written, 0, "v{version}, cut at {cut}: plaintext released");
+            assert!(
+                one_pass_count(file, TEST_PASSWORD).0.is_err(),
+                "v{version}, cut at {cut}"
+            );
+        }
+    }
+}
+
+/// A writer that counts its calls as well as its bytes.
+#[derive(Default)]
+struct CallCounter {
+    calls: usize,
+    bytes: usize,
+}
+
+impl Write for CallCounter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.calls += 1;
+        self.bytes += buf.len();
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+/// Decryption writes its plaintext a span at a time, not a block at a time:
+/// one call per span, plus the final block. Block-at-a-time output was about
+/// 65 000 calls for this file.
+#[test]
+fn decrypt_writes_whole_spans() {
+    let len: usize = 1024 * 1024 + 7;
+    let most = len.div_ceil(SPAN) + 2;
+    for version in 0..=3u8 {
+        let file = build_fixed_file(version, &pattern(len));
+
+        let mut verified = CallCounter::default();
+        decrypt_verified(Cursor::new(&file), &mut verified, TEST_PASSWORD).unwrap();
+        assert_eq!(verified.bytes, len, "v{version}");
+        assert!(
+            verified.calls <= most,
+            "v{version}: decrypt_verified made {} writes",
+            verified.calls
+        );
+
+        let mut one_pass = CallCounter::default();
+        decrypt(Cursor::new(&file), &mut one_pass, TEST_PASSWORD).unwrap();
+        assert_eq!(one_pass.bytes, len, "v{version}");
+        assert!(
+            one_pass.calls <= most,
+            "v{version}: decrypt made {} writes",
+            one_pass.calls
+        );
+    }
+}
+
+/// Encryption writes its ciphertext a span at a time too. The header, the
+/// session block and the tags account for the fixed allowance.
+#[test]
+fn encrypt_writes_whole_spans() {
+    let len: usize = 1024 * 1024 + 7;
+    let mut out = CallCounter::default();
+    encrypt(
+        Cursor::new(pattern(len)),
+        &mut out,
+        TEST_PASSWORD,
+        TEST_ITERATIONS,
+    )
+    .unwrap();
+    assert!(
+        out.calls <= len.div_ceil(SPAN) + 16,
+        "encrypt made {} writes",
+        out.calls
+    );
 }

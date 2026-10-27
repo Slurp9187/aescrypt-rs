@@ -28,7 +28,6 @@
 //! - [`EncryptedSessionBlock48`] - 48-byte encrypted session block
 //! - [`Iv16`] - 16-byte initialization vector
 //! - [`Pbkdf2DerivedKey32`] - 32-byte PBKDF2-derived setup key (v3)
-//! - [`RingBuffer64`] - 64-byte ring buffer for streaming decryption
 //! - [`Salt16`] - 16-byte salt for KDF operations
 //! - [`SessionHmacTag32`] - 32-byte session block HMAC tag
 //!
@@ -119,10 +118,6 @@ pub type Iv16 = Fixed<[u8; 16]>;
 /// The 32-byte setup key PBKDF2-HMAC-SHA512 derives from the password (v3). It
 /// decrypts the session block.
 pub type Pbkdf2DerivedKey32 = Fixed<[u8; 32]>;
-/// The 64-byte ring buffer of streaming decryption: the previous ciphertext
-/// block (for CBC chaining), the current one, and the next 32 bytes held back
-/// until the end of input shows whether they are ciphertext or the trailer.
-pub type RingBuffer64 = Fixed<[u8; 64]>;
 /// A 16-byte KDF salt. In a file it is the header's public IV (ACKDF for
 /// v0–v2, PBKDF2 for v3); [`Pbkdf2Builder`](crate::Pbkdf2Builder) generates a
 /// random one.
