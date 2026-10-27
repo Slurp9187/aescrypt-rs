@@ -65,13 +65,33 @@ pub const PBKDF2_MAX_ITER: u32 = 5_000_000;
 /// proportionally slows down [`crate::encrypt()`] and [`crate::decrypt()`].
 pub const DEFAULT_PBKDF2_ITERATIONS: u32 = 600_000;
 
-/// Bytes the streaming loops read, process and write per call: 64 KiB.
+/// The most bytes the streaming loops read or write per call: 64 KiB.
 ///
-/// [`crate::encrypt()`] fills one span of plaintext, encrypts it in place and
+/// [`crate::encrypt()`] fills a span of plaintext, encrypts it in place and
 /// writes it with one `write_all`; [`crate::decrypt()`] and
 /// [`crate::decrypt_verified()`] read a span of ciphertext and write its
-/// plaintext the same way. So a writer sees calls of up to this size, and on a
-/// slow stream output waits until a span has arrived or the input ends.
+/// plaintext the same way. No read asks for more than this, and no write is
+/// larger. On a slow stream, output waits until a span has arrived or the
+/// input ends.
+///
+/// Each call starts with a smaller span and grows toward this one only while
+/// its fills come back full, so a small file never allocates 64 KiB.
 ///
 /// The file format does not depend on it. It may change in any release.
 pub const SPAN: usize = 64 * 1024;
+
+/// The span each streaming call starts with: 1 KiB. Each time a fill comes
+/// back full, the call grows the span by [`SPAN_GROWTH`], up to [`SPAN`]
+/// (1, 4, 16, then 64 KiB), copying what it read and wiping the smaller span.
+/// The cost of allocating, zeroing and wiping spans then follows the payload:
+/// a single size leaves a cliff where a file just fills it.
+pub(crate) const FIRST_FILL: usize = 1024;
+
+/// How much a span grows each time a fill comes back full.
+pub(crate) const SPAN_GROWTH: usize = 4;
+
+// The decrypt framing needs spans that are whole blocks, and big enough to
+// hold a block plus the trailer it holds back (48 bytes). Every size on the
+// way from FIRST_FILL to SPAN is a whole number of blocks too.
+const _: () = assert!(FIRST_FILL % 16 == 0 && FIRST_FILL >= 48 && FIRST_FILL <= SPAN);
+const _: () = assert!(SPAN % 16 == 0 && SPAN_GROWTH >= 2);

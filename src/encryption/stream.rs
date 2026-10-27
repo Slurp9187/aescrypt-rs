@@ -3,8 +3,8 @@
 //! v3 streaming AES-256-CBC payload encryption with HMAC-SHA256 trailer.
 
 use crate::aliases::HmacSha256;
-use crate::aliases::{Aes256Key32, Block16, Iv16, heap_span};
-use crate::constants::SPAN;
+use crate::aliases::{Aes256Key32, Block16, Iv16, grow_span, heap_span};
+use crate::constants::{FIRST_FILL, SPAN};
 use crate::error::AescryptError;
 use crate::utilities::read_until_full;
 use aes::cipher::consts::U16;
@@ -68,9 +68,10 @@ const _: () = assert!(SPAN % INTERLEAVE == 0);
 ///
 /// - `session_key` is consumed only inside scoped [`secure-gate`] reveals; it
 ///   never escapes a `with_secret` closure.
-/// - The plaintext span is a 64 KiB `secure_gate::Dynamic<[u8]>`, allocated
-///   zeroed on the heap; a boxed slice cannot reallocate, and it is wiped on
-///   drop. It holds plaintext only until
+/// - The plaintext span is a `secure_gate::Dynamic<[u8]>` that starts at 1 KiB
+///   and is replaced by larger ones, up to 64 KiB, while fills come back full.
+///   Each is allocated zeroed on the heap, and is a boxed slice that cannot
+///   reallocate. Each is wiped on drop, the smaller ones as they are replaced. It holds plaintext only until
 ///   the in-place encryption overwrites it with ciphertext.
 /// - `session_iv` **must** be unique per file. [`crate::encrypt()`] generates
 ///   it via the [`secure-gate`] CSPRNG (`Iv16::from_random`).
@@ -111,30 +112,42 @@ where
     let mut prev_block = Block16::new([0u8; 16]);
     session_iv.with_secret(|siv| prev_block.with_secret_mut(|pb| pb.copy_from_slice(siv)));
 
-    // Allocated zeroed on the heap, so 64 KiB never sits in the caller's
-    // stack frame, and building it leaves no secret behind.
-    let mut span = heap_span(SPAN);
+    // Allocated zeroed on the heap, so a span never sits in the caller's stack
+    // frame, and building it leaves no secret behind. It starts small and grows
+    // toward `SPAN` only while fills come back full, so a small file never pays
+    // to allocate, zero and wipe 64 KiB.
+    let mut span = heap_span(FIRST_FILL);
 
     loop {
         // Fill the span, accumulating partial `read()` results until it is full
         // or the source returns 0 (EOF). A single `read()` may return fewer bytes
         // than requested even when more exist (sockets, pipes); treating that as
         // EOF would silently truncate.
-        let n = span
+        let mut n = span
             .with_secret_mut(|s| read_until_full(&mut source, s))
             .map_err(AescryptError::Io)?;
-        let is_final = n < SPAN;
+        let mut capacity = span.with_secret(|s| s.len());
+        while n == capacity && capacity < SPAN {
+            // A span still below full size is full, so more may follow: grow it,
+            // carrying what was read (the smaller span is wiped as it drops),
+            // and keep filling.
+            capacity = grow_span(&mut span, n);
+            n += span
+                .with_secret_mut(|s| read_until_full(&mut source, &mut s[n..]))
+                .map_err(AescryptError::Io)?;
+        }
+        let is_final = n < capacity;
 
         // A short fill is the last span: pad its partial block (1..=16 bytes,
         // so an empty or aligned tail gets a full block). There is room, since
-        // n < SPAN and SPAN is a multiple of 16. A full span is never final:
-        // the next fill decides, and pads an empty tail into one whole block.
+        // n < capacity and every span is a multiple of 16. A full span is never
+        // final: the next fill decides, and pads an empty tail into one block.
         let len = if is_final {
             let pad = 16 - n % 16;
             span.with_secret_mut(|s| s[n..n + pad].fill(pad as u8));
             n + pad
         } else {
-            SPAN
+            capacity
         };
 
         span.with_secret_mut(|s| {

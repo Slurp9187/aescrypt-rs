@@ -96,6 +96,21 @@ pub(crate) fn heap_span(len: usize) -> HeapSpan {
     Dynamic::new(vec![0u8; len])
 }
 
+/// Replaces `span` with a larger one (its length times
+/// [`SPAN_GROWTH`](crate::constants::SPAN_GROWTH), at most
+/// [`SPAN`](crate::constants::SPAN)), keeping its first `keep` bytes, and
+/// returns the new length. The old span is dropped, which wipes it. Each step
+/// is a whole number of blocks, since both bounds are.
+pub(crate) fn grow_span(span: &mut HeapSpan, keep: usize) -> usize {
+    use crate::constants::{SPAN, SPAN_GROWTH};
+    use secure_gate::{RevealSecret, RevealSecretMut};
+    let len = (span.with_secret(|s| s.len()) * SPAN_GROWTH).min(SPAN);
+    let mut grown = heap_span(len);
+    span.with_secret(|old| grown.with_secret_mut(|g| g[..keep].copy_from_slice(&old[..keep])));
+    *span = grown;
+    len
+}
+
 // Semantic sub-types — readability aliases for `SpanBuffer<N>`. Not nominally
 // distinct: same-size aliases resolve to the same `Fixed<[u8; N]>` type and
 // are freely assignable to each other.
