@@ -7,6 +7,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Versioned independently of `aescrypt-rs`; `--version` shows both.
 
+## [0.1.0-rc.4] - Unreleased
+
+### Changed
+
+- Built on `aescrypt-rs` 0.2.0-rc.16 (was 0.2.0-rc.13), which this release pins
+  exactly, so `aescrypt-rs` 0.2.0-rc.16 must be published first. That library now
+  reads, encrypts or decrypts, and writes 64 KiB at a time instead of 16 bytes
+  (aescrypt-rs #68). On its 64 MiB benchmark, decrypting is about three times as fast,
+  and so is the verified decrypt this CLI uses for input files. The files it writes
+  are byte-for-byte the same.
+  - Decrypting now holds about 128 KiB of memory, still the same for any file size.
+  - Encrypting from a slow pipe to stdout now emits ciphertext 64 KiB at a time
+    (before, the CLI's 8 KiB output buffer set the pace). Every other output is
+    staged until the run finishes, so it is unaffected.
+- `secure-gate` is pinned to `=0.9.0-rc.15` (was `=0.9.0-rc.12`), matching
+  `aescrypt-rs`, so a build that uses both carries one copy. 0.1.0-rc.3 is the last
+  published crate that still pins `=0.9.0-rc.12`.
+
 ## [0.1.0-rc.3] - 2026-10-15
 
 ### Fixed
