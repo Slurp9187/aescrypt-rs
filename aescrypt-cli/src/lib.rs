@@ -31,6 +31,7 @@ use std::{
     fs::File,
     io::{self, BufReader, BufWriter, IsTerminal, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
+    sync::OnceLock,
 };
 
 use aescrypt_rs::{
@@ -47,27 +48,23 @@ pub use password::{
     TtyPrompt, generate_passphrase,
 };
 
-/// The aescrypt-rs version this build pins with `=` in Cargo.toml.
-/// `tests::lib_pin_matches` keeps the two in sync. A macro, not a `const`, so
-/// `concat!` can use it.
-macro_rules! lib_version {
-    () => {
-        "0.2.0-rc.16"
-    };
+/// What `--version` prints after the program name: this CLI's version, then
+/// the aescrypt-rs version it was built with, as `<cli> (aescrypt-rs <lib>)`.
+/// Both, because a bug report needs the library's too.
+///
+/// The library's comes from `aescrypt_rs::VERSION`, so it names the release
+/// actually linked, and a library bump changes nothing here. Built once and
+/// kept, because clap wants a `&'static str`.
+fn version() -> &'static str {
+    static VERSION: OnceLock<String> = OnceLock::new();
+    VERSION.get_or_init(|| {
+        format!(
+            "{} (aescrypt-rs {})",
+            env!("CARGO_PKG_VERSION"),
+            aescrypt_rs::VERSION
+        )
+    })
 }
-
-#[doc(hidden)]
-pub const LIB_VERSION: &str = lib_version!();
-
-/// What `--version` prints after the program name, e.g.
-/// `0.1.0-rc.3 (aescrypt-rs 0.2.0-rc.16)`: both versions, because a bug
-/// report needs the library's too.
-const VERSION: &str = concat!(
-    env!("CARGO_PKG_VERSION"),
-    " (aescrypt-rs ",
-    lib_version!(),
-    ")"
-);
 
 /// Shown after the options with both `-h` and `--help`: what a first-time
 /// user, or a script reading the help, needs before the README.
@@ -94,7 +91,7 @@ const SUFFIX: &str = "aes";
 /// Passwords are read from the terminal, --password-command or --password-file.
 /// There is deliberately no option that takes a password directly.
 #[derive(Debug, Parser)]
-#[command(name = "aescrypt-cli", version = VERSION, about, after_help = HELP_FOOTER)]
+#[command(name = "aescrypt-cli", version = version(), about, after_help = HELP_FOOTER)]
 #[command(group(ArgGroup::new("mode").required(true).args(["encrypt", "decrypt"])))]
 pub struct Cli {
     /// Encrypt FILEs (output: FILE.aes)
@@ -635,9 +632,12 @@ impl<R: Seek> Seek for VersionTap<R> {
 mod tests {
     use super::*;
 
-    /// The `=` pin on aescrypt-rs in Cargo.toml must be `LIB_VERSION`.
+    /// The aescrypt-rs dependency stays an exact `=` pin (release candidates
+    /// break APIs between each other), and it names the library this build
+    /// linked. Nothing here hard-codes a version: both sides come from the
+    /// manifests.
     #[test]
-    fn lib_pin_matches() {
+    fn lib_pin_is_exact() {
         // Two shapes: the inline table in the repo's Cargo.toml, and the
         // `[dependencies.aescrypt-rs]` table `cargo package` rewrites it into,
         // which is what a published crate's tests read.
@@ -655,11 +655,25 @@ mod tests {
         } else {
             line
         };
+        let lib = aescrypt_rs::VERSION;
         assert!(
-            line.contains(&format!("version = \"={LIB_VERSION}\"")),
-            "Cargo.toml pins {line}, LIB_VERSION is {LIB_VERSION}"
+            line.contains(&format!("version = \"={lib}\"")),
+            "Cargo.toml has {line}; expected an exact pin on the linked aescrypt-rs {lib}"
         );
-        assert!(VERSION.ends_with(&format!("(aescrypt-rs {LIB_VERSION})")));
+    }
+
+    /// `--version` prints both versions, each read from its own crate.
+    #[test]
+    fn version_names_cli_and_library() {
+        use clap::CommandFactory;
+        assert_eq!(
+            Cli::command().render_version().trim_end(),
+            format!(
+                "aescrypt-cli {} (aescrypt-rs {})",
+                env!("CARGO_PKG_VERSION"),
+                aescrypt_rs::VERSION
+            )
+        );
     }
 
     /// The `--help` text states the default as a literal (a doc comment can't

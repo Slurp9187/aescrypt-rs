@@ -14,10 +14,12 @@ file records only what is true of this crate.**
 ## Dependency
 
 ```toml
-secure-gate = { version = "=0.9.0-rc.15", features = ["rand", "ct-eq"] }
+secure-gate = { version = "=0.9.0-rc.N", features = ["rand", "ct-eq"] }
 ```
 
-**Pinned, and the reasoning is already in `Cargo.toml` rather than here** — including the
+The exact `N` lives in `Cargo.toml`, not here, so a bump does not have to find this file; the
+version the rules below were last read against is recorded under them. **Pinned, and the
+reasoning is already in `Cargo.toml` rather than here** — including the
 `"0.9"`-resolves-to-nothing trap and the rule that a published requirement travels to
 dependents while a lockfile does not. Do not duplicate it; read it there.
 
