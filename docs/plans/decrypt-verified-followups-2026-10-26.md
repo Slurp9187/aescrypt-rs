@@ -1,10 +1,10 @@
 # aescrypt-rs: speed follow-ups after the span loop — F1, F2, F3
 
-**Status (2026-10-26, UTC):** **F1 measured at +8.8%**, below the 15% bar set before measuring
-(see [Spike result](#spike-result-no-go)). The owner judged 8.8% worth it for bulk work:
-**F1 is planned for 0.2.0-rc.17**, built after EFV re-measures end to end on rc.16, with the
-prototype check below. 0.2.0-rc.16 releases without it. F2 and F3 stay
-parked; the spike's numbers make F2 the stronger candidate. Before the spike: F1 approved
+**Status (2026-10-26, UTC):** **F1 dropped: the prototype measured −1%** (see [Prototype
+result](#prototype-result-dropped)). The spike had predicted +8.8%. F2 and F3 stay parked; F2
+is unaffected by F1's result, because it removes the second check rather than replacing it.
+Before that, the owner had judged F1's predicted +8.8% worth building for rc.17, on the
+condition that the prototype re-bench confirm it. Before the spike: F1 approved
 by the owner to measure first, and to ship in rc.16 if the measurement said go. Verified at main `ee36a0e`, with #71 (encrypt `CbcSpan`)
 merged. Tracking: master issue #68 (lines F1–F3). PRs for this plan say
 `Plan: docs/plans/decrypt-verified-followups-2026-10-26.md` and `Refs #68`. Predecessor:
@@ -115,16 +115,37 @@ so overlap inside a pass is measured, not modelled.
   both passes, and H and P do not overlap in one loop (H+P ≈ H + P). The saving per byte
   is H − 2P, which is small.
 
-**Decision:** under the 15% bar, so not in rc.16. The owner then weighed +8.8% as worth it
+**Decision at the time:** under the 15% bar, so not in rc.16. The owner then weighed +8.8% as worth it
 for bulk operations against the new dependency and the security argument, and moved F1 to
 **rc.17**. It will be built after EFV's end-to-end numbers on rc.16, with the prototype check
 re-benching the first commit. The build steps below stand.
+
+### Prototype result: dropped
+
+After EFV's rc.16 numbers came in (the library is now about 40% of an EFV open), the owner
+had F1 built as a prototype with this design: `PayloadMacs` feeding an optional HMAC and an
+optional Poly1305 through the span loop, a per-call `ChangeCheckKey32::from_random()`, and a
+constant-time tag comparison in pass 2.
+
+- **Correct, and its guard held.** All tests passed. With the Poly1305 comparison removed,
+  `input_changed_between_passes_ciphertext` failed, as it should.
+- **Measured at 64 MiB, alternating, on the same desktop.** `decrypt_verified` ran at
+  1.094 and 1.098 GiB/s on main, against 1.081 and 1.087 GiB/s with F1: **about −1%**. The
+  one-pass `decrypt` was the same in both builds (1.93–1.95 GiB/s), so the builds were
+  comparable.
+- **The model was wrong here.** It came within 5% of today's `decrypt_verified`, but
+  overestimated F1 by about 14%: replacing the HMAC with Poly1305 in the real pass-2 loop does
+  not save what the isolated loops suggested. The likely cause, not proven, is that
+  Poly1305's AVX2 code and AES-NI compete for the same SIMD units there.
+- **Decision:** dropped under the owner's rule (drop it if the real gain lands well under
+  8.8%). Neither the dependency nor the security argument was merged; the branch was
+  discarded.
 
 **What it says about F2.** F2 needs no second check at all, so its cost is H (pass 1) plus
 A (pass 2): 23.9 + 7.2 ≈ 31 ms, against today's ≈ 55 ms. That is roughly **+75%** for
 in-memory input on this machine (a model, not a measurement of F2).
 
-### Build (rc.17)
+### Build (not built: F1 was dropped after the prototype)
 - **Code:**
   - `src/decryption/stream/versions.rs`: `verify_ciphertext_stream` and `decrypt_stream`'s
     `verified` branch. `VerifiedTrailer` gains the Poly1305 tag.
