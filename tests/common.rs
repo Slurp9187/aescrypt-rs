@@ -160,7 +160,9 @@ pub fn reference_v3_payload(key: &[u8; 32], iv: &[u8; 16], plaintext: &[u8]) -> 
 /// crate's stream code. Plaintext is zero-padded to a block, and the modulo
 /// byte is `len % 16`. v0 has no session block and puts the modulo in header
 /// byte 5; v1/v2 put it before the payload HMAC; v2 adds an empty extension
-/// section. Ported from `build_legacy_file` in `fuzz/src/lib.rs`.
+/// section. Ported from `build_legacy_file` in `fuzz/src/lib.rs`, which the
+/// fuzz crate's smoke tests differential-check; a format fix in one belongs
+/// in both, since the fuzz crate is outside the workspace and cannot share it.
 ///
 /// # Panics
 ///

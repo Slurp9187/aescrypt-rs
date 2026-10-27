@@ -598,8 +598,7 @@ fn legacy_length_byte_is_not_authenticated() {
 // Span loop (#68): files several 64 KiB spans long
 // ---------------------------------------------------------------------------
 
-/// The span the streaming loops read and write, `crate::constants::SPAN`.
-const SPAN: usize = 64 * 1024;
+use aescrypt_rs::constants::SPAN;
 
 /// Plaintext length of the multi-span files: four spans and a partial block.
 const MULTI_SPAN_LEN: usize = 4 * SPAN + 5;

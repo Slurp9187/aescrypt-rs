@@ -77,6 +77,25 @@ pub type HmacSha256 = Hmac<Sha256>;
 /// `N`.
 pub type SpanBuffer<const N: usize> = secure_gate::Fixed<[u8; N]>;
 
+/// A heap buffer of the streaming loops' 64 KiB spans: `Dynamic<[u8]>`, a
+/// boxed slice.
+///
+/// `Dynamic` because secure-gate keeps `Fixed` for storage that owns no heap
+/// allocation. The slice shape is the one `Dynamic` with no reallocation
+/// surface: `with_secret_mut` hands out a `&mut [u8]`, which has no `push` or
+/// `reserve`, so no unwiped copy can be abandoned, and it is zeroized on drop.
+/// Build one with [`heap_span`] rather than boxing a `SpanBuffer`:
+/// `Box::new([0u8; N])` builds the array on the stack first, 64 KiB per span
+/// in a debug build.
+pub(crate) type HeapSpan = Dynamic<[u8]>;
+
+/// A zeroed [`HeapSpan`] of `len` bytes. `vec![0u8; len]` is allocated zeroed
+/// on the heap at exactly `len`, so there is no stack copy, and boxing it into
+/// a slice does not reallocate.
+pub(crate) fn heap_span(len: usize) -> HeapSpan {
+    Dynamic::new(vec![0u8; len])
+}
+
 // Semantic sub-types — readability aliases for `SpanBuffer<N>`. Not nominally
 // distinct: same-size aliases resolve to the same `Fixed<[u8; N]>` type and
 // are freely assignable to each other.

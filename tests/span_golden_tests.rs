@@ -8,27 +8,29 @@
 //!   hand-rolled CBC + PKCS#7 + HMAC in `tests/common.rs`, at every size and
 //!   whatever sizes the reader hands back.
 //! - **A pin.** For each version, the SHA-256 over every file built at every
-//!   size is a constant generated before the span loop existed (at `d12acc3`),
-//!   so the wire format cannot drift unnoticed.
+//!   size is a constant generated before the span loop existed (at `d12acc3`).
+//!   For v3 that pins what the crate itself writes. The crate only reads
+//!   v0–v2, so for those the pin holds the test builder's files steady, and
+//!   what guards the crate is the next check.
 //!
 //! Every built file must then decrypt, through both `decrypt` and
-//! `decrypt_verified`, to exactly the plaintext it was built from.
+//! `decrypt_verified`, to exactly the plaintext it was built from, whether
+//! the reader returns everything at once or a few odd-sized bytes at a time.
 
 // Test crate: helpers and fixtures are explained by the tests that use them.
 #![allow(clippy::missing_docs_in_private_items)]
 
 use aescrypt_rs::aliases::{Aes256Key32, Iv16};
+use aescrypt_rs::constants::SPAN;
 use aescrypt_rs::encryption::encrypt_stream;
 use aescrypt_rs::{decrypt, decrypt_verified};
 use sha2::{Digest, Sha256};
-use std::io::{self, Cursor, Read};
+use std::io::{self, Cursor, Read, Seek, SeekFrom};
 
 mod common;
 use common::{
     SESSION_IV, SESSION_KEY, TEST_PASSWORD, build_fixed_file, pattern, reference_v3_payload,
 };
-
-const SPAN: usize = 64 * 1024;
 
 /// Around the block (0..49), around one span, two and three spans, and well
 /// past them.
@@ -74,6 +76,13 @@ impl<R: Read> Read for Choppy<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let n = buf.len().min(self.max);
         self.inner.read(&mut buf[..n])
+    }
+}
+
+/// `decrypt_verified` needs `Seek`; seeking is passed straight through.
+impl<R: Seek> Seek for Choppy<R> {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        self.inner.seek(pos)
     }
 }
 
@@ -165,6 +174,46 @@ fn every_version_decrypts_at_every_size() {
                 choppy == plaintext,
                 "decrypt v{version}, {len} bytes, 4097-byte reads"
             );
+        }
+    }
+}
+
+/// Decryption's fill and carry see reads that end at every offset within a
+/// block: 1, 7, 33 and 47 bytes at a time, and 4097. Both entry points, every
+/// version, every size up to two spans and a bit (tiny reads past one span
+/// only add time).
+#[test]
+fn every_version_decrypts_through_small_reads() {
+    for version in 0..=3u8 {
+        for &len in SIZES.iter().filter(|&&len| len <= 2 * SPAN) {
+            let plaintext = pattern(len);
+            let file = build_fixed_file(version, &plaintext);
+            for max in [1, 7, 33, 47, 4097] {
+                if len > SPAN + 1 && max < 33 {
+                    continue;
+                }
+                let mut one_pass = Vec::new();
+                let source = Choppy {
+                    inner: Cursor::new(&file),
+                    max,
+                };
+                decrypt(source, &mut one_pass, TEST_PASSWORD).unwrap();
+                assert!(
+                    one_pass == plaintext,
+                    "decrypt v{version}, {len} bytes, reads of {max}"
+                );
+
+                let mut verified = Vec::new();
+                let source = Choppy {
+                    inner: Cursor::new(&file),
+                    max,
+                };
+                decrypt_verified(source, &mut verified, TEST_PASSWORD).unwrap();
+                assert!(
+                    verified == plaintext,
+                    "decrypt_verified v{version}, {len} bytes, reads of {max}"
+                );
+            }
         }
     }
 }

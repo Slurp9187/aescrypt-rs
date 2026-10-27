@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0-rc.16] - Unreleased
 
+### Added
+
+- `constants::SPAN` (64 KiB): the most bytes the streaming loops read, process and
+  write per call. Informational; it may change in any release, and the file format
+  does not depend on it.
+
 ### Changed
 
 - **Encryption and decryption stream in 64 KiB spans** (#68). They used to read,
@@ -14,9 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   64 MiB file. Now each call reads up to 64 KiB, updates the HMAC once, and writes
   once. Decryption runs all of a span's CBC blocks through AES-NI's 8-block
   pipeline. Both passes of `decrypt_verified` share the same framing.
-  - **The file format is byte-identical.** `tests/span_golden_tests.rs` checks the
-    output against an independent reference at sizes around the block and the
-    span, and pins a digest per version that was generated before the change.
+  - **The file format is byte-identical.** `tests/span_golden_tests.rs` checks what
+    the crate writes against an independent reference at sizes around the block
+    and the span, and pins a digest of its v3 files generated before the change.
+    The crate only reads v0–v2; their files come from an independent builder in
+    the tests, and must decrypt exactly through both entry points, including
+    through readers that return 1 to 4097 bytes at a time.
   - **`decrypt_verified` still writes nothing before the tag check** and, for v3,
     the padding check. New tests tamper with and truncate multi-span files for
     v0–v3 and require 0 bytes written. Each guard was removed once and seen to
@@ -28,9 +37,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     gain is larger for a writer that pays per call, which no longer receives
     16-byte writes.
   - **Memory stays constant, at a higher level.** Encryption holds one 64 KiB
-    span on the heap, and decryption holds two (131 152 bytes, measured at both
-    1 MiB and 64 MiB) where it used to hold a 64-byte ring. Both are
-    `secure_gate::Fixed`, wiped on drop.
+    span on the heap, and decryption holds two (about 128 KiB, the same at 1 MiB
+    and 64 MiB) where it used to hold a 64-byte ring; the MAC-only first pass of
+    `decrypt_verified` holds one. Each is a `secure_gate::Dynamic<[u8]>`, a boxed
+    slice that cannot grow, allocated zeroed on the heap and wiped on drop.
+  - **Output arrives a span at a time.** On a slow stream (a pipe, a socket),
+    nothing is written until 64 KiB has arrived or the input ends, where it used
+    to follow the input 16 bytes at a time.
   - **`decrypt()` still writes plaintext before the tag is checked**, as
     documented, now in pieces of up to 64 KiB.
   - **A `File` no longer needs a `BufReader`** for speed. The docs that advised one

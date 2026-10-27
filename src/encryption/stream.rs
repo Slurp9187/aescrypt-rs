@@ -3,7 +3,7 @@
 //! v3 streaming AES-256-CBC payload encryption with HMAC-SHA256 trailer.
 
 use crate::aliases::HmacSha256;
-use crate::aliases::{Aes256Key32, Block16, Iv16, SpanBuffer};
+use crate::aliases::{Aes256Key32, Block16, Iv16, heap_span};
 use crate::constants::SPAN;
 use crate::error::AescryptError;
 use crate::utilities::read_until_full;
@@ -61,8 +61,9 @@ const INTERLEAVE: usize = 256;
 ///
 /// - `session_key` is consumed only inside scoped [`secure-gate`] reveals; it
 ///   never escapes a `with_secret` closure.
-/// - The plaintext span is a heap [`SpanBuffer`] (a `secure_gate::Fixed`, which
-///   cannot reallocate) that is wiped on drop. It holds plaintext only until
+/// - The plaintext span is a 64 KiB `secure_gate::Dynamic<[u8]>`, allocated
+///   zeroed on the heap; a boxed slice cannot reallocate, and it is wiped on
+///   drop. It holds plaintext only until
 ///   the in-place encryption overwrites it with ciphertext.
 /// - `session_iv` **must** be unique per file. [`crate::encrypt()`] generates
 ///   it via the [`secure-gate`] CSPRNG (`Iv16::from_random`).
@@ -103,9 +104,9 @@ where
     let mut prev_block = Block16::new([0u8; 16]);
     session_iv.with_secret(|siv| prev_block.with_secret_mut(|pb| pb.copy_from_slice(siv)));
 
-    // Boxed so 64 KiB never sits in the caller's stack frame. It starts as
-    // zeros, so building it leaves no secret behind.
-    let mut span = Box::new(SpanBuffer::<SPAN>::new([0u8; SPAN]));
+    // Allocated zeroed on the heap, so 64 KiB never sits in the caller's
+    // stack frame, and building it leaves no secret behind.
+    let mut span = heap_span(SPAN);
 
     loop {
         // Fill the span, accumulating partial `read()` results until it is full

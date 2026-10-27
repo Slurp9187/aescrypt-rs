@@ -66,7 +66,7 @@ fn payload_hmac(encryption_key: &Aes256Key32) -> HmacSha256 {
 }
 
 /// Checks the trailer length for `config` and reads the expected HMAC tag
-/// and the final-block modulo byte out of the ring (`None` for v3, which
+/// and the final-block modulo byte out of the carried trailer (`None` for v3, which
 /// uses PKCS#7 instead).
 ///
 /// # Errors

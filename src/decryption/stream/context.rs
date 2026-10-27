@@ -6,7 +6,7 @@
 //! where the trailer starts, so memory stays constant however large the file.
 
 use crate::aliases::HmacSha256;
-use crate::aliases::{Block16, Iv16, SpanBuffer};
+use crate::aliases::{Block16, HeapSpan, Iv16, heap_span};
 use crate::constants::SPAN;
 use crate::error::AescryptError;
 use crate::utilities::read_until_full;
@@ -40,13 +40,15 @@ const PLAIN_SPAN_LEN: usize = CIPHER_SPAN_LEN - 16;
 /// block the final answer would not, so the trailer is never treated as
 /// ciphertext, whatever the version.
 pub(crate) struct DecryptionContext {
-    /// Ciphertext: the carry at the front, then the latest read. Ciphertext
-    /// is public, but kept in a wiped `Fixed` like the IVs, for the same
-    /// auditability reason. Boxed so 64 KiB never sits on the caller's stack.
-    cipher_span: Box<SpanBuffer<CIPHER_SPAN_LEN>>,
+    /// Ciphertext: the carry at the front, then the latest read,
+    /// `CIPHER_SPAN_LEN` bytes on the heap. Ciphertext is public, but kept in a
+    /// wiped wrapper like the IVs, for the same auditability reason.
+    cipher_span: HeapSpan,
     /// Plaintext of the current span at `[16..]`, written out in one call
-    /// together with the pending block copied to `[0..16]`; zeroized on drop.
-    plain_span: Box<SpanBuffer<PLAIN_SPAN_LEN>>,
+    /// together with the pending block copied to `[0..16]`; `PLAIN_SPAN_LEN`
+    /// bytes on the heap, zeroized on drop. Allocated by the first span that
+    /// is decrypted, so the MAC-only pass never pays for it.
+    plain_span: Option<HeapSpan>,
     /// How many bytes at the front of `cipher_span` are carried, unprocessed.
     carry_len: usize,
     /// The last processed ciphertext block, the CBC chaining input of the
@@ -69,9 +71,8 @@ impl DecryptionContext {
     #[inline(always)]
     pub(crate) fn new_with_iv(iv: &Iv16) -> Self {
         let mut this = Self {
-            // Built as zeros, so no secret is left behind on the stack.
-            cipher_span: Box::new(SpanBuffer::new([0u8; CIPHER_SPAN_LEN])),
-            plain_span: Box::new(SpanBuffer::new([0u8; PLAIN_SPAN_LEN])),
+            cipher_span: heap_span(CIPHER_SPAN_LEN),
+            plain_span: None,
             carry_len: 0,
             chain: Block16::new([0u8; 16]),
             chain_before: Block16::new([0u8; 16]),
@@ -234,6 +235,7 @@ impl DecryptionContext {
             need_write_plaintext,
             ..
         } = self;
+        let plain_span = plain_span.get_or_insert_with(|| heap_span(PLAIN_SPAN_LEN));
         cipher_span.with_secret(|c| {
             plain_span.with_secret_mut(|p| {
                 let (blocks, _) = InOutBuf::new(&c[..len], &mut p[16..16 + len])
