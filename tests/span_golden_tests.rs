@@ -217,3 +217,55 @@ fn every_version_decrypts_through_small_reads() {
         }
     }
 }
+
+/// Every streaming call starts with a small span and grows to `SPAN` when its
+/// first fill comes back full. Lengths just around each power-of-two KiB from
+/// 1 to 32 KiB put that first fill exactly full, one short and one over, for
+/// both directions and every version, whatever the start size is tuned to.
+/// The offsets cover the plaintext boundary (encrypt) and the payload-plus-
+/// trailer boundary (decrypt: 32 or 33 trailer bytes after the ciphertext).
+#[test]
+fn first_fill_growth_boundaries() {
+    const OFFSETS: &[isize] = &[
+        -49, -48, -47, -33, -32, -31, -17, -16, -15, -1, 0, 1, 15, 16, 17,
+    ];
+    for kib in [1usize, 2, 4, 8, 16, 32] {
+        for &off in OFFSETS {
+            let len = (kib * 1024) as isize + off;
+            let plaintext = pattern(len as usize);
+
+            let expected = reference_v3_payload(&SESSION_KEY, &SESSION_IV, &plaintext);
+            assert!(
+                encrypt_stream_to_vec(Cursor::new(&plaintext)) == expected,
+                "encrypt, {len} bytes"
+            );
+
+            for version in 0..=3u8 {
+                let file = build_fixed_file(version, &plaintext);
+                for max in [usize::MAX, 7] {
+                    let mut one_pass = Vec::new();
+                    let source = Choppy {
+                        inner: Cursor::new(&file),
+                        max,
+                    };
+                    decrypt(source, &mut one_pass, TEST_PASSWORD).unwrap();
+                    assert!(
+                        one_pass == plaintext,
+                        "decrypt v{version}, {len} bytes, reads of {max}"
+                    );
+
+                    let mut verified = Vec::new();
+                    let source = Choppy {
+                        inner: Cursor::new(&file),
+                        max,
+                    };
+                    decrypt_verified(source, &mut verified, TEST_PASSWORD).unwrap();
+                    assert!(
+                        verified == plaintext,
+                        "decrypt_verified v{version}, {len} bytes, reads of {max}"
+                    );
+                }
+            }
+        }
+    }
+}

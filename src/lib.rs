@@ -87,7 +87,7 @@
 //!
 //! # MSRV
 //!
-//! Minimum Supported Rust Version is **1.85** (edition 2021). CI verifies the crate
+//! Minimum Supported Rust Version is **1.85** (edition 2024). CI verifies the crate
 //! against `cargo +1.85 test --all-features` and `cargo +1.85 bench --no-run`.
 //!
 //! # Security Model

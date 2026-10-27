@@ -6,8 +6,8 @@
 //! where the trailer starts, so memory stays constant however large the file.
 
 use crate::aliases::HmacSha256;
-use crate::aliases::{Block16, HeapSpan, Iv16, heap_span};
-use crate::constants::SPAN;
+use crate::aliases::{Block16, HeapSpan, Iv16, grow_span, heap_span};
+use crate::constants::{FIRST_FILL, SPAN};
 use crate::error::AescryptError;
 use crate::utilities::read_until_full;
 use aes::cipher::BlockDecrypt;
@@ -18,13 +18,18 @@ use hmac::Mac;
 use secure_gate::{RevealSecret, RevealSecretMut};
 use std::io::{Read, Write};
 
-/// Ciphertext span: up to 47 bytes carried over from the last fill, then a
-/// fresh read. A multiple of 16, so a full fill processes whole blocks.
-const CIPHER_SPAN_LEN: usize = SPAN + 48;
+/// The largest ciphertext span: up to 47 bytes carried over from the last fill,
+/// then a fresh read. Exactly [`SPAN`], so no read asks for more than that, and
+/// a multiple of 16, so a full fill processes whole blocks.
+const CIPHER_SPAN_LEN: usize = SPAN;
 
-/// Plaintext span: the pending block at `[0..16]`, then room for the most
-/// blocks one fill can process, `CIPHER_SPAN_LEN / 16 − 2`.
-const PLAIN_SPAN_LEN: usize = CIPHER_SPAN_LEN - 16;
+/// The plaintext span a ciphertext span of `cipher_len` bytes needs: the pending
+/// block at `[0..16]`, then the most blocks one fill can process,
+/// `cipher_len / 16 − 2`. For the largest span that is `SPAN − 16`, and a write
+/// is at most `SPAN − 32` bytes.
+const fn plain_len_for(cipher_len: usize) -> usize {
+    cipher_len - 16
+}
 
 /// Decryption context for streaming CBC decryption.
 ///
@@ -40,14 +45,17 @@ const PLAIN_SPAN_LEN: usize = CIPHER_SPAN_LEN - 16;
 /// block the final answer would not, so the trailer is never treated as
 /// ciphertext, whatever the version.
 pub(crate) struct DecryptionContext {
-    /// Ciphertext: the carry at the front, then the latest read,
-    /// `CIPHER_SPAN_LEN` bytes on the heap. Ciphertext is public, but kept in a
-    /// wiped wrapper like the IVs, for the same auditability reason.
+    /// Ciphertext: the carry at the front, then the latest read, on the heap.
+    /// It starts at [`FIRST_FILL`] bytes and grows toward `CIPHER_SPAN_LEN`
+    /// while fills come back full, so a small file never allocates the large
+    /// span. Ciphertext is public, but kept in a wiped wrapper like the
+    /// IVs, for the same auditability reason.
     cipher_span: HeapSpan,
     /// Plaintext of the current span at `[16..]`, written out in one call
-    /// together with the pending block copied to `[0..16]`; `PLAIN_SPAN_LEN`
-    /// bytes on the heap, zeroized on drop. Allocated by the first span that
-    /// is decrypted, so the MAC-only pass never pays for it.
+    /// together with the pending block copied to `[0..16]`; sized by
+    /// [`plain_len_for`] from the ciphertext span, on the heap, zeroized on
+    /// drop. Allocated by the first span that is decrypted, so the MAC-only pass
+    /// never pays for it, and replaced if the ciphertext span grows.
     plain_span: Option<HeapSpan>,
     /// How many bytes at the front of `cipher_span` are carried, unprocessed.
     carry_len: usize,
@@ -71,7 +79,7 @@ impl DecryptionContext {
     #[inline(always)]
     pub(crate) fn new_with_iv(iv: &Iv16) -> Self {
         let mut this = Self {
-            cipher_span: heap_span(CIPHER_SPAN_LEN),
+            cipher_span: heap_span(FIRST_FILL),
             plain_span: None,
             carry_len: 0,
             chain: Block16::new([0u8; 16]),
@@ -162,11 +170,22 @@ impl DecryptionContext {
             // results until the span is full or the input ends: a single short
             // `read()` is not EOF (sockets, pipes).
             let carry = self.carry_len;
-            let n = self
-                .cipher_span
-                .with_secret_mut(|c| read_until_full(input, &mut c[carry..]))
-                .map_err(AescryptError::Io)?;
-            let filled = carry + n;
+            let mut filled = carry
+                + self
+                    .cipher_span
+                    .with_secret_mut(|c| read_until_full(input, &mut c[carry..]))
+                    .map_err(AescryptError::Io)?;
+            let mut capacity = self.cipher_span.with_secret(|c| c.len());
+            // A span still below full size came back full, so more input may
+            // follow: grow it and keep filling. Every fill is still either full
+            // or the end of the input, which is all the framing needs.
+            while filled == capacity && capacity < CIPHER_SPAN_LEN {
+                capacity = grow_span(&mut self.cipher_span, filled);
+                filled += self
+                    .cipher_span
+                    .with_secret_mut(|c| read_until_full(input, &mut c[filled..]))
+                    .map_err(AescryptError::Io)?;
+            }
             let len = 16 * (filled / 16).saturating_sub(2);
 
             if len > 0 {
@@ -179,7 +198,7 @@ impl DecryptionContext {
             }
             self.carry_len = filled - len;
 
-            if filled < CIPHER_SPAN_LEN {
+            if filled < capacity {
                 return Ok(());
             }
         }
@@ -219,7 +238,9 @@ impl DecryptionContext {
     /// # Panics
     ///
     /// Never: `InOutBuf::new` gets two slices of length `len`, and `len` is a
-    /// whole number of blocks no larger than `PLAIN_SPAN_LEN − 16`.
+    /// whole number of blocks no larger than the ciphertext span minus 32, so
+    /// it fits behind the pending block in a span of [`plain_len_for`] that
+    /// length.
     #[inline(always)]
     fn decrypt_span<W: Write>(
         &mut self,
@@ -235,7 +256,16 @@ impl DecryptionContext {
             need_write_plaintext,
             ..
         } = self;
-        let plain_span = plain_span.get_or_insert_with(|| heap_span(PLAIN_SPAN_LEN));
+        // Sized to the ciphertext span it serves; replaced (and so wiped) if that
+        // span has grown since. Its contents never outlive one call.
+        let needed = plain_len_for(cipher_span.with_secret(|c| c.len()));
+        if plain_span
+            .as_ref()
+            .is_none_or(|p| p.with_secret(|p| p.len()) < needed)
+        {
+            *plain_span = Some(heap_span(needed));
+        }
+        let plain_span = plain_span.as_mut().expect("just ensured");
         cipher_span.with_secret(|c| {
             plain_span.with_secret_mut(|p| {
                 let (blocks, _) = InOutBuf::new(&c[..len], &mut p[16..16 + len])
