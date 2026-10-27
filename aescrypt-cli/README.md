@@ -123,10 +123,11 @@ generated passphrase can't end up in a log file.
   file itself.
   - **Decrypting to stdout** puts the plaintext in a temp file *sealed* with
     AES-256-CTR under a random key held only in memory. It is copied out to
-    stdout only after the whole decryption has succeeded. stdout gets all of it
-    or nothing: a failure, Ctrl-C or a kill writes nothing to the pipe, and
-    whatever is left on disk is noise. This needs temporary disk space equal to
-    the file's size.
+    stdout only after the whole decryption has succeeded. A failure, Ctrl-C or a
+    kill *during decryption* writes nothing to the pipe, and whatever is left on
+    disk is noise. Once the copy to stdout has begun, Ctrl-C or a write error
+    can still leave part of the output in the pipe. This needs temporary disk
+    space equal to the file's size.
   - **Decrypting from stdin (`-`)**: a pipe can't be read twice, so its
     *ciphertext* is copied to an owner-only temp file first, next to the
     destination, or in the system temp directory when writing to stdout. It is
@@ -143,9 +144,10 @@ generated passphrase can't end up in a log file.
   filesystem that refuses either (FAT has no hard links, some network
   filesystems have no `O_TMPFILE`) falls back to an ordinary temp file. On
   macOS, a forced kill leaves the `.aescrypt-cli-*.tmp` file behind; delete it
-  by hand. When a file input is being decrypted, that leftover is empty if the
-  kill came during the first pass, and otherwise holds only verified
-  plaintext. The destination is never touched.
+  by hand. When decrypting to a file, that leftover is empty if the kill came
+  during the first pass, and otherwise holds only verified plaintext. When
+  decrypting to stdout, it is the sealed stage: noise, since its key died with
+  the process. The destination is never touched.
 - **Crash safety.** Output is flushed to disk before it's renamed, so a crash
   can't leave an empty file under the final name.
 - **No overwriting.** An existing output file is never replaced without

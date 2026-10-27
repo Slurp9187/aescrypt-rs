@@ -22,7 +22,9 @@ Verified at main `58e61d0`.
 **Plaintext never reaches a temp file in the clear, other than the output itself.** For a
 file destination, the output is the temp file next to it, renamed into place, and it is
 written only in `decrypt_verified`'s second pass, after verification. Decrypting to stdout
-stays all-or-nothing: Ctrl-C, a kill or a changed input writes nothing to the pipe.
+stays all-or-nothing through decryption: Ctrl-C, a kill or a changed input during it writes
+nothing to the pipe. The copy to stdout, once begun, can still be cut short by a signal or a
+write error; that window is inherent.
 
 Overwriting before unlinking was rejected. It is unreliable on SSDs (wear leveling) and on
 copy-on-write filesystems; not writing the plaintext at all is the only dependable fix.

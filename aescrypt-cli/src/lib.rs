@@ -557,28 +557,43 @@ fn execute(
                         File::open(p).map_err(|e| CliError::io(p, e))?,
                     )),
                 });
-            let mut run = |w: &mut dyn Write| decrypt_with(password, &label, &mut input, w);
             // Plaintext sinks are written unbuffered: a buffer would keep an
             // unwiped copy of what passed through, and the library already
             // writes whole spans.
             match &job.sink {
-                Sink::Stdout => {
-                    let mut sealed = output::Sealed::new_in(&std::env::temp_dir())?;
-                    run(&mut sealed)?;
-                    sealed.copy_out(&mut *streams.stdout)?;
-                    streams
-                        .stdout
-                        .flush()
-                        .map_err(|e| CliError::io("<stdout>", e))
-                }
+                Sink::Stdout => decrypt_to_stdout(
+                    password,
+                    &label,
+                    &mut input,
+                    &std::env::temp_dir(),
+                    &mut *streams.stdout,
+                ),
                 Sink::File(dest) => {
                     let mut staged = output::Staged::new_in(output::parent_dir(dest), true)?;
-                    run(staged.file())?;
+                    decrypt_with(password, &label, &mut input, staged.file())?;
                     staged.persist(dest, opts.force)
                 }
             }
         }
     }
+}
+
+/// Decrypts `input` to `stdout` all-or-nothing: pass 2's plaintext goes into
+/// a `Sealed` stage in `stage_dir`, and is copied out only after the whole
+/// decryption has succeeded. A failure, a changed input or a signal during
+/// decryption therefore writes nothing to stdout. Only the copy itself, once
+/// begun, can be cut short.
+fn decrypt_to_stdout(
+    password: &PasswordString,
+    label: &Path,
+    input: &mut VersionTap<Box<dyn ReadSeek + '_>>,
+    stage_dir: &Path,
+    stdout: &mut dyn Write,
+) -> Result<(), CliError> {
+    let mut sealed = output::Sealed::new_in(stage_dir)?;
+    decrypt_with(password, label, input, &mut sealed)?;
+    sealed.copy_out(stdout)?;
+    stdout.flush().map_err(|e| CliError::io("<stdout>", e))
 }
 
 /// A reader that can also seek: what `decrypt_verified` needs.
@@ -912,5 +927,70 @@ mod tests {
         let password = PasswordString::new("pw".to_string());
         decrypt_with(&password, &path, &mut input, &mut out).unwrap();
         assert_eq!(out, b"hello, verified");
+    }
+
+    /// An input that flips one ciphertext byte when it is rewound for the
+    /// second pass, as if rewritten between the passes. The first `Start`
+    /// seek is that rewind (`stream_position` seeks with `Current`).
+    struct ChangesOnRewind {
+        inner: io::Cursor<Vec<u8>>,
+        at: usize,
+        changed: bool,
+    }
+
+    impl Read for ChangesOnRewind {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            self.inner.read(buf)
+        }
+    }
+
+    impl Seek for ChangesOnRewind {
+        fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+            if matches!(pos, SeekFrom::Start(_)) && !self.changed {
+                self.inner.get_mut()[self.at] ^= 1;
+                self.changed = true;
+            }
+            self.inner.seek(pos)
+        }
+    }
+
+    /// Decrypting to stdout is all-or-nothing (#72): when the input changes
+    /// between the passes, pass 2 fails after writing plaintext into the sealed
+    /// stage, and stdout gets none of it. Wired straight to stdout, pass 2
+    /// would already have written most of the file.
+    #[test]
+    fn changed_input_writes_nothing_to_stdout() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut cipher = Vec::new();
+        encrypt(io::Cursor::new(vec![5u8; 200_000]), &mut cipher, "pw", 5).unwrap();
+        let at = cipher.len() - 32 - 1; // the last ciphertext byte (v3 trailer: 32)
+
+        let mut input: VersionTap<Box<dyn ReadSeek>> = VersionTap::new(Box::new(ChangesOnRewind {
+            inner: io::Cursor::new(cipher),
+            at,
+            changed: false,
+        }));
+        let password = PasswordString::new("pw".to_string());
+        let mut stdout = Vec::new();
+
+        let err = decrypt_to_stdout(
+            &password,
+            Path::new("<stdin>"),
+            &mut input,
+            dir.path(),
+            &mut stdout,
+        )
+        .expect_err("a changed input decrypted");
+        assert!(
+            err.to_string()
+                .contains("changed while it was being decrypted"),
+            "{err}"
+        );
+        assert!(stdout.is_empty(), "{} bytes reached stdout", stdout.len());
+        assert_eq!(
+            std::fs::read_dir(dir.path()).unwrap().count(),
+            0,
+            "stage left behind"
+        );
     }
 }

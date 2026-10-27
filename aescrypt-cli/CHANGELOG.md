@@ -35,8 +35,9 @@ Versioned independently of `aescrypt-rs`; `--version` shows both.
     system temp directory, copy it out, then delete the file without overwriting
     it. The stage is now *sealed*: AES-256-CTR under a random key held only in
     memory, unsealed while it is copied to stdout once the whole decryption has
-    succeeded. stdout still gets all of the plaintext or none of it, and the disk
-    only ever holds noise.
+    succeeded. A failure, Ctrl-C or a changed input during decryption writes nothing
+    to stdout, and the disk only ever holds noise. Only the copy itself, once begun,
+    can be cut short by a signal or a write error.
   - **Decrypting from stdin** used to run the one-pass decrypt, writing unverified
     plaintext to a temp file that was deleted on failure. It now stages stdin's
     *ciphertext* in an owner-only temp file (next to the destination, or in the
