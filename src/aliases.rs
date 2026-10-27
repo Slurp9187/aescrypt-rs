@@ -28,7 +28,6 @@
 //! - [`EncryptedSessionBlock48`] - 48-byte encrypted session block
 //! - [`Iv16`] - 16-byte initialization vector
 //! - [`Pbkdf2DerivedKey32`] - 32-byte PBKDF2-derived setup key (v3)
-//! - [`RingBuffer64`] - 64-byte ring buffer for streaming decryption
 //! - [`Salt16`] - 16-byte salt for KDF operations
 //! - [`SessionHmacTag32`] - 32-byte session block HMAC tag
 //!
@@ -78,6 +77,25 @@ pub type HmacSha256 = Hmac<Sha256>;
 /// `N`.
 pub type SpanBuffer<const N: usize> = secure_gate::Fixed<[u8; N]>;
 
+/// A heap buffer of the streaming loops' 64 KiB spans: `Dynamic<[u8]>`, a
+/// boxed slice.
+///
+/// `Dynamic` because secure-gate keeps `Fixed` for storage that owns no heap
+/// allocation. The slice shape is the one `Dynamic` with no reallocation
+/// surface: `with_secret_mut` hands out a `&mut [u8]`, which has no `push` or
+/// `reserve`, so no unwiped copy can be abandoned, and it is zeroized on drop.
+/// Build one with [`heap_span`] rather than boxing a `SpanBuffer`:
+/// `Box::new([0u8; N])` builds the array on the stack first, 64 KiB per span
+/// in a debug build.
+pub(crate) type HeapSpan = Dynamic<[u8]>;
+
+/// A zeroed [`HeapSpan`] of `len` bytes. `vec![0u8; len]` is allocated zeroed
+/// on the heap at exactly `len`, so there is no stack copy, and boxing it into
+/// a slice does not reallocate.
+pub(crate) fn heap_span(len: usize) -> HeapSpan {
+    Dynamic::new(vec![0u8; len])
+}
+
 // Semantic sub-types — readability aliases for `SpanBuffer<N>`. Not nominally
 // distinct: same-size aliases resolve to the same `Fixed<[u8; N]>` type and
 // are freely assignable to each other.
@@ -119,10 +137,6 @@ pub type Iv16 = Fixed<[u8; 16]>;
 /// The 32-byte setup key PBKDF2-HMAC-SHA512 derives from the password (v3). It
 /// decrypts the session block.
 pub type Pbkdf2DerivedKey32 = Fixed<[u8; 32]>;
-/// The 64-byte ring buffer of streaming decryption: the previous ciphertext
-/// block (for CBC chaining), the current one, and the next 32 bytes held back
-/// until the end of input shows whether they are ciphertext or the trailer.
-pub type RingBuffer64 = Fixed<[u8; 64]>;
 /// A 16-byte KDF salt. In a file it is the header's public IV (ACKDF for
 /// v0–v2, PBKDF2 for v3); [`Pbkdf2Builder`](crate::Pbkdf2Builder) generates a
 /// random one.

@@ -64,3 +64,14 @@ pub const PBKDF2_MAX_ITER: u32 = 5_000_000;
 /// documented reason. Raising it (up to [`PBKDF2_MAX_ITER`]) is always safe but
 /// proportionally slows down [`crate::encrypt()`] and [`crate::decrypt()`].
 pub const DEFAULT_PBKDF2_ITERATIONS: u32 = 600_000;
+
+/// Bytes the streaming loops read, process and write per call: 64 KiB.
+///
+/// [`crate::encrypt()`] fills one span of plaintext, encrypts it in place and
+/// writes it with one `write_all`; [`crate::decrypt()`] and
+/// [`crate::decrypt_verified()`] read a span of ciphertext and write its
+/// plaintext the same way. So a writer sees calls of up to this size, and on a
+/// slow stream output waits until a span has arrived or the input ends.
+///
+/// The file format does not depend on it. It may change in any release.
+pub const SPAN: usize = 64 * 1024;

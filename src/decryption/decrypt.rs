@@ -203,9 +203,9 @@ where
 ///    as it goes. The tag, the trailer and the final-block length byte must
 ///    all match what pass 1 verified.
 ///
-/// Use [`decrypt`] when `input` cannot seek. Wrap a [`std::fs::File`] in a
-/// [`std::io::BufReader`] (which is also `Seek`): the payload is read in
-/// 16-byte blocks.
+/// Use [`decrypt`] when `input` cannot seek. A [`std::fs::File`] is `Seek`
+/// as it is, and the payload is read 64 KiB at a time, so it needs no
+/// [`std::io::BufReader`].
 ///
 /// Returns a [`DecryptOutcome`] naming the format version and the number of
 /// plaintext bytes written.

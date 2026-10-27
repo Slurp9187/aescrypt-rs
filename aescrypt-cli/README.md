@@ -201,7 +201,7 @@ replacement doesn't keep the old file's owner, permissions or hard links.
 
 aescrypt-cli is versioned on its own, independently of `aescrypt-rs`.
 `aescrypt-cli --version` shows both, for example
-`aescrypt-cli 0.1.0-rc.3 (aescrypt-rs 0.2.0-rc.15)`.
+`aescrypt-cli 0.1.0-rc.3 (aescrypt-rs 0.2.0-rc.16)`.
 
 ## License
 

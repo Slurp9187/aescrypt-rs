@@ -5,6 +5,56 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-rc.16] - Unreleased
+
+### Added
+
+- `constants::SPAN` (64 KiB): the most bytes the streaming loops read, process and
+  write per call. Informational; it may change in any release, and the file format
+  does not depend on it.
+
+### Changed
+
+- **Encryption and decryption stream in 64 KiB spans** (#68). They used to read,
+  MAC and write 16 bytes at a time: 4.2 million reads and writes per pass over a
+  64 MiB file. Now each call reads up to 64 KiB, updates the HMAC once, and writes
+  once. Decryption runs all of a span's CBC blocks through AES-NI's 8-block
+  pipeline. Both passes of `decrypt_verified` share the same framing.
+  - **The file format is byte-identical.** `tests/span_golden_tests.rs` checks what
+    the crate writes against an independent reference at sizes around the block
+    and the span, and pins a digest of its v3 files generated before the change.
+    The crate only reads v0–v2; their files come from an independent builder in
+    the tests, and must decrypt exactly through both entry points, including
+    through readers that return 1 to 4097 bytes at a time.
+  - **`decrypt_verified` still writes nothing before the tag check** and, for v3,
+    the padding check. New tests tamper with and truncate multi-span files for
+    v0–v3 and require 0 bytes written. Each guard was removed once and seen to
+    fail.
+  - **Throughput**, 64 MiB from memory to `io::sink()` on a Ryzen 9 9950X3D:
+    `encrypt` 435 MiB/s before, 544-635 after (four runs; this machine is
+    shared, so encrypt varied about 10% between runs); `decrypt` 515 MiB/s before,
+    1.68 GiB/s after; `decrypt_verified` 335 MiB/s before, 1.02 GiB/s after. The
+    gain is larger for a writer that pays per call, which no longer receives
+    16-byte writes.
+  - **Memory stays constant, at a higher level.** Encryption holds one 64 KiB
+    span on the heap, and decryption holds two (about 128 KiB, the same at 1 MiB
+    and 64 MiB) where it used to hold a 64-byte ring; the MAC-only first pass of
+    `decrypt_verified` holds one. Each is a `secure_gate::Dynamic<[u8]>`, a boxed
+    slice that cannot grow, allocated zeroed on the heap and wiped on drop.
+  - **Output arrives a span at a time.** On a slow stream (a pipe, a socket),
+    nothing is written until 64 KiB has arrived or the input ends, where it used
+    to follow the input 16 bytes at a time.
+  - **`decrypt()` still writes plaintext before the tag is checked**, as
+    documented, now in pieces of up to 64 KiB.
+  - **A `File` no longer needs a `BufReader`** for speed. The docs that advised one
+    for `decrypt_verified` now say so.
+- `aescrypt-cli`'s exact pin on this crate moves to `=0.2.0-rc.16`.
+
+### Removed
+
+- `aliases::RingBuffer64`, the 64-byte ring of the old decryption loop. Nothing
+  uses it any more.
+
 ## [0.2.0-rc.15] - 2026-10-20
 
 ### Changed

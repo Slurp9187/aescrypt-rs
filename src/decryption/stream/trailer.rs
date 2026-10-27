@@ -9,34 +9,23 @@ use crate::error::AescryptError;
 use secure_gate::{ConstantTimeEq, RevealSecret, RevealSecretMut};
 use std::io::Write;
 
-/// Extract 32-byte HMAC using simple wrap-around (used by v0 and v3)
+/// Extracts the 32-byte HMAC trailer (v0 and v3): the whole carry left after
+/// the loop, which the caller has checked is 32 bytes.
 #[inline(always)]
 pub(crate) fn extract_hmac_simple(ctx: &DecryptionContext) -> Trailer32 {
     let mut expected = Trailer32::new([0u8; 32]);
-    ctx.ring_buffer.with_secret(|ring| {
-        expected.with_secret_mut(|e| {
-            for (i, byte) in e.iter_mut().enumerate() {
-                *byte = ring[(ctx.tail_index + i) % 64];
-            }
-        });
-    });
+    ctx.with_trailer(|t| expected.with_secret_mut(|e| e.copy_from_slice(&t[..32])));
     expected
 }
 
-/// Extract 32-byte HMAC + modulo byte using scattered layout (v1/v2 only)
-///
-/// Layout in the ring: byte 0 = modulo, bytes 1–32 = HMAC (sequential).
-/// Uses wrap-around indexing (`% 64`) matching `extract_hmac_simple`.
+/// Extracts the modulo byte and the 32-byte HMAC (v1/v2 only): byte 0 of the
+/// 33-byte carry is the modulo, bytes 1–32 the HMAC.
 #[inline(always)]
 pub(crate) fn extract_hmac_scattered(ctx: &DecryptionContext) -> (Trailer32, u8) {
     let mut expected = Trailer32::new([0u8; 32]);
-    let modulo_byte = ctx.ring_buffer.with_secret(|ring| {
-        expected.with_secret_mut(|e| {
-            for (i, byte) in e.iter_mut().enumerate() {
-                *byte = ring[(ctx.tail_index + 1 + i) % 64];
-            }
-        });
-        ring[ctx.tail_index]
+    let modulo_byte = ctx.with_trailer(|t| {
+        expected.with_secret_mut(|e| e.copy_from_slice(&t[1..33]));
+        t[0]
     });
     (expected, modulo_byte)
 }

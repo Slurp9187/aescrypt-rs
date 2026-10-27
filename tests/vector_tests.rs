@@ -4,82 +4,9 @@
 // Test crate: helpers and fixtures are explained by the tests that use them.
 #![allow(clippy::missing_docs_in_private_items)]
 
-use aescrypt_rs::aliases::{Aes256Key32, EncryptedSessionBlock48, Iv16};
+use aescrypt_rs::aliases::{Aes256Key32, Iv16};
 use aescrypt_rs::decrypt;
 use aescrypt_rs::encrypt;
-use secure_gate::RevealSecret;
-
-// Deterministic v3 encryption helper – TEST ONLY
-// Exactly matches the official test vectors (including CREATED_BY extension + version byte in HMAC)
-use aes::Aes256Enc;
-use aes::cipher::KeyInit;
-use aescrypt_rs::encryption::{
-    derive_setup_key, encrypt_session_block, encrypt_stream, write_header, write_hmac,
-    write_iterations, write_public_iv,
-};
-use hmac::{Hmac, Mac};
-use sha2::Sha256;
-use std::io::{Read, Write};
-
-// Exact extension blob used in the official deterministic test vectors
-const V3_CREATED_BY_EXTENSION: [u8; 29] = [
-    0x00, 0x1B, b'C', b'R', b'E', b'A', b'T', b'E', b'D', b'_', b'B', b'Y', 0x00, b'a', b'e', b's',
-    b'c', b'r', b'y', b'p', b't', b' ', b'4', b'.', b'0', b'.', b'0', b'.', b'0',
-];
-
-fn encrypt_with_fixed_session<R: Read, W: Write>(
-    mut source: R,
-    mut destination: W,
-    password: &str,
-    iterations: u32,
-    public_iv: &Iv16,
-    session_iv: &Iv16,
-    session_key: &Aes256Key32,
-) -> Result<(), aescrypt_rs::AescryptError> {
-    // Header
-    write_header(&mut destination, 3)?;
-
-    // CREATED_BY extension + terminator (required by test vectors)
-    destination.write_all(&V3_CREATED_BY_EXTENSION)?;
-    destination.write_all(&[0x00, 0x00])?;
-
-    // KDF parameters
-    write_iterations(&mut destination, iterations, 3)?;
-    write_public_iv(&mut destination, public_iv)?;
-
-    // Derive setup key
-    let mut setup_key = Aes256Key32::new([0u8; 32]);
-    derive_setup_key(password, public_iv, iterations, &mut setup_key)?;
-
-    let cipher = setup_key.with_secret(|sk| Aes256Enc::new(sk.into()));
-
-    // Create HMAC – disambiguate using the Mac trait directly
-    let mut session_hmac =
-        setup_key.with_secret(|sk| <Hmac<Sha256> as Mac>::new_from_slice(sk).unwrap());
-
-    // Encrypt the session block (IV + key)
-    let mut enc_session_block = EncryptedSessionBlock48::new([0u8; 48]);
-    encrypt_session_block(
-        &cipher,
-        session_iv,
-        session_key,
-        public_iv,
-        &mut enc_session_block,
-        &mut session_hmac,
-    )?;
-
-    // Official spec includes the version byte (3) in the session HMAC
-    session_hmac.update(&[3]);
-
-    // Write encrypted session + HMAC
-    enc_session_block.with_secret(|eb| destination.write_all(eb))?;
-    write_hmac(&mut destination, session_hmac)?;
-
-    // Encrypt payload
-    encrypt_stream(&mut source, &mut destination, session_iv, session_key)?;
-
-    Ok(())
-}
 
 use hex::decode;
 use serde::Deserialize;
@@ -87,6 +14,7 @@ use std::io::Cursor;
 
 mod common;
 use common::TEST_PASSWORD;
+use common::encrypt_with_fixed_session;
 use common::{TEST_DATA, TEST_DATA_SHORT, TEST_ITERATION_VALUES, TEST_ITERATIONS};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

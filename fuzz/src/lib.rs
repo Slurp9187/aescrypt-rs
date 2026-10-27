@@ -81,6 +81,9 @@ pub fn build_v3_file(password: &str, plaintext: &[u8], iterations: u32) -> Vec<u
 
 /// Build a well-formed legacy (v0/v1/v2) file byte-for-byte per the AES Crypt wire format.
 ///
+/// `tests/common.rs` carries a copy (the main crate's tests cannot depend on
+/// this crate); a format fix in one belongs in both.
+///
 /// This is the inverse of the crate's `src/decryption/` read path. Wire formats:
 ///
 /// - Plaintext is zero-padded to a multiple of 16; `modulo = plaintext.len() % 16`

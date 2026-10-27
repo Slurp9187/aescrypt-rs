@@ -1,6 +1,6 @@
 ---
 name: aescrypt-rs-secure-gate
-description: Handling key material in aescrypt-rs with secure-gate wrappers — the Fixed-dominant alias set in aliases.rs, the SpanBuffer generic, and the streaming public API that keeps plaintext out of any return value. Use when touching the KDFs, the session block, the decryption ring buffer, or the header/extension readers; or when adding an alias. Not for file version bytes, extension payload structure, or error messages.
+description: Handling key material in aescrypt-rs with secure-gate wrappers — the Fixed-dominant alias set in aliases.rs, the SpanBuffer generic, and the streaming public API that keeps plaintext out of any return value. Use when touching the KDFs, the session block, the streaming span buffers, or the header/extension readers; or when adding an alias. Not for file version bytes, extension payload structure, or error messages.
 ---
 
 # secure-gate in aescrypt-rs
@@ -55,7 +55,6 @@ That makes this crate the clean demonstration of the rule from the other side. *
 | `SessionHmacTag32` | `Fixed<[u8; 32]>` | session block HMAC |
 | `Iv16` | `Fixed<[u8; 16]>` | public IV, session IV |
 | `Salt16` | `Fixed<[u8; 16]>` | PBKDF2/ACKDF salt |
-| `RingBuffer64` | `Fixed<[u8; 64]>` | streaming decryption ring buffer |
 
 Plus a **generic** alias and four built on it:
 
@@ -70,6 +69,20 @@ pub type Trailer32         = SpanBuffer<32>;   // v0/v3 HMAC trailer
 `SpanBuffer` is **the hand-written replacement for `fixed_generic_alias!`**, which secure-gate
 deleted in rc.9 along with the other three alias macros. The migration for that form is exactly
 this line — see the global skill's *upgrade* reference. Nothing here needs to change.
+
+The streaming loops' 64 KiB spans are the one heap buffer that is mutated (#68):
+
+```rust
+pub(crate) type HeapSpan = Dynamic<[u8]>;   // built by heap_span(len) from vec![0u8; len]
+```
+
+Not `Fixed`: secure-gate's `FixedStorage` bound refuses any inner type that owns a heap
+allocation, `Box<[u8]>` included, and points at `Dynamic`. Not `Box<SpanBuffer<N>>` either:
+`Box::new([0u8; N])` builds the array on the stack first, 64 KiB per span in a debug build.
+`Dynamic<[u8]>` is the `Dynamic` shape with no reallocation surface — `with_secret_mut`
+hands out `&mut [u8]`, which cannot grow — and `vec![0u8; len]` is already exact, so boxing
+it does not shrink into a second allocation. `aliases::RingBuffer64`, the 64-byte ring it
+replaced, was removed in 0.2.0-rc.16.
 
 `HmacSha256` in the same file is `Hmac<Sha256>`, not a secure-gate type. Do not count it.
 
@@ -133,8 +146,9 @@ argue for, not a convenience.
 **`with_secret_mut` in 9 files is safe here, and the reason is structural.** The global skill
 warns that `with_secret_mut` on a *growable* wrapper hands out a raw `&mut Vec` whose growth
 abandons the old buffer unwiped. Every mutable borrow in this crate is on a `Fixed`, which
-**cannot reallocate** — the ring buffer, the derived keys, the block buffers. The one `Dynamic`
-is `PasswordString`, and nothing mutates it.
+**cannot reallocate** — the derived keys, the block buffers. There are two `Dynamic`s:
+`PasswordString`, which nothing mutates, and `HeapSpan`, which is mutated only as
+`&mut [u8]`, a borrow that cannot grow.
 
 That immunity is a property of the *alias set*, not of the code. **If a `Dynamic` alias is ever
 added and then mutated, the carve-out stops applying** — check the global skill before writing

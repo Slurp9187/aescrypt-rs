@@ -1,118 +1,102 @@
 //! # Decryption Context
 //!
-//! This module provides the decryption context for streaming decryption operations.
-//! The context manages a 64-byte ring buffer that enables constant-memory decryption
-//! of arbitrarily large files.
+//! This module provides the decryption context for streaming decryption
+//! operations. The context reads the ciphertext a span of up to 64 KiB at a
+//! time and holds back the last 32 or more bytes until the end of input shows
+//! where the trailer starts, so memory stays constant however large the file.
 
 use crate::aliases::HmacSha256;
-use crate::aliases::{Block16, Iv16, RingBuffer64, SpanBuffer};
+use crate::aliases::{Block16, HeapSpan, Iv16, heap_span};
+use crate::constants::SPAN;
 use crate::error::AescryptError;
-use crate::utilities::{read_until_full, xor_blocks}; // Note: This is crate::utilities (existing), not stream/utilities
+use crate::utilities::read_until_full;
 use aes::cipher::BlockDecrypt;
+use aes::cipher::consts::U16;
+use aes::cipher::inout::InOutBuf;
 use aes::{Aes256Dec, Block as AesBlock};
 use hmac::Mac;
 use secure_gate::{RevealSecret, RevealSecretMut};
 use std::io::{Read, Write};
 
+/// Ciphertext span: up to 47 bytes carried over from the last fill, then a
+/// fresh read. A multiple of 16, so a full fill processes whole blocks.
+const CIPHER_SPAN_LEN: usize = SPAN + 48;
+
+/// Plaintext span: the pending block at `[0..16]`, then room for the most
+/// blocks one fill can process, `CIPHER_SPAN_LEN / 16 − 2`.
+const PLAIN_SPAN_LEN: usize = CIPHER_SPAN_LEN - 16;
+
 /// Decryption context for streaming CBC decryption.
 ///
-/// This struct manages a 64-byte ring buffer that holds ciphertext blocks during
-/// the decryption process. The ring buffer allows for constant-memory decryption
-/// by reusing a fixed-size buffer regardless of file size.
+/// ## Framing
 ///
-/// ## Ring Buffer Layout
-///
-/// The 64-byte ring buffer is divided into four 16-byte blocks:
-/// - Block 0 (indices 0-15): Previous ciphertext block for CBC chaining
-/// - Block 1 (indices 16-31): Current ciphertext block being decrypted
-/// - Block 2 (indices 32-47): Next ciphertext block (if available)
-/// - Block 3 (indices 48-63): Future ciphertext block (if available)
-///
-/// ## Indices
-///
-/// - `tail_index`: Points to the start of the previous block (for CBC chaining)
-/// - `current_index`: Points to the start of the current block being decrypted
-/// - `head_index`: Points to where new data will be written
+/// After each fill of `B` buffered ciphertext bytes, the context processes
+/// `floor(B / 16) − 2` blocks when that is positive and carries the rest (at
+/// most 47 bytes) to the front of `cipher_span`. At the end of input it does the
+/// same once more. Over a payload stream of `T` bytes that processes exactly
+/// `max(0, floor(T / 16) − 2)` blocks and leaves `32 + T mod 16` bytes (all of
+/// `T` when `T < 48`) in the carry: the 32-byte v0/v3 trailer or the 33-byte
+/// v1/v2 one, which the caller checks. Since `B ≤ T`, a fill never processes a
+/// block the final answer would not, so the trailer is never treated as
+/// ciphertext, whatever the version.
 pub(crate) struct DecryptionContext {
-    /// The four 16-byte blocks described above; zeroized on drop.
-    pub(crate) ring_buffer: RingBuffer64,
-    /// Start of the previous ciphertext block, the CBC chaining input.
-    pub(crate) tail_index: usize,
-    /// Start of the ciphertext block being decrypted.
-    pub(crate) current_index: usize,
-    /// Where the next bytes read from the input are written.
-    pub(crate) head_index: usize,
+    /// Ciphertext: the carry at the front, then the latest read,
+    /// `CIPHER_SPAN_LEN` bytes on the heap. Ciphertext is public, but kept in a
+    /// wiped wrapper like the IVs, for the same auditability reason.
+    cipher_span: HeapSpan,
+    /// Plaintext of the current span at `[16..]`, written out in one call
+    /// together with the pending block copied to `[0..16]`; `PLAIN_SPAN_LEN`
+    /// bytes on the heap, zeroized on drop. Allocated by the first span that
+    /// is decrypted, so the MAC-only pass never pays for it.
+    plain_span: Option<HeapSpan>,
+    /// How many bytes at the front of `cipher_span` are carried, unprocessed.
+    carry_len: usize,
+    /// The last processed ciphertext block, the CBC chaining input of the
+    /// next one. Starts as the IV.
+    chain: Block16,
+    /// The block before `chain` (the IV when only one block was processed),
+    /// so the final block can be decrypted alone after a MAC-only pass.
+    chain_before: Block16,
     /// The last decrypted block, held back until it is known not to be the
     /// final, padded block; zeroized on drop.
     pub(crate) plaintext_block: Block16,
     /// Whether `plaintext_block` holds a block that still has to be written.
     pub(crate) need_write_plaintext: bool,
-    /// Ciphertext blocks processed by the loop so far.
+    /// Ciphertext blocks processed so far.
     pub(crate) blocks: u64,
 }
 
 impl DecryptionContext {
-    /// Create a new decryption context initialized with the given IV.
-    ///
-    /// The IV is placed at the start of the ring buffer (indices 0-15) to serve
-    /// as the initial previous block for CBC chaining.
-    ///
-    /// # Arguments
-    ///
-    /// * `iv` - The initialization vector for CBC mode
+    /// Creates a context whose CBC chain starts at `iv`.
     #[inline(always)]
     pub(crate) fn new_with_iv(iv: &Iv16) -> Self {
         let mut this = Self {
-            ring_buffer: RingBuffer64::new([0u8; 64]),
-            tail_index: 0,
-            current_index: 16,
-            head_index: 16,
+            cipher_span: heap_span(CIPHER_SPAN_LEN),
+            plain_span: None,
+            carry_len: 0,
+            chain: Block16::new([0u8; 16]),
+            chain_before: Block16::new([0u8; 16]),
             plaintext_block: Block16::new([0u8; 16]),
             need_write_plaintext: false,
             blocks: 0,
         };
         iv.with_secret(|iv_bytes| {
-            this.ring_buffer
-                .with_secret_mut(|rb| rb[0..16].copy_from_slice(iv_bytes))
+            this.chain.with_secret_mut(|c| c.copy_from_slice(iv_bytes));
+            this.chain_before
+                .with_secret_mut(|c| c.copy_from_slice(iv_bytes));
         });
         this
     }
 
-    /// Appends `src` to the ring buffer at `head_index` and advances it.
-    ///
-    /// # Panics
-    ///
-    /// If `src` does not fit between `head_index` and the end of the buffer.
-    /// Callers only pass reads sized to the space left, so this is unreachable.
-    #[inline(always)]
-    fn write_at_head(&mut self, src: &[u8]) {
-        self.ring_buffer.with_secret_mut(|rb| {
-            rb[self.head_index..self.head_index + src.len()].copy_from_slice(src);
-        });
-        self.head_index += src.len();
-    }
-
-    /// Perform CBC decryption loop using the ring buffer.
-    ///
-    /// This method processes ciphertext blocks in a streaming fashion, decrypting
-    /// them one at a time and writing the plaintext to the output. The ring buffer
-    /// is used to maintain the previous ciphertext block for CBC chaining.
-    ///
-    /// # Arguments
-    ///
-    /// * `input` - Reader providing encrypted data
-    /// * `output` - Writer receiving decrypted plaintext
-    /// * `cipher` - AES-256 decryption initialized with the session key
-    /// * `hmac` - HMAC instance that is updated with each ciphertext block
-    ///
-    /// # Returns
-    ///
-    /// Returns `Ok(())` if decryption completes successfully, or an error if
-    /// I/O fails or the stream is malformed.
+    /// Decrypts the ciphertext from `input` to `output`, a span at a time,
+    /// feeding every ciphertext block to `hmac`. The last decrypted block is
+    /// held back in `plaintext_block` and the trailer in the carry, for the
+    /// caller to check and write.
     ///
     /// # Errors
     ///
-    /// Returns [`AescryptError::Io`] if an I/O error occurs during reading or writing.
+    /// Returns [`AescryptError::Io`] if an I/O error occurs during reading or
+    /// writing.
     #[inline(always)]
     pub(crate) fn decrypt_cbc_loop<R, W>(
         &mut self,
@@ -125,22 +109,17 @@ impl DecryptionContext {
         R: Read,
         W: Write,
     {
-        self.cbc_loop(input, hmac, |ctx| {
-            if ctx.need_write_plaintext {
-                ctx.plaintext_block.with_secret(|pb| output.write_all(pb))?;
-            }
-            ctx.decrypt_block_into_plaintext(cipher, ctx.current_index, ctx.tail_index);
-            Ok(())
+        self.span_loop(input, hmac, |ctx, len| {
+            ctx.decrypt_span(cipher, output, len)
         })
     }
 
     /// Runs the same loop as [`Self::decrypt_cbc_loop`] but only feeds the
     /// ciphertext to `hmac`: nothing is decrypted and nothing is written.
     ///
-    /// The framing (the 48-byte priming read, the index advance, where the
-    /// trailer ends up) is shared with the decrypting loop, so the two passes
-    /// of [`crate::decrypt_verified()`] cannot disagree about where the
-    /// ciphertext ends.
+    /// The framing (the fill, the block count, the carry) is shared with the
+    /// decrypting loop, so the two passes of [`crate::decrypt_verified()`]
+    /// cannot disagree about where the ciphertext ends.
     ///
     /// # Errors
     ///
@@ -154,134 +133,180 @@ impl DecryptionContext {
     where
         R: Read,
     {
-        self.cbc_loop(input, hmac, |_| Ok(()))
+        self.span_loop(input, hmac, |_, _| Ok(()))
     }
 
-    /// The ring-buffer loop both passes share. For each ciphertext block it
-    /// updates `hmac`, then calls `per_block` while `current_index` still
-    /// points at that block and `tail_index` at its CBC chaining input, then
-    /// advances.
+    /// The span loop both passes share; see the type's Framing section. For
+    /// each fill that has blocks to process it updates `hmac` once over them,
+    /// calls `per_span` with their length in bytes while `chain` still holds
+    /// the CBC input of the first one, then advances `chain`, `chain_before`
+    /// and the carry.
     ///
     /// # Errors
     ///
-    /// Returns [`AescryptError::Io`] on a read error, or whatever `per_block`
+    /// Returns [`AescryptError::Io`] on a read error, or whatever `per_span`
     /// returns.
     #[inline(always)]
-    fn cbc_loop<R, F>(
+    fn span_loop<R, F>(
         &mut self,
         input: &mut R,
         hmac: &mut HmacSha256,
-        mut per_block: F,
+        mut per_span: F,
     ) -> Result<(), AescryptError>
     where
         R: Read,
-        F: FnMut(&mut Self) -> Result<(), AescryptError>,
+        F: FnMut(&mut Self, usize) -> Result<(), AescryptError>,
     {
-        // A plain 48-byte secure buffer, not a session block — this primes the
-        // ciphertext ring, and `EncryptedSessionBlock48` (the same underlying
-        // type) would misname what it holds.
-        let mut initial_buffer = SpanBuffer::<48>::new([0u8; 48]);
-        // Accumulate partial `read()` results until 48 bytes or EOF (same contract as encrypt_stream).
-        let bytes_read = initial_buffer
-            .with_secret_mut(|ib| read_until_full(input, ib))
-            .map_err(AescryptError::Io)?;
-        initial_buffer.with_secret(|ib| self.write_at_head(&ib[..bytes_read]));
-        if bytes_read == 48 {
-            loop {
-                self.ring_buffer.with_secret(|rb| {
-                    hmac.update(&rb[self.current_index..self.current_index + 16])
-                });
-                per_block(self)?;
-                self.blocks += 1;
-                self.tail_index = (self.tail_index + 16) % 64;
-                self.current_index = (self.current_index + 16) % 64;
-                if self.head_index == 64 {
-                    self.head_index = 0;
-                }
-                let mut next_block = Block16::new([0u8; 16]);
-                let n = next_block
-                    .with_secret_mut(|nb| read_until_full(input, nb))
-                    .map_err(AescryptError::Io)?;
-                next_block.with_secret(|nb| self.write_at_head(&nb[..n]));
-                if n < 16 {
-                    break;
-                }
+        loop {
+            // Fill everything after the carry, accumulating partial `read()`
+            // results until the span is full or the input ends: a single short
+            // `read()` is not EOF (sockets, pipes).
+            let carry = self.carry_len;
+            let n = self
+                .cipher_span
+                .with_secret_mut(|c| read_until_full(input, &mut c[carry..]))
+                .map_err(AescryptError::Io)?;
+            let filled = carry + n;
+            let len = 16 * (filled / 16).saturating_sub(2);
+
+            if len > 0 {
+                self.cipher_span.with_secret(|c| hmac.update(&c[..len]));
+                per_span(self, len)?;
+                self.advance_chain(len);
+                self.blocks += (len / 16) as u64;
+                self.cipher_span
+                    .with_secret_mut(|c| c.copy_within(len..filled, 0));
+            }
+            self.carry_len = filled - len;
+
+            if filled < CIPHER_SPAN_LEN {
+                return Ok(());
             }
         }
+    }
+
+    /// Moves `chain` and `chain_before` past the `len` bytes just processed at
+    /// the front of `cipher_span`.
+    #[inline(always)]
+    fn advance_chain(&mut self, len: usize) {
+        let Self {
+            cipher_span,
+            chain,
+            chain_before,
+            ..
+        } = self;
+        cipher_span.with_secret(|c| {
+            chain_before.with_secret_mut(|before| {
+                if len >= 32 {
+                    before.copy_from_slice(&c[len - 32..len - 16]);
+                } else {
+                    chain.with_secret(|ch| before.copy_from_slice(ch));
+                }
+            });
+            chain.with_secret_mut(|ch| ch.copy_from_slice(&c[len - 16..len]));
+        });
+    }
+
+    /// Decrypts the `len` bytes at the front of `cipher_span` (AES-NI
+    /// pipelines them, since CBC decryption has no chain), writes them out
+    /// behind the pending block in one call, and holds back their last block
+    /// as the new pending block.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AescryptError::Io`] if the write fails.
+    ///
+    /// # Panics
+    ///
+    /// Never: `InOutBuf::new` gets two slices of length `len`, and `len` is a
+    /// whole number of blocks no larger than `PLAIN_SPAN_LEN − 16`.
+    #[inline(always)]
+    fn decrypt_span<W: Write>(
+        &mut self,
+        cipher: &Aes256Dec,
+        output: &mut W,
+        len: usize,
+    ) -> Result<(), AescryptError> {
+        let Self {
+            cipher_span,
+            plain_span,
+            chain,
+            plaintext_block,
+            need_write_plaintext,
+            ..
+        } = self;
+        let plain_span = plain_span.get_or_insert_with(|| heap_span(PLAIN_SPAN_LEN));
+        cipher_span.with_secret(|c| {
+            plain_span.with_secret_mut(|p| {
+                let (blocks, _) = InOutBuf::new(&c[..len], &mut p[16..16 + len])
+                    .expect("equal lengths")
+                    .into_chunks::<U16>();
+                cipher.decrypt_blocks_inout(blocks);
+                // CBC: block i is XORed with ciphertext block i − 1, and the
+                // first with the chain carried over from the previous span.
+                chain.with_secret(|ch| {
+                    for (b, x) in p[16..32].iter_mut().zip(ch.iter()) {
+                        *b ^= *x;
+                    }
+                });
+                for (b, x) in p[32..16 + len].iter_mut().zip(&c[..len - 16]) {
+                    *b ^= *x;
+                }
+                plaintext_block.with_secret(|pb| p[..16].copy_from_slice(pb));
+            })
+        });
+
+        // The pending block and every new block but the last, contiguous.
+        let start = if *need_write_plaintext { 0 } else { 16 };
+        if len > start {
+            plain_span.with_secret(|p| output.write_all(&p[start..len]))?;
+        }
+        plain_span.with_secret(|p| {
+            plaintext_block.with_secret_mut(|pb| pb.copy_from_slice(&p[len..len + 16]))
+        });
+        *need_write_plaintext = true;
         Ok(())
     }
 
-    /// Decrypts the ciphertext block at `block_index` into `plaintext_block`,
-    /// chaining off the block at `chain_index`, and marks it as pending.
-    #[inline(always)]
-    fn decrypt_block_into_plaintext(
-        &mut self,
-        cipher: &Aes256Dec,
-        block_index: usize,
-        chain_index: usize,
-    ) {
-        let mut block_bytes = Block16::new([0u8; 16]);
-        block_bytes.with_secret_mut(|bb| {
-            self.ring_buffer.with_secret(|rb| {
-                bb.copy_from_slice(&rb[block_index..block_index + 16]);
-            });
-        });
-        // Decrypt in place inside the secure-gate wrapper (borrowed as a
-        // GenericArray): the plaintext-equivalent bytes never exist outside
-        // it, and the wrapper zeroizes on drop.
-        block_bytes.with_secret_mut(|bb| cipher.decrypt_block(AesBlock::from_mut_slice(bb)));
-        self.ring_buffer.with_secret(|rb| {
-            self.plaintext_block.with_secret_mut(|pb| {
-                block_bytes
-                    .with_secret(|bb| xor_blocks(bb, &rb[chain_index..chain_index + 16], pb));
-            });
-        });
-        self.need_write_plaintext = true;
-    }
-
-    /// After [`Self::mac_cbc_loop`] and [`Self::advance_tail`] over a stream
-    /// with a 32-byte trailer, decrypts the final ciphertext block into
+    /// After [`Self::mac_cbc_loop`], decrypts the final ciphertext block into
     /// `plaintext_block` so its padding can be checked before any plaintext
-    /// is released. Nothing is written.
-    ///
-    /// With a 32-byte trailer the ring holds exactly four slots from
-    /// `tail_index`: the two trailer slots, then the block before the final
-    /// one (the session IV for a one-block payload), then the final block.
-    /// Does nothing when the payload had no blocks.
+    /// is released. Nothing is written. Does nothing when the payload had no
+    /// blocks.
     #[inline(always)]
     pub(crate) fn decrypt_final_block(&mut self, cipher: &Aes256Dec) {
         if self.blocks == 0 {
             return;
         }
-        let final_index = (self.tail_index + 48) % 64;
-        let chain_index = (self.tail_index + 32) % 64;
-        self.decrypt_block_into_plaintext(cipher, final_index, chain_index);
+        let Self {
+            chain,
+            chain_before,
+            plaintext_block,
+            need_write_plaintext,
+            ..
+        } = self;
+        plaintext_block.with_secret_mut(|pb| {
+            chain.with_secret(|ch| pb.copy_from_slice(ch));
+            // Decrypt in place inside the wrapper (borrowed as a GenericArray).
+            cipher.decrypt_block(AesBlock::from_mut_slice(pb));
+            chain_before.with_secret(|before| {
+                for (b, x) in pb.iter_mut().zip(before.iter()) {
+                    *b ^= *x;
+                }
+            });
+        });
+        *need_write_plaintext = true;
     }
 
-    /// Advance the tail index to the next block in the ring buffer.
-    ///
-    /// This is called after processing a block to move the tail pointer forward,
-    /// making room for new data and updating the previous block reference for
-    /// the next CBC operation.
-    #[inline(always)]
-    pub(crate) fn advance_tail(&mut self) {
-        self.tail_index = (self.tail_index + 16) % 64;
-    }
-
-    /// Calculate the number of bytes remaining in the ring buffer.
-    ///
-    /// This accounts for the circular nature of the ring buffer, returning
-    /// the number of bytes between the tail and head indices.
-    ///
-    /// # Returns
-    ///
-    /// The number of bytes remaining in the ring buffer (0-64).
+    /// The bytes carried after the loop: the trailer, if the input was well
+    /// formed.
     #[inline(always)]
     pub(crate) fn remaining(&self) -> usize {
-        if self.head_index >= self.tail_index {
-            self.head_index - self.tail_index
-        } else {
-            64 - self.tail_index + self.head_index
-        }
+        self.carry_len
+    }
+
+    /// Runs `f` over the carried trailer bytes.
+    #[inline(always)]
+    pub(crate) fn with_trailer<T>(&self, f: impl FnOnce(&[u8]) -> T) -> T {
+        self.cipher_span.with_secret(|c| f(&c[..self.carry_len]))
     }
 }

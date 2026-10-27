@@ -1,12 +1,12 @@
 //! # Streaming Decryption
 //!
 //! This module provides streaming decryption functionality for AES Crypt files.
-//! It handles the decryption of ciphertext streams using a constant-memory ring buffer
-//! approach for efficient processing of large files.
+//! It decrypts ciphertext streams in constant memory, a span of up to 64 KiB at a
+//! time, holding back the trailer until the input ends.
 //!
 //! ## Modules
 //!
-//! - [`context`] - Decryption context and ring buffer management (internal)
+//! - [`context`] - Decryption context: span framing and CBC decryption (internal)
 //! - [`trailer`] - HMAC trailer extraction and final block writing (internal)
 //! - [`versions`] - Version-specific decryption logic and configuration
 //!

@@ -3,24 +3,38 @@
 //! v3 streaming AES-256-CBC payload encryption with HMAC-SHA256 trailer.
 
 use crate::aliases::HmacSha256;
-use crate::aliases::{Aes256Key32, Block16, Iv16};
+use crate::aliases::{Aes256Key32, Block16, Iv16, heap_span};
+use crate::constants::SPAN;
 use crate::error::AescryptError;
-use crate::utilities::{read_until_full, xor_blocks};
+use crate::utilities::read_until_full;
 use aes::cipher::{BlockEncrypt, KeyInit};
 use aes::{Aes256Enc, Block as AesBlock};
 use hmac::Mac;
 use secure_gate::{RevealSecret, RevealSecretMut};
 use std::io::{Read, Write};
 
+/// Bytes encrypted before the HMAC catches up, inside one span. CBC encryption
+/// and SHA-256 are each a serial chain, but independent of each other; feeding
+/// the MAC a piece that was just encrypted keeps both chains in flight and the
+/// piece still in L1. At 64 MiB on a Ryzen 9 9950X3D, 256 bytes beat the whole
+/// span in every alternating run (615-635 MiB/s against 539-607), and 4 KiB
+/// was no better than the span. The output is the same at any value
+/// (`tests/span_golden_tests.rs`).
+const INTERLEAVE: usize = 256;
+
 /// Encrypts the payload stream of an AES Crypt v3 file with PKCS#7 padding and
 /// appends a 32-byte HMAC-SHA256 trailer.
 ///
-/// `encrypt_stream` reads `source` until EOF, encrypts each 16-byte plaintext
-/// block in CBC mode using `session_key` chained off `session_iv`, writes the
-/// resulting ciphertext to `destination`, and finishes with a 32-byte
-/// HMAC-SHA256 tag computed over every ciphertext block. The final block is
-/// always padded with PKCS#7; even an empty or 16-aligned input emits one full
-/// pad block.
+/// `encrypt_stream` reads `source` until EOF, encrypts the plaintext in CBC
+/// mode using `session_key` chained off `session_iv`, writes the resulting
+/// ciphertext to `destination`, and finishes with a 32-byte HMAC-SHA256 tag
+/// computed over every ciphertext block. The final block is always padded with
+/// PKCS#7; even an empty or 16-aligned input emits one full pad block.
+///
+/// It works a span of up to 64 KiB at a time: one read loop fills the span,
+/// the span is encrypted in place, and the ciphertext goes to the HMAC and to
+/// one `write_all`. The bytes written are the same as a block-at-a-time
+/// encryption would write.
 ///
 /// This is the streaming primitive called by [`crate::encrypt()`] after the
 /// header, public IV, encrypted session block, and session HMAC have already
@@ -40,13 +54,17 @@ use std::io::{Read, Write};
 ///
 /// # Panics
 ///
-/// Never panics on valid input. The internal `GenericArray::from_mut_slice`
-/// is over a buffer that is always exactly 16 bytes by construction.
+/// Never panics on valid input. `GenericArray::from_mut_slice` is only called
+/// on 16-byte chunks of a span whose used length is a multiple of 16.
 ///
 /// # Security
 ///
 /// - `session_key` is consumed only inside scoped [`secure-gate`] reveals; it
 ///   never escapes a `with_secret` closure.
+/// - The plaintext span is a 64 KiB `secure_gate::Dynamic<[u8]>`, allocated
+///   zeroed on the heap; a boxed slice cannot reallocate, and it is wiped on
+///   drop. It holds plaintext only until
+///   the in-place encryption overwrites it with ciphertext.
 /// - `session_iv` **must** be unique per file. [`crate::encrypt()`] generates
 ///   it via the [`secure-gate`] CSPRNG (`Iv16::from_random`).
 /// - PKCS#7 padding is always applied so the ciphertext length cannot leak the
@@ -86,41 +104,41 @@ where
     let mut prev_block = Block16::new([0u8; 16]);
     session_iv.with_secret(|siv| prev_block.with_secret_mut(|pb| pb.copy_from_slice(siv)));
 
-    let mut plaintext_block = Block16::new([0u8; 16]);
+    // Allocated zeroed on the heap, so 64 KiB never sits in the caller's
+    // stack frame, and building it leaves no secret behind.
+    let mut span = heap_span(SPAN);
 
     loop {
-        // Read up to 16 bytes, accumulating partial `read()` results until the buffer is full
-        // or the source returns 0 (EOF). A single `read()` may return fewer than requested even
-        // when more data exist (sockets, pipes); treating that as EOF would silently truncate.
-        let n = plaintext_block
-            .with_secret_mut(|pb| read_until_full(&mut source, pb))
+        // Fill the span, accumulating partial `read()` results until it is full
+        // or the source returns 0 (EOF). A single `read()` may return fewer bytes
+        // than requested even when more exist (sockets, pipes); treating that as
+        // EOF would silently truncate.
+        let n = span
+            .with_secret_mut(|s| read_until_full(&mut source, s))
             .map_err(AescryptError::Io)?;
-        let is_final = n < 16;
+        let is_final = n < SPAN;
 
-        if is_final {
-            let pad = (16 - n) as u8;
-            plaintext_block.with_secret_mut(|pb| pb[n..].fill(pad));
-        }
+        // A short fill is the last span: pad its partial block (1..=16 bytes,
+        // so an empty or aligned tail gets a full block). There is room, since
+        // n < SPAN and SPAN is a multiple of 16. A full span is never final:
+        // the next fill decides, and pads an empty tail into one whole block.
+        let len = if is_final {
+            let pad = 16 - n % 16;
+            span.with_secret_mut(|s| s[n..n + pad].fill(pad as u8));
+            n + pad
+        } else {
+            SPAN
+        };
 
-        // XOR with previous ciphertext
-        let mut xor_output = Block16::new([0u8; 16]);
-        plaintext_block.with_secret(|pb| {
-            prev_block
-                .with_secret(|pb_prev| xor_output.with_secret_mut(|xo| xor_blocks(pb, pb_prev, xo)))
+        span.with_secret_mut(|s| {
+            prev_block.with_secret_mut(|prev| {
+                for piece in s[..len].chunks_mut(INTERLEAVE) {
+                    cbc_encrypt_in_place(&cipher, prev, piece);
+                    hmac.update(piece);
+                }
+            })
         });
-
-        // Encrypt in place inside the secure-gate wrapper (borrowed as a
-        // GenericArray); afterwards `xor_output` holds the ciphertext block.
-        xor_output.with_secret_mut(|xo| cipher.encrypt_block(AesBlock::from_mut_slice(xo)));
-
-        // HMAC + write ciphertext
-        xor_output.with_secret(|ct| {
-            hmac.update(ct);
-            destination.write_all(ct)
-        })?;
-
-        // Update previous block for next iteration
-        prev_block = xor_output;
+        span.with_secret(|ct| destination.write_all(&ct[..len]))?;
 
         if is_final {
             break;
@@ -129,4 +147,18 @@ where
 
     destination.write_all(hmac.finalize().into_bytes().as_ref())?;
     Ok(())
+}
+
+/// CBC-encrypts `data` (a multiple of 16 bytes) in place, chaining off `prev`
+/// and leaving the last ciphertext block in it.
+#[inline(always)]
+fn cbc_encrypt_in_place(cipher: &Aes256Enc, prev: &mut [u8; 16], data: &mut [u8]) {
+    for block in data.chunks_exact_mut(16) {
+        for (b, p) in block.iter_mut().zip(prev.iter()) {
+            *b ^= *p;
+        }
+        // Encrypt in place inside the span wrapper (borrowed as a GenericArray).
+        cipher.encrypt_block(AesBlock::from_mut_slice(block));
+        prev.copy_from_slice(block);
+    }
 }
