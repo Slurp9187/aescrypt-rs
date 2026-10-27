@@ -20,8 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   64 MiB file. Now each call reads up to 64 KiB, updates the HMAC once, and writes
   once. Decryption runs all of a span's CBC blocks through AES-NI's 8-block
   pipeline. Encryption, which CBC makes serial, runs each 256-byte piece inside one
-  call into the AES backend instead of one call per block. Both passes of
-  `decrypt_verified` share the same framing.
+  call into the AES backend instead of one call per block; that saves a feature
+  check and call per block on x86 with AES-NI. Both passes of `decrypt_verified`
+  share the same framing.
   - **The file format is byte-identical.** `tests/span_golden_tests.rs` checks what
     the crate writes against an independent reference at sizes around the block
     and the span, and pins a digest of its v3 files generated before the change.
@@ -54,6 +55,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **A `File` no longer needs a `BufReader`** for speed. The docs that advised one
     for `decrypt_verified` now say so.
 - `aescrypt-cli`'s exact pin on this crate moves to `=0.2.0-rc.16`.
+- **Correction to 0.2.0-rc.10.** That entry says plaintext-equivalent bytes "never
+  exist outside a zeroize-on-drop buffer, on any code path". That holds for this
+  crate's own code, but not inside `aes`. Its software backend copies each block into
+  a stack batch it does not wipe: during encryption, plaintext XOR the previous
+  ciphertext block; during decryption, the block before its CBC XOR. `aes` 0.8 uses
+  that backend on x86 without AES-NI and on aarch64 unless built with
+  `--cfg aes_armv8`. This is upstream residue of the kind the crate-level Security
+  Model already lists for the hashers; nothing here can wipe it.
 
 ### Removed
 

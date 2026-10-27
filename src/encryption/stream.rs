@@ -18,10 +18,16 @@ use std::io::{Read, Write};
 /// and SHA-256 are each a serial chain, but independent of each other; feeding
 /// the MAC a piece that was just encrypted keeps both chains in flight and the
 /// piece still in L1. In three alternating rounds of `benches/throughput.rs` on
-/// one desktop, [`CbcSpan`] per 256 bytes was about 10% faster than either
-/// [`CbcSpan`] per whole span or per-block `encrypt_block` at 256 bytes, which
-/// tied. The output is the same at any value (`tests/span_golden_tests.rs`).
+/// one x86 desktop with AES-NI, [`CbcSpan`] per 256 bytes was about 10% faster
+/// than either [`CbcSpan`] per whole span or per-block `encrypt_block` at 256
+/// bytes, which tied. It must be a whole number of blocks: [`CbcSpan`] encrypts
+/// whole blocks only, so a remainder would be written unencrypted. The asserts
+/// below refuse to compile otherwise. Any such value writes the same bytes
+/// (`tests/span_golden_tests.rs`).
 const INTERLEAVE: usize = 256;
+
+const _: () = assert!(INTERLEAVE > 0 && INTERLEAVE % 16 == 0);
+const _: () = assert!(SPAN % INTERLEAVE == 0);
 
 /// Encrypts the payload stream of an AES Crypt v3 file with PKCS#7 padding and
 /// appends a 32-byte HMAC-SHA256 trailer.
@@ -156,12 +162,19 @@ where
 /// CBC-encrypts `data` (a multiple of 16 bytes) in place, chaining off `prev`
 /// and leaving the last ciphertext block in it.
 ///
-/// A `BlockClosure`, so the whole loop runs inside the AES backend's own
-/// `#[target_feature(enable = "aes")]` function: one feature check and call per
-/// piece, where `encrypt_block` paid both for every block. Each block is
-/// encrypted in place inside the span wrapper, and `prev` is the `Block16`
-/// wrapper's own storage, so no plaintext block is copied out (the `cbc`
-/// crate's backend copies each one to the stack).
+/// A `BlockClosure`, so the whole loop runs inside one call into the AES
+/// backend. On x86 that call is `aes`'s `#[target_feature(enable = "aes")]`
+/// function, so one feature check and call cover the piece where
+/// `encrypt_block` paid both for every block; that is the saving measured.
+/// `aes` 0.8 on aarch64 (without `--cfg aes_armv8`) and on x86 without AES-NI
+/// uses its software backend, where there is no such dispatch to save.
+///
+/// This code copies no block out: each is encrypted in place inside the span
+/// wrapper, and `prev` is the `Block16` wrapper's own storage. What the AES
+/// backend does inside `proc_block` is out of its reach. The AES-NI backend
+/// loads each block into SIMD values, but `aes`'s software backend copies each block (plaintext
+/// XOR the previous ciphertext) into a stack batch it does not wipe. That was
+/// equally true of `encrypt_block`, which runs the same `proc_block`.
 struct CbcSpan<'a> {
     /// The previous ciphertext block; the last one written, afterwards.
     prev: &'a mut [u8; 16],
