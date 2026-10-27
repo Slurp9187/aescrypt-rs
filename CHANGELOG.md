@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-rc.17] - Unreleased
+
+### Added
+
+- `benches/small_files.rs`: the fixed cost per call of `encrypt`, `decrypt` and
+  `decrypt_verified` on small payloads, with a 1-iteration KDF so the stream
+  loop's own cost shows. The sizes cover the edges of the growing spans (1, 4
+  and 16 KiB) and one byte past each. The other benches missed the small-file
+  regression fixed in 0.2.0-rc.16 (#73). It uses only the public API, so it also
+  runs against older releases; its header gives the recipe for comparing
+  against 0.2.0-rc.15.
+
 ## [0.2.0-rc.16] - 2026-10-26
 
 ### Added

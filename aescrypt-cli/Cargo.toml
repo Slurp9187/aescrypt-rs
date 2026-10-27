@@ -5,7 +5,7 @@
 [package]
 name = "aescrypt-cli"
 # Versioned on its own, independently of aescrypt-rs. `--version` shows both.
-version = "0.1.0-rc.4"
+version = "0.1.0-rc.5"
 edition = "2024"
 rust-version = "1.85"
 description = "Command-line tool for AES Crypt files (decrypts v0-v3, writes v3), built on aescrypt-rs"
@@ -37,7 +37,7 @@ path = "src/main.rs"
 [dependencies]
 # Exact pin: the version this CLI was built and tested against. `path` is for
 # the workspace; crates.io sees only `version`.
-aescrypt-rs = { path = "..", version = "=0.2.0-rc.16" }
+aescrypt-rs = { path = "..", version = "=0.2.0-rc.17" }
 # AES-256-CTR for the sealed stdout stage (#72). The same `aes` the library
 # uses, so nothing new enters the graph; `zeroize` wipes its key schedule.
 aes = { version = "0.8", features = ["zeroize"] }

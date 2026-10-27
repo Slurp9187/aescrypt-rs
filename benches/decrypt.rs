@@ -1,6 +1,10 @@
 //! `benches/decrypt.rs`
 //! Decrypt-only benchmarks: data is encrypted once up front, then only
 //! decryption is timed.
+//!
+//! At small sizes the KDF dominates these timings. For the stream loop's own
+//! cost see `small_files.rs` (per call, 1-iteration KDF) and `throughput.rs`
+//! (64 MiB).
 
 // Bench crate: helpers and fixtures are explained by the benchmarks that use them.
 #![allow(clippy::missing_docs_in_private_items)]
