@@ -1,9 +1,10 @@
 # aescrypt-rs: speed follow-ups after the span loop — F1, F2, F3
 
-**Status (2026-10-26, UTC):** F1 approved by the owner to **measure first**. If the
-measurement says go, F1 ships in **0.2.0-rc.16** (owner's decision), and the release waits
-for it. F2 and F3 stay parked. Verified at main `072ffef`, with #71 (encrypt `CbcSpan`) green
-and about to merge. Tracking: master issue #68 (lines F1–F3). PRs for this plan say
+**Status (2026-10-26, UTC):** **F1 measured: no-go** (predicted +8.8%, against a 15% bar;
+see [Spike result](#spike-result-no-go)). 0.2.0-rc.16 releases without it. F2 and F3 stay
+parked; the spike's numbers make F2 the stronger candidate. Before the spike: F1 approved
+by the owner to measure first, and to ship in rc.16 if the measurement said go. Verified at main `ee36a0e`, with #71 (encrypt `CbcSpan`)
+merged. Tracking: master issue #68 (lines F1–F3). PRs for this plan say
 `Plan: docs/plans/decrypt-verified-followups-2026-10-26.md` and `Refs #68`. Predecessor:
 [`span-loop-2026-10-26.md`](span-loop-2026-10-26.md).
 
@@ -82,7 +83,39 @@ are recorded here and on #68, and F1 is closed as not worth a dependency.
 `decrypt_verified`. If the real gain is under 15%, it is reverted, and rc.16 releases
 without it.
 
-### Build (if go)
+### Spike result: no-go
+
+A scratch crate (outside the repo) on `aes` 0.8.4, `hmac` 0.12.1, `sha2` 0.10.9 and
+`poly1305` 0.8.0, built in release with 1.85. Times are the best of 9 runs over 64 MiB, fed
+in 64 KiB spans, on the same x86 desktop with AES-NI. Each combination is timed as one loop,
+so overlap inside a pass is measured, not modelled.
+
+| work per span | time | throughput |
+|---|---|---|
+| H: HMAC-SHA256 | 23.9 ms | 2.62 GiB/s |
+| P: Poly1305 | 9.7 ms | 6.41 GiB/s |
+| A: AES-256 decrypt + CBC XOR | 7.2 ms | 8.65 GiB/s |
+| H+A: today's pass 2 | 30.6 ms | 2.04 GiB/s |
+| H+P: F1's pass 1 | 33.5 ms | 1.86 GiB/s |
+| P+A: F1's pass 2 | 16.5 ms | 3.79 GiB/s |
+
+- **The model is valid.** It puts today's `decrypt_verified` at H + (H+A) = 1.15 GiB/s,
+  against 1.10 measured in the crate, within 5%.
+- **The prediction:** F1 = (H+P) + (P+A) = 1.25 GiB/s, **+8.8%**. Three runs gave
+  +8.8 to +8.9%.
+- **Why it falls short.** Poly1305 is only about 2.4× faster than HMAC here, F1 runs it in
+  both passes, and H and P do not overlap in one loop (H+P ≈ H + P). The saving per byte
+  is H − 2P, which is small.
+
+**Decision:** not worth a new dependency and a security argument for under 9%. F1 is
+closed on #68 with these numbers. The design above stays as the record of what was
+considered.
+
+**What it says about F2.** F2 needs no second check at all, so its cost is H (pass 1) plus
+A (pass 2): 23.9 + 7.2 ≈ 31 ms, against today's ≈ 55 ms. That is roughly **+75%** for
+in-memory input on this machine (a model, not a measurement of F2).
+
+### Build (if go; not built)
 - **Code:**
   - `src/decryption/stream/versions.rs`: `verify_ciphertext_stream` and `decrypt_stream`'s
     `verified` branch. `VerifiedTrailer` gains the Poly1305 tag.
@@ -103,8 +136,9 @@ without it.
 
 `decrypt_verified_slice(input: &[u8], output: W, password: &str) -> Result<DecryptOutcome>`.
 A borrowed slice cannot change during the call, so it needs one MAC pass and then the
-decrypting pass, with no second check at all: close to one-pass `decrypt` speed. It only
-helps callers holding the whole file in memory, such as EFV's `decrypt_to_vec`.
+decrypting pass, with no second check at all: close to one-pass `decrypt` speed (modelled at
+roughly +75% over today's `decrypt_verified` by F1's spike, above). It only helps callers
+holding the whole file in memory, such as EFV's `decrypt_to_vec`.
 
 **secure-gate: inside, not at the boundary.** The input is ciphertext, which is public.
 Plaintext still streams to `W` and is never returned, and the spans stay `Dynamic<[u8]>`.
