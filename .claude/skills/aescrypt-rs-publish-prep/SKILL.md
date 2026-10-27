@@ -83,7 +83,7 @@ Rust 1.85 is pinned in `rust-toolchain.toml`, and the lint and docs jobs use it 
 - `cargo publish -p <crate> --locked --dry-run`
 - For the CLI, also test the **packaged** crate: `cargo package -p aescrypt-cli --no-verify`,
   unpack the `.crate` outside the repo, run `cargo test` there. It sees the rewritten
-  `[dependencies.aescrypt-rs]` table, which `lib_pin_matches` must still read.
+  `[dependencies.aescrypt-rs]` table, which `lib_pin_is_exact` must still read.
 
 ## Registry index
 

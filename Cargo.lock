@@ -16,7 +16,7 @@ dependencies = [
 
 [[package]]
 name = "aescrypt-cli"
-version = "0.1.0-rc.4"
+version = "0.1.0-rc.5"
 dependencies = [
  "aes",
  "aescrypt-rs",
@@ -36,7 +36,7 @@ dependencies = [
 
 [[package]]
 name = "aescrypt-rs"
-version = "0.2.0-rc.16"
+version = "0.2.0-rc.17"
 dependencies = [
  "aes",
  "criterion",
