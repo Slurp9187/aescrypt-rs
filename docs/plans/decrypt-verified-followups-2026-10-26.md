@@ -103,6 +103,12 @@ so overlap inside a pass is measured, not modelled.
   against 1.10 measured in the crate, within 5%.
 - **The prediction:** F1 = (H+P) + (P+A) = 1.25 GiB/s, **+8.8%**. Three runs gave
   +8.8 to +8.9%.
+- **Size does not change it.** Repeated over a 1 GiB buffer, which streams from DRAM instead of
+  possibly sitting in this CPU's 96 MB 3D V-cache, every throughput matched within 2% (H 2.61,
+  P 6.40, A 8.76 GiB/s), and the prediction was again +8.9%. The work is compute-bound, so
+  the ratio holds at any size. For files on disk the gain can only shrink: when pass 2 cannot
+  re-read from the page cache, both passes wait on the disk, and below about 1 GiB/s of read
+  speed the disk, not the MAC, sets the pace.
 - **Why it falls short.** Poly1305 is only about 2.4× faster than HMAC here, F1 runs it in
   both passes, and H and P do not overlap in one loop (H+P ≈ H + P). The saving per byte
   is H − 2P, which is small.
