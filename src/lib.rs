@@ -212,6 +212,14 @@ pub use kdf::pbkdf2::derive_pbkdf2_key;
 // Header-only inspection.
 pub use header::read_version;
 
+/// This crate's version, exactly as published: the `version` in its
+/// `Cargo.toml`, prerelease suffix included.
+///
+/// It comes from the manifest at build time, so it always names the release a
+/// dependent actually linked. `aescrypt-cli --version` reports it; a bug report
+/// against a tool built on this crate wants it too.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 // The README's examples are compiled and run by `cargo test --doc`, so they cannot
 // silently rot. `cfg(doctest)` is set only while rustdoc *collects doctests* — never
 // while it *builds documentation* — so this item never reaches docs.rs or `cargo doc`

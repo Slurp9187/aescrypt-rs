@@ -339,7 +339,7 @@ This crate defines **no optional features**. It always links `aes` with the `zer
 this repository as a separate crate, so the library's dependencies are unaffected.
 
 ```sh
-cargo install aescrypt-cli --version 0.1.0-rc.4
+cargo install aescrypt-cli --version "^0.1.0-rc"
 aescrypt-cli -e report.pdf        # writes report.pdf.aes
 aescrypt-cli -d report.pdf.aes    # writes report.pdf
 ```
@@ -354,10 +354,10 @@ Passwords come from a terminal prompt, `--password-command` or
 
 ```toml
 [dependencies]
-aescrypt-rs = "0.2.0-rc.16"
+aescrypt-rs = "0.2.0-rc"
 ```
 
-When **0.2.0** is published to crates.io, you can switch the version requirement to `"0.2.0"` (or a caret range you prefer).
+`"0.2.0-rc"` selects the newest 0.2.0 release candidate. Release candidates can change the API between each other, so once you build on one, pin it exactly (`"=0.2.0-rc.N"`, the version `cargo tree -i aescrypt-rs` shows). When **0.2.0** is published to crates.io, switch to `"0.2.0"`.
 
 ## Changelog
 

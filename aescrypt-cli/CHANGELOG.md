@@ -24,6 +24,14 @@ Versioned independently of `aescrypt-rs`; `--version` shows both.
 - `secure-gate` is pinned to `=0.9.0-rc.15` (was `=0.9.0-rc.12`), matching
   `aescrypt-rs`, so a build that uses both carries one copy. 0.1.0-rc.3 is the last
   published crate that still pins `=0.9.0-rc.12`.
+- `--version` reads the library's version from `aescrypt_rs::VERSION`, so it always names
+  the `aescrypt-rs` this build linked. It was a copy kept by hand in the CLI's source,
+  which every library bump had to edit. The output is unchanged in form.
+
+### Removed
+
+- The hidden `LIB_VERSION` constant, the copy `--version` used to read. It was
+  `#[doc(hidden)]`, and this crate's library target is not an API.
 
 ## [0.1.0-rc.3] - 2026-10-15
 

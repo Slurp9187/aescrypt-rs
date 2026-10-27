@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `VERSION`: this crate's version as published (`env!("CARGO_PKG_VERSION")`), so a
+  dependent can report the release it actually linked. `aescrypt-cli --version` uses it.
 - `constants::SPAN` (64 KiB): the most bytes the streaming loops read, process and
   write per call. Informational; it may change in any release, and the file format
   does not depend on it.

@@ -13,12 +13,14 @@ repo.**
 
 | Crate | Manifest | Changelog | Tag |
 | --- | --- | --- | --- |
-| `aescrypt-rs` (library) | `Cargo.toml` | `CHANGELOG.md` | `v<version>`, e.g. `v0.2.0-rc.13` |
-| `aescrypt-cli` | `aescrypt-cli/Cargo.toml` | `aescrypt-cli/CHANGELOG.md` | `aescrypt-cli-v<version>`, e.g. `aescrypt-cli-v0.1.0-rc.2` |
+| `aescrypt-rs` (library) | `Cargo.toml` | `CHANGELOG.md` | `v<version>`, e.g. `v0.2.0-rc.N` |
+| `aescrypt-cli` | `aescrypt-cli/Cargo.toml` | `aescrypt-cli/CHANGELOG.md` | `aescrypt-cli-v<version>`, e.g. `aescrypt-cli-v0.1.0-rc.N` |
 
 They are versioned independently; the CLI does **not** mirror the library's version (it did
-until 0.1.0-rc.1). `aescrypt-cli --version` prints both, e.g.
-`aescrypt-cli 0.1.0-rc.2 (aescrypt-rs 0.2.0-rc.13)`.
+until 0.1.0-rc.1). `aescrypt-cli --version` prints both, as
+`aescrypt-cli <cli version> (aescrypt-rs <library version>)`. The library's comes from
+`aescrypt_rs::VERSION`, so it names the library actually linked and needs no edit on a bump
+(until 0.1.0-rc.4 a hand-kept `lib_version!` macro in the CLI's `lib.rs` carried it).
 
 ## The CLI pins the library exactly — move the pin with every library bump
 
@@ -34,20 +36,23 @@ So **a library bump is not complete until the CLI follows it**, in the same comm
 **Library bump touches:**
 1. `Cargo.toml`: `version`.
 2. `CHANGELOG.md`: open `## [<version>] - Unreleased`.
-3. `README.md`: the `aescrypt-rs = "<version>"` dependency snippet.
-4. `aescrypt-cli/Cargo.toml`: the `=<version>` pin.
-5. `aescrypt-cli/src/lib.rs`: the `lib_version!` macro. `tests::lib_pin_matches` fails if it
-   and the pin disagree.
-6. Both lockfiles: run `cargo check --workspace` at the root, and `cargo metadata --locked`
-   (or any build) in `fuzz/`. `fuzz/` is outside the workspace and has its own lockfile.
+3. `aescrypt-cli/Cargo.toml`: the `=<version>` pin. `tests::lib_pin_is_exact` fails if it is
+   not an exact pin on the library the build linked.
+4. Both lockfiles: run `cargo check --workspace` at the root, and `cargo metadata` (or any
+   build) in `fuzz/`. `fuzz/` is outside the workspace and has its own lockfile.
+
+Within a release-candidate line, nothing else names the version. The README dependency snippet
+is `aescrypt-rs = "0.2.0-rc"`, which selects the newest RC, so it moves only when the line
+does: to `"0.2.0"` at the stable release, or to the next line's `-rc`.
 
 **CLI bump touches:**
 1. `aescrypt-cli/Cargo.toml`: `version`.
 2. `aescrypt-cli/CHANGELOG.md`: open `## [<version>] - Unreleased`.
-3. Both install lines: `cargo install aescrypt-cli --version <version>` in
-   `aescrypt-cli/README.md` and `README.md`. While only release candidates exist, plain
-   `cargo install` ignores them, so the version must be named.
-4. The `--version` example in `aescrypt-cli/README.md` ("Versioning").
+3. `Cargo.lock`: run `cargo check --workspace`.
+
+The install lines in `README.md` and `aescrypt-cli/README.md` are
+`cargo install aescrypt-cli --version "^0.1.0-rc"`, the newest RC (plain `cargo install` skips
+release candidates). Like the snippet, they move only when the line does.
 
 ## Release order
 
