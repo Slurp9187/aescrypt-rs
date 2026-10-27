@@ -1,7 +1,9 @@
 # aescrypt-rs: speed follow-ups after the span loop — F1, F2, F3
 
-**Status (2026-10-26, UTC):** **F1 measured: no-go** (predicted +8.8%, against a 15% bar;
-see [Spike result](#spike-result-no-go)). 0.2.0-rc.16 releases without it. F2 and F3 stay
+**Status (2026-10-26, UTC):** **F1 measured at +8.8%**, below the 15% bar set before measuring
+(see [Spike result](#spike-result-no-go)). The owner judged 8.8% worth it for bulk work:
+**F1 is planned for 0.2.0-rc.17**, built after EFV re-measures end to end on rc.16, with the
+prototype check below. 0.2.0-rc.16 releases without it. F2 and F3 stay
 parked; the spike's numbers make F2 the stronger candidate. Before the spike: F1 approved
 by the owner to measure first, and to ship in rc.16 if the measurement said go. Verified at main `ee36a0e`, with #71 (encrypt `CbcSpan`)
 merged. Tracking: master issue #68 (lines F1–F3). PRs for this plan say
@@ -113,15 +115,16 @@ so overlap inside a pass is measured, not modelled.
   both passes, and H and P do not overlap in one loop (H+P ≈ H + P). The saving per byte
   is H − 2P, which is small.
 
-**Decision:** not worth a new dependency and a security argument for under 9%. F1 is
-closed on #68 with these numbers. The design above stays as the record of what was
-considered.
+**Decision:** under the 15% bar, so not in rc.16. The owner then weighed +8.8% as worth it
+for bulk operations against the new dependency and the security argument, and moved F1 to
+**rc.17**. It will be built after EFV's end-to-end numbers on rc.16, with the prototype check
+re-benching the first commit. The build steps below stand.
 
 **What it says about F2.** F2 needs no second check at all, so its cost is H (pass 1) plus
 A (pass 2): 23.9 + 7.2 ≈ 31 ms, against today's ≈ 55 ms. That is roughly **+75%** for
 in-memory input on this machine (a model, not a measurement of F2).
 
-### Build (if go; not built)
+### Build (rc.17)
 - **Code:**
   - `src/decryption/stream/versions.rs`: `verify_ciphertext_stream` and `decrypt_stream`'s
     `verified` branch. `VerifiedTrailer` gains the Poly1305 tag.
@@ -145,6 +148,15 @@ A borrowed slice cannot change during the call, so it needs one MAC pass and the
 decrypting pass, with no second check at all: close to one-pass `decrypt` speed (modelled at
 roughly +75% over today's `decrypt_verified` by F1's spike, above). It only helps callers
 holding the whole file in memory, such as EFV's `decrypt_to_vec`.
+
+**Precondition (the sharp edge).** "A borrowed slice cannot change" holds for memory Rust
+owns, not for a memory-mapped file: if a caller passes a `&[u8]` from a mapping that another
+process can write, and the file changes between the passes, pass 2 would release plaintext
+that pass 1's tag never covered. That is exactly what the second check exists to stop. F2's
+docs must forbid writable mappings, or F2 keeps a check (F1's) and gains less.
+
+**When:** after rc.16, and only if EFV's end-to-end numbers show in-memory verified decrypts
+of large items matter. Small items are dominated by the 600,000-iteration KDF.
 
 **secure-gate: inside, not at the boundary.** The input is ciphertext, which is public.
 Plaintext still streams to `W` and is never returned, and the spans stay `Dynamic<[u8]>`.
