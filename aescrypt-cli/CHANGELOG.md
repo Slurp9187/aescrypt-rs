@@ -31,21 +31,27 @@ Versioned independently of `aescrypt-rs`; `--version` shows both.
 ### Fixed
 
 - **Plaintext is no longer written to temp files that get thrown away** (#72).
-  - **Decrypting to stdout** used to stage the whole plaintext in the system temp
-    directory and copy it out, then delete the file without overwriting it. It now
-    writes straight to stdout in `decrypt_verified`'s second pass, after the first
-    has verified.
+  - **Decrypting to stdout** used to stage the whole plaintext in the clear in the
+    system temp directory, copy it out, then delete the file without overwriting
+    it. The stage is now *sealed*: AES-256-CTR under a random key held only in
+    memory, unsealed while it is copied to stdout once the whole decryption has
+    succeeded. stdout still gets all of the plaintext or none of it, and the disk
+    only ever holds noise.
   - **Decrypting from stdin** used to run the one-pass decrypt, writing unverified
     plaintext to a temp file that was deleted on failure. It now stages stdin's
-    *ciphertext* (next to the destination, or in the temp directory for stdout)
-    and decrypts it verify-first, like a file. A tampered or truncated stdin now
-    writes nothing at all.
-  - **Buffers:** the temp files are written without a `BufWriter`, whose buffer kept
-    an unwiped copy of the last plaintext it held. The library already writes
-    64 KiB spans, so the buffer bought nothing.
+    *ciphertext* in an owner-only temp file (next to the destination, or in the
+    temp directory for stdout) and decrypts it verify-first, like a file. A
+    tampered or truncated stdin now writes nothing at all. A failure to write the
+    stage, such as a full disk, is reported against its folder, not against stdin.
+  - **Buffers:** plaintext is written to its temp file without a `BufWriter`,
+    whose buffer kept an unwiped copy of the last plaintext it held. The library
+    writes whole spans. Ciphertext sides (encrypting, reading a staged stdin)
+    stay buffered.
   - **Still outside the CLI's reach:** the standard library's own stdout buffer,
-    which holds small writes; and partial output if a read or write fails during
-    the verified second pass.
+    which holds small writes. When decrypting to a *file*, an I/O error, a
+    changed input or a signal during the verified second pass can leave verified
+    plaintext in the destination's temp file, which is deleted without being
+    overwritten; that file is the output itself, so it cannot be sealed.
 
 ### Removed
 

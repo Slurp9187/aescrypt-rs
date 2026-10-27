@@ -572,7 +572,7 @@ fn decrypt_failure(cipher: &[u8], pw: &'static str) -> String {
 }
 
 /// Each message is produced by a real failure, so a wording change in the
-/// library shows up here instead of as a mislabelled error.
+/// library shows up here instead of as a mislabeled error.
 #[test]
 fn failures_are_described_by_cause() {
     let dir = tempfile::tempdir().unwrap();

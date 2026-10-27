@@ -119,16 +119,19 @@ generated passphrase can't end up in a log file.
   covered by the integrity check, so if only that byte is damaged, the file
   still decrypts, and the output can be up to 15 bytes too short or too long.
   v3 files, which aescrypt-cli writes, check it.
-- **Plaintext is never written to a temp file that is thrown away.**
-  - **Decrypting to stdout** writes the plaintext straight to stdout, in the
-    second pass, after the first has verified the file. Nothing unverified
-    reaches a pipe. Only a read or write error during that second pass can
-    leave partial output.
+- **Plaintext never reaches a temp file in the clear**, other than the output
+  file itself.
+  - **Decrypting to stdout** puts the plaintext in a temp file *sealed* with
+    AES-256-CTR under a random key held only in memory. It is copied out to
+    stdout only after the whole decryption has succeeded. stdout gets all of it
+    or nothing: a failure, Ctrl-C or a kill writes nothing to the pipe, and
+    whatever is left on disk is noise. This needs temporary disk space equal to
+    the file's size.
   - **Decrypting from stdin (`-`)**: a pipe can't be read twice, so its
-    *ciphertext* is copied to a temp file first, next to the destination, or
-    in the system temp directory when writing to stdout. It is then decrypted
-    from there like a file. Ciphertext on disk is harmless. This needs
-    temporary disk space equal to the encrypted file's size.
+    *ciphertext* is copied to an owner-only temp file first, next to the
+    destination, or in the system temp directory when writing to stdout. It is
+    then decrypted from there like a file. This needs temporary disk space
+    equal to the encrypted file's size.
 - **Ctrl-C, `kill`, or closing the terminal** deletes any in-progress temp
   file. At the password prompt it exits immediately and turns terminal echo
   back on, on Windows as well as Unix.

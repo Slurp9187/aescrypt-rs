@@ -19,33 +19,50 @@ Verified at main `58e61d0`.
 
 ## Target model
 
-**No plaintext is written to a temp file that is then thrown away.** Plaintext reaches disk
-only as the output itself. That is the temp file next to a file destination, renamed into
-place, and it is written only in `decrypt_verified`'s second pass, after verification.
+**Plaintext never reaches a temp file in the clear, other than the output itself.** For a
+file destination, the output is the temp file next to it, renamed into place, and it is
+written only in `decrypt_verified`'s second pass, after verification. Decrypting to stdout
+stays all-or-nothing: Ctrl-C, a kill or a changed input writes nothing to the pipe.
 
-Overwriting before unlinking was rejected. It is unreliable on SSDs (wear levelling) and on
+Overwriting before unlinking was rejected. It is unreliable on SSDs (wear leveling) and on
 copy-on-write filesystems; not writing the plaintext at all is the only dependable fix.
 
 ## Change
 
 1. **stdin decrypt:** `stage_ciphertext` copies stdin's ciphertext into a staged temp file and
    rewinds it. The stage goes next to the destination, or in the system temp directory for
-   stdout. It is then decrypted with `decrypt_verified`, like a file (`Input::Staged`). A
+   stdout. It is then decrypted with `decrypt_verified`, like a file (a `ReadSeek` input). A
    tampered or truncated stdin now writes nothing.
-2. **Decrypt to stdout:** written straight to stdout in pass 2. There is no plaintext stage,
-   and `copy_to` is removed.
-3. **Stages are written through their `File`** (`Staged::file`), with no `BufWriter`. The
-   library already writes 64 KiB spans.
-4. **`crypt`** sends every decryption through `decrypt_verified`. The one-pass `decrypt` is no
-   longer used by the CLI.
+2. **Decrypt to stdout: a sealed stage** (`output::Sealed`). Pass 2's plaintext is written
+   through AES-256-CTR under a random key held only in memory (a `secure_gate::Fixed`), into
+   an owner-only temp file. `copy_out` unseals it to stdout only after the whole call has
+   succeeded. This is EFV's `SealedScratch` pattern.
+   - **As first built**, PR #74 wrote straight to stdout in pass 2. `/code-review` found that
+     this lost the all-or-nothing guarantee: Ctrl-C, SIGTERM or a changed input during pass 2
+     left truncated or unverified output on stdout. The owner chose the sealed stage.
+   - **It uses the same `aes` crate as the library**, so nothing new enters the graph.
+   - **No integrity on the seal.** Someone who can write the temp file while it runs could
+     flip output bits, exactly as with the plaintext stage it replaces.
+3. **Plaintext is written unbuffered.** The output stage is written through its `File`
+   (`Staged::file`) and the sealed stage in 4 KiB wiped chunks, never through a `BufWriter`.
+   Ciphertext sides are buffered: encrypt output, and reads of the staged stdin.
+4. **Encrypt and decrypt are separate paths:** `encrypt_with` takes a `VersionTap<Box<dyn
+   Read>>`, and `decrypt_with` takes a `VersionTap<Box<dyn ReadSeek>>`. The one-pass `decrypt`
+   is no longer used by the CLI, and no input/mode pairing is left to an `unreachable!()`.
+5. **Every stage that is not the output is owner-only:** stdin's ciphertext and the sealed
+   stage. `stage_ciphertext` reports read errors against `<stdin>` and write errors against
+   the stage's folder.
 
 ## Acceptance
 
 - **No plaintext stage.** No code path writes plaintext to a temp file other than the output
   itself.
 - **The new guards fail when broken.** Tests: `tampered_stdin_input_writes_nothing`,
-  `stdin_stage_holds_the_ciphertext`, `stdin_decrypts_verified_to_stdout_and_file`, and stdin
-  cases added to `tampered_file_leaves_no_output`. Falsified once: decrypting the staged stdin
+  `stdin_stage_holds_the_ciphertext` (which also checks owner-only on Unix),
+  `stdin_decrypts_verified_to_stdout_and_file`, stdin cases added to
+  `tampered_file_leaves_no_output`, and for the sealed stage:
+  `sealed_stage_round_trips_and_holds_no_plaintext`, `sealed_stages_have_their_own_keys` and
+  `dropped_stages_leave_nothing`. Falsified once: decrypting the staged stdin
   one-pass again fails both the unit test and the end-to-end test ("100000 unverified bytes
   from stdin reached stdout").
 - **Existing tests pass:** the kill and Ctrl-C temp-file tests, the official vectors, and the
@@ -54,6 +71,7 @@ copy-on-write filesystems; not writing the plaintext at all is the only dependab
 ## Residue, stated rather than fixed
 
 - **The standard library's stdout buffer** holds small writes. That buffer is not ours to wipe.
-- **Pass-2 failures.** A read or write error during pass 2 can leave partial, verified output
-  on stdout, or in the destination's temp file, which is then deleted.
+- **Pass-2 failures with a file destination.** An I/O error, a changed input or a signal
+  during pass 2 can leave verified plaintext in the destination's temp file, which is deleted
+  unwiped. That file is the output itself, so it cannot be sealed.
 - **Disk space.** stdin decryption needs temporary disk space for the ciphertext.
