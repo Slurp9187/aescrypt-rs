@@ -124,7 +124,7 @@ pub struct ReadState {
 /// kept in parentheses.
 ///
 /// The library's messages are not a stable API, so this matches whole strings
-/// and falls back to the raw message for anything it does not recognise.
+/// and falls back to the raw message for anything it does not recognize.
 /// `tests/run.rs` triggers each case for real, so a wording change in the
 /// library fails a test rather than silently mislabelling errors.
 ///

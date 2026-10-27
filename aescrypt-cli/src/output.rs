@@ -3,11 +3,27 @@
 // Writing results without ever leaving a partial or unverified file behind.
 // ============================================================================
 //
-// Every result goes to a temp file first. Only once the library call has
-// returned Ok — for decryption, that is after the HMAC and padding checks — is
-// the temp file flushed to disk and put in place (or, for stdout, copied out).
-// On any error the temp file is dropped, which deletes it; on Ctrl-C the
-// signal handler deletes it.
+// Every file result goes to a temp file next to its destination first. Only
+// once the library call has returned Ok is the temp file flushed to disk and
+// put in place. On any error the temp file is dropped, which deletes it; on
+// Ctrl-C the signal handler deletes it.
+//
+// No plaintext is ever written to a temp file in the clear, except the output
+// file itself (#72). Decryption always goes through `decrypt_verified`, which
+// checks the HMAC (and v3's padding) before writing anything:
+//
+// - A file input is read twice in place.
+// - stdin can't seek, so its *ciphertext* is staged in an owner-only temp file
+//   first (next to the destination, or in the temp directory for stdout) and
+//   decrypted from there.
+// - Decrypting to stdout stages pass 2's plaintext in a `Sealed` file:
+//   AES-256-CTR under a random key held only in memory. It is copied out to
+//   stdout only once the whole call has succeeded, so stdout gets all of the
+//   plaintext or none of it, and the disk only ever holds noise.
+//
+// Plaintext is written to its stage unbuffered: a `BufWriter` would keep an
+// unwiped copy of the last plaintext it held, and the library already writes
+// whole spans. Ciphertext sides are buffered.
 //
 // Where the operating system can do it, the temp file is one it deletes itself
 // when the last handle closes, so a forced kill (`kill -9`, `taskkill /F`),
@@ -22,16 +38,23 @@
 // the filesystem refuses (no `O_TMPFILE`, no `/proc`, no hard links), it is an
 // ordinary named temp file, renamed into place: a forced kill leaves that one.
 //
-// A decrypted file input goes through `decrypt_verified`, which checks the
-// HMAC before writing anything, so a temp file for a file that fails
-// verification stays empty. stdin can't seek and is decrypted in one pass, so
-// its temp file can hold unverified plaintext until the error deletes it.
+// A decryption that fails verification therefore leaves its output temp file
+// empty. Plaintext reaches a file destination's temp file only in pass 2, after
+// verification. An I/O error, a changed input or a signal during pass 2 can
+// leave part of that verified plaintext in it, to be deleted unwiped; that file
+// is the output itself, so this cannot be avoided by sealing.
 
 use std::{
     fs::File,
-    io::{self, BufWriter, Seek, SeekFrom, Write},
+    io::{self, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
 };
+
+use aes::{
+    Aes256,
+    cipher::{BlockEncrypt, KeyInit, consts::U16, inout::InOutBuf},
+};
+use secure_gate::{Fixed, RevealSecret, RevealSecretMut};
 
 use tempfile::NamedTempFile;
 
@@ -105,13 +128,15 @@ fn builder() -> tempfile::Builder<'static, 'static> {
 }
 
 impl Staged {
-    /// Creates a temp file in `dir`. On Unix, plaintext stays 0600; ciphertext
-    /// is created with 0666 so the process umask decides, like any new file. On
-    /// Windows both inherit the folder's permissions.
-    pub(crate) fn new_in(dir: &Path, plaintext: bool) -> Result<Self, CliError> {
-        let stage = match os_deleted(dir, plaintext) {
+    /// Creates a temp file in `dir`. On Unix a `private` one is 0600 (plaintext
+    /// outputs, and every stage that is not the output: stdin's ciphertext, the
+    /// sealed stdout stage); otherwise it is created with 0666 so the process
+    /// umask decides, like any new file (an encrypted output). On Windows both
+    /// inherit the folder's permissions.
+    pub(crate) fn new_in(dir: &Path, private: bool) -> Result<Self, CliError> {
+        let stage = match os_deleted(dir, private) {
             Some(stage) => stage,
-            None => Stage::Named(named(dir, plaintext).map_err(|e| CliError::io(dir, e))?),
+            None => Stage::Named(named(dir, private).map_err(|e| CliError::io(dir, e))?),
         };
         let registered = stage.name().map(Path::to_path_buf);
         if let Some(p) = &registered {
@@ -123,15 +148,25 @@ impl Staged {
         })
     }
 
-    /// A buffered writer into the temp file. The caller must flush it before
-    /// `persist` or `copy_to`.
+    /// The temp file itself, unbuffered: to write a result into, or to read a
+    /// staged ciphertext back from. No buffer sits between, so nothing keeps an
+    /// unwiped copy of what passed through.
     ///
     /// # Panics
     ///
     /// If the file is gone, which only `persist` does, and it consumes `self`:
     /// this cannot happen.
-    pub(crate) fn writer(&mut self) -> BufWriter<&mut File> {
-        BufWriter::new(self.stage.as_mut().expect("live temp file").file_mut())
+    pub(crate) fn file(&mut self) -> &mut File {
+        self.stage.as_mut().expect("live temp file").file_mut()
+    }
+
+    /// A path to name in error messages: the file, or its folder.
+    ///
+    /// # Panics
+    ///
+    /// If the file is gone, which only `persist` does: this cannot happen.
+    fn label(&self) -> &Path {
+        self.stage.as_ref().expect("live temp file").label()
     }
 
     /// Flushes to disk and puts the file in place at `dest`. Without `force` an
@@ -173,18 +208,108 @@ impl Staged {
         sync_parent(dest);
         Ok(())
     }
+}
 
-    /// Copies the finished temp file to `out`. The temp file is deleted after.
-    pub(crate) fn copy_to(mut self, out: &mut dyn Write) -> Result<(), CliError> {
-        let stage = self.stage.as_mut().expect("live temp file");
-        let label = stage.label().to_path_buf();
-        let file = stage.file_mut();
+/// Bytes sealed per step: plaintext is copied into a wiped buffer this size,
+/// sealed in place, and written.
+const SEAL_CHUNK: usize = 4096;
+
+/// A private stage whose bytes are sealed before they reach the disk:
+/// AES-256-CTR under a key made for this stage alone and held only in memory.
+/// Decrypting to stdout writes its plaintext here (#72), and `copy_out` unseals
+/// it to stdout once the whole decryption has succeeded, so stdout gets all of
+/// it or nothing. If the process ends any other way, the key goes with it and
+/// what is on disk (deleted like any stage) is noise.
+///
+/// No integrity: someone who can write the temp file while it runs could flip
+/// output bits, exactly as with the plaintext stage this replaces.
+pub(crate) struct Sealed {
+    /// The temp file the sealed bytes go to.
+    staged: Staged,
+    /// AES-256 under the stage's key; its key schedule is wiped on drop.
+    cipher: Aes256,
+    /// Bytes written so far: the keystream position of the next one.
+    written: u64,
+}
+
+impl Sealed {
+    /// A sealed stage in `dir`, under a fresh random key.
+    pub(crate) fn new_in(dir: &Path) -> Result<Self, CliError> {
+        let staged = Staged::new_in(dir, true)?;
+        let key = Fixed::<[u8; 32]>::from_random();
+        let cipher = key.with_secret(|k| Aes256::new(k.into()));
+        Ok(Self {
+            staged,
+            cipher,
+            written: 0,
+        })
+    }
+
+    /// Unseals the stage into `out`, from the start. Call only after the
+    /// decryption has succeeded. The stage is deleted after.
+    pub(crate) fn copy_out(mut self, out: &mut dyn Write) -> Result<(), CliError> {
+        let label = self.staged.label().to_path_buf();
+        let Self { staged, cipher, .. } = &mut self;
+        let file = staged.file();
         file.seek(SeekFrom::Start(0))
             .map_err(|e| CliError::io(&label, e))?;
-        io::copy(file, out).map_err(|e| CliError::io("<stdout>", e))?;
-        out.flush().map_err(|e| CliError::io("<stdout>", e))?;
+        let mut chunk = Fixed::new([0u8; SEAL_CHUNK]);
+        let mut pos = 0u64;
+        loop {
+            let n = match chunk.with_secret_mut(|c| file.read(c)) {
+                Ok(0) => break,
+                Ok(n) => n,
+                Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+                Err(e) => return Err(CliError::io(&label, e)),
+            };
+            chunk.with_secret_mut(|c| apply_keystream(cipher, pos, &mut c[..n]));
+            chunk
+                .with_secret(|c| out.write_all(&c[..n]))
+                .map_err(|e| CliError::io("<stdout>", e))?;
+            pos += n as u64;
+        }
         Ok(())
     }
+}
+
+impl Write for Sealed {
+    fn write(&mut self, data: &[u8]) -> io::Result<usize> {
+        let n = data.len().min(SEAL_CHUNK);
+        let mut chunk = Fixed::new([0u8; SEAL_CHUNK]);
+        chunk.with_secret_mut(|c| {
+            c[..n].copy_from_slice(&data[..n]);
+            apply_keystream(&self.cipher, self.written, &mut c[..n]);
+        });
+        chunk.with_secret(|c| self.staged.file().write_all(&c[..n]))?;
+        self.written += n as u64;
+        Ok(n)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.staged.file().flush()
+    }
+}
+
+/// XORs the AES-256-CTR keystream for byte offset `pos` onward into `data`
+/// (at most `SEAL_CHUNK` bytes). Counter block `i` is `i` as a big-endian
+/// 128-bit number; each stage has its own random key, so no counter repeats
+/// under a key.
+fn apply_keystream(cipher: &Aes256, pos: u64, data: &mut [u8]) {
+    debug_assert!(data.len() <= SEAL_CHUNK);
+    let first = pos / 16;
+    let skip = (pos % 16) as usize;
+    let len = (skip + data.len()).div_ceil(16) * 16;
+    let mut keystream = Fixed::new([0u8; SEAL_CHUNK + 16]);
+    keystream.with_secret_mut(|ks| {
+        for (i, block) in ks[..len].chunks_exact_mut(16).enumerate() {
+            block.copy_from_slice(&u128::from(first + i as u64).to_be_bytes());
+        }
+        let (blocks, _) = InOutBuf::from(&mut ks[..len]).into_chunks::<U16>();
+        cipher.encrypt_blocks_inout(blocks);
+        for (d, k) in data.iter_mut().zip(&ks[skip..]) {
+            *d ^= *k;
+        }
+    });
 }
 
 impl Drop for Staged {
@@ -199,16 +324,16 @@ impl Drop for Staged {
 }
 
 /// An ordinary named temp file in `dir`.
-fn named(dir: &Path, plaintext: bool) -> io::Result<NamedTempFile> {
+fn named(dir: &Path, private: bool) -> io::Result<NamedTempFile> {
     #[cfg(unix)]
-    if !plaintext {
+    if !private {
         use std::os::unix::fs::PermissionsExt;
         return builder()
             .permissions(std::fs::Permissions::from_mode(0o666))
             .tempfile_in(dir);
     }
     #[cfg(not(unix))]
-    let _ = plaintext;
+    let _ = private;
     builder().tempfile_in(dir)
 }
 
@@ -217,7 +342,7 @@ fn named(dir: &Path, plaintext: bool) -> io::Result<NamedTempFile> {
 /// a named temp file, which reports a real problem (an unwritable folder) with
 /// its own error.
 #[cfg(windows)]
-fn os_deleted(dir: &Path, _plaintext: bool) -> Option<Stage> {
+fn os_deleted(dir: &Path, _private: bool) -> Option<Stage> {
     use std::{fs::OpenOptions, os::windows::fs::OpenOptionsExt};
     // winbase.h / winnt.h. Others must be able to open the file with delete
     // access, for the hard link; nothing else opens it.
@@ -240,14 +365,14 @@ fn os_deleted(dir: &Path, _plaintext: bool) -> Option<Stage> {
 }
 
 #[cfg(target_os = "linux")]
-fn os_deleted(dir: &Path, plaintext: bool) -> Option<Stage> {
+fn os_deleted(dir: &Path, private: bool) -> Option<Stage> {
     use rustix::fs::{Mode, OFlags};
     // linkat needs /proc/self/fd to give the file a name later; without it,
     // there would be no way to put the file in place.
     if !Path::new("/proc/self/fd").is_dir() {
         return None;
     }
-    let mode = if plaintext {
+    let mode = if private {
         Mode::RUSR | Mode::WUSR
     } else {
         Mode::from_raw_mode(0o666)
@@ -266,7 +391,7 @@ fn os_deleted(dir: &Path, plaintext: bool) -> Option<Stage> {
 }
 
 #[cfg(not(any(windows, target_os = "linux")))]
-fn os_deleted(_dir: &Path, _plaintext: bool) -> Option<Stage> {
+fn os_deleted(_dir: &Path, _private: bool) -> Option<Stage> {
     None
 }
 
@@ -363,5 +488,75 @@ pub(crate) fn parent_dir(dest: &Path) -> &Path {
     match dest.parent() {
         Some(p) if !p.as_os_str().is_empty() => p,
         _ => Path::new("."),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The sealed stage gives back exactly what was written, through writes of
+    /// odd sizes that straddle AES blocks and seal chunks, and what sits on
+    /// disk meanwhile is not the plaintext.
+    #[test]
+    fn sealed_stage_round_trips_and_holds_no_plaintext() {
+        let dir = tempfile::tempdir().unwrap();
+        for len in [0usize, 1, 15, 16, 17, 4095, 4096, 4097, 70_000] {
+            let plain: Vec<u8> = (0..len as u32)
+                .map(|i| ((i * 31) ^ (i >> 7)) as u8)
+                .collect();
+            let mut sealed = Sealed::new_in(dir.path()).unwrap();
+            for piece in plain.chunks(7_001) {
+                sealed.write_all(piece).unwrap();
+            }
+            sealed.flush().unwrap();
+
+            let mut on_disk = Vec::new();
+            let file = sealed.staged.file();
+            file.seek(SeekFrom::Start(0)).unwrap();
+            file.read_to_end(&mut on_disk).unwrap();
+            assert_eq!(on_disk.len(), len);
+            if len >= 16 {
+                assert_ne!(on_disk, plain, "{len} bytes stored in the clear");
+                let same = on_disk.iter().zip(&plain).filter(|(a, b)| a == b).count();
+                assert!(same < len / 8 + 16, "{len}: {same} bytes stored unchanged");
+            }
+
+            let mut out = Vec::new();
+            sealed.copy_out(&mut out).unwrap();
+            assert_eq!(out, plain, "{len} bytes");
+        }
+    }
+
+    /// Two sealed stages use different keys: the same plaintext seals to
+    /// different bytes.
+    #[test]
+    fn sealed_stages_have_their_own_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        let read_back = |s: &mut Sealed| {
+            let mut v = Vec::new();
+            let f = s.staged.file();
+            f.seek(SeekFrom::Start(0)).unwrap();
+            f.read_to_end(&mut v).unwrap();
+            v
+        };
+        let mut a = Sealed::new_in(dir.path()).unwrap();
+        let mut b = Sealed::new_in(dir.path()).unwrap();
+        a.write_all(&[0u8; 64]).unwrap();
+        b.write_all(&[0u8; 64]).unwrap();
+        assert_ne!(read_back(&mut a), read_back(&mut b));
+    }
+
+    /// Dropping a stage, sealed or not, leaves its folder as it found it.
+    #[test]
+    fn dropped_stages_leave_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        {
+            let mut plain = Staged::new_in(dir.path(), true).unwrap();
+            plain.file().write_all(b"x").unwrap();
+            let mut sealed = Sealed::new_in(dir.path()).unwrap();
+            sealed.write_all(b"y").unwrap();
+        }
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
     }
 }

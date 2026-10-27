@@ -103,12 +103,12 @@ generated passphrase can't end up in a log file.
 ## Safety
 
 - **Verified before anything is written.** The AES Crypt format can only be
-  verified once the whole file has been read, so aescrypt-cli reads an input
-  file twice when decrypting. The first pass checks the file's integrity and
-  writes nothing. The second decrypts, and only then is any plaintext written.
-  A wrong password or a damaged or tampered file writes no plaintext anywhere,
-  not even to a temp file. Decrypting a large file takes about twice the
-  reading time.
+  verified once the whole file has been read, so aescrypt-cli reads its input
+  twice when decrypting. The first pass checks the file's integrity and writes
+  nothing. The second decrypts, and only then is any plaintext written. A wrong
+  password or a damaged or tampered file writes no plaintext anywhere, not even
+  to a temp file. This holds for stdin too (see below). Decrypting a large file
+  takes about twice the reading time.
 - **No partial output.** Output goes to a temp file next to the destination,
   which is put in place only after decryption has succeeded. A failure leaves
   nothing behind. On Windows the temp file is a `.aescrypt-cli-*.tmp` file,
@@ -119,13 +119,20 @@ generated passphrase can't end up in a log file.
   covered by the integrity check, so if only that byte is damaged, the file
   still decrypts, and the output can be up to 15 bytes too short or too long.
   v3 files, which aescrypt-cli writes, check it.
-- **Decrypting to stdout** stages the plaintext in the system temp directory
-  and only copies it out after verification. Nothing unverified reaches a
-  pipe. This needs temporary disk space equal to the file's size.
-- **Decrypting from stdin (`-`)** reads its input once, because a pipe can't be
-  read twice. Plaintext is written to the temp file as it's decrypted and
-  checked at the end. On failure, the temp file is deleted and nothing reaches
-  the destination or stdout.
+- **Plaintext never reaches a temp file in the clear**, other than the output
+  file itself.
+  - **Decrypting to stdout** puts the plaintext in a temp file *sealed* with
+    AES-256-CTR under a random key held only in memory. It is copied out to
+    stdout only after the whole decryption has succeeded. A failure, Ctrl-C or a
+    kill *during decryption* writes nothing to the pipe, and whatever is left on
+    disk is noise. Once the copy to stdout has begun, Ctrl-C or a write error
+    can still leave part of the output in the pipe. This needs temporary disk
+    space equal to the file's size.
+  - **Decrypting from stdin (`-`)**: a pipe can't be read twice, so its
+    *ciphertext* is copied to an owner-only temp file first, next to the
+    destination, or in the system temp directory when writing to stdout. It is
+    then decrypted from there like a file. This needs temporary disk space
+    equal to the encrypted file's size.
 - **Ctrl-C, `kill`, or closing the terminal** deletes any in-progress temp
   file. At the password prompt it exits immediately and turns terminal echo
   back on, on Windows as well as Unix.
@@ -137,9 +144,10 @@ generated passphrase can't end up in a log file.
   filesystem that refuses either (FAT has no hard links, some network
   filesystems have no `O_TMPFILE`) falls back to an ordinary temp file. On
   macOS, a forced kill leaves the `.aescrypt-cli-*.tmp` file behind; delete it
-  by hand. When a file input is being decrypted, that leftover is empty if the
-  kill came during the first pass, and otherwise holds only verified
-  plaintext. The destination is never touched.
+  by hand. When decrypting to a file, that leftover is empty if the kill came
+  during the first pass, and otherwise holds only verified plaintext. When
+  decrypting to stdout, it is the sealed stage: noise, since its key died with
+  the process. The destination is never touched.
 - **Crash safety.** Output is flushed to disk before it's renamed, so a crash
   can't leave an empty file under the final name.
 - **No overwriting.** An existing output file is never replaced without
