@@ -43,7 +43,7 @@
 
 use std::{
     fs::File,
-    io::{self, Seek, SeekFrom},
+    io,
     path::{Path, PathBuf},
 };
 
@@ -311,6 +311,7 @@ fn link_or_copy(
     file: &File,
     link: impl Fn(&Path) -> io::Result<()>,
 ) -> Result<(), CliError> {
+    use std::io::{Seek, SeekFrom};
     let dir = parent_dir(dest);
     let linked = if force {
         builder().make_in(dir, |name| link(name)).and_then(|named| {
