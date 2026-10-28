@@ -30,6 +30,14 @@ workspace, and crates.io sees only the exact version. Release candidates break A
 each other, so the pin is `=` on purpose; don't loosen it to a caret, and don't drop the
 `path` (the CLI's tests and CI would then stop exercising the library in the repo).
 
+**One sanctioned exception: a CLI release on an unchanged library.** When the library's
+`src/` is unchanged since its last published version and its open version holds nothing for
+consumers, the CLI may pin that published version from crates.io with no `path` (CLI
+0.1.0-rc.5 on library rc.16, `docs/plans/cli-rc5-release-2026-10-28.md`). That avoids an
+empty library release. The lockfile then carries both `aescrypt-rs` versions, and
+`-p aescrypt-rs` needs `@<version>`. **Restore `path` in the same commit as the next real
+library change.**
+
 So **a library bump is not complete until the CLI follows it**, in the same commit. Otherwise
 `cargo check` fails with `failed to select a version for the requirement aescrypt-rs = "=…"`.
 

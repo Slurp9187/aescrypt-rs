@@ -35,9 +35,12 @@ name = "aescrypt-cli"
 path = "src/main.rs"
 
 [dependencies]
-# Exact pin: the version this CLI was built and tested against. `path` is for
-# the workspace; crates.io sees only `version`.
-aescrypt-rs = { path = "..", version = "=0.2.0-rc.17" }
+# Exact pin: the version this CLI was built and tested against. Usually
+# `path = ".."` as well, so the workspace builds the CLI on the repo's library.
+# For 0.1.0-rc.5 it is the published 0.2.0-rc.16 from crates.io instead: the
+# library is unchanged since then, and rc.17 holds only a bench, so it is not
+# published just for this pin. Restore `path` with the next real library change.
+aescrypt-rs = { version = "=0.2.0-rc.16" }
 # AES-256-CTR for the sealed stdout stage (#72). The same `aes` the library
 # uses, so nothing new enters the graph; `zeroize` wipes its key schedule.
 aes = { version = "0.8", features = ["zeroize"] }

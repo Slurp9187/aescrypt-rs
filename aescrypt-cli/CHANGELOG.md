@@ -7,11 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Versioned independently of `aescrypt-rs`; `--version` shows both.
 
-## [0.1.0-rc.5] - Unreleased
+## [0.1.0-rc.5] - 2026-10-28
 
 ### Changed
 
-- Built on `aescrypt-rs` 0.2.0-rc.17.
+- Still built on `aescrypt-rs` 0.2.0-rc.16, which is unchanged since rc.4.
 - Decrypting to stdout is about twice as fast. The sealed temp file it goes
   through is now sealed and read back 64 KiB at a time instead of 4 KiB, in two
   buffers made once per file and wiped as before. Decrypting a 1 GiB file to
