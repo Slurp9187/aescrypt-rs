@@ -284,9 +284,9 @@ impl Sealed {
             chunk.with_secret_mut(|c| {
                 keystream.with_secret_mut(|ks| apply_keystream(cipher, pos, &mut c[..n], ks))
             });
-            chunk
-                .with_secret(|c| out.write_all(&c[..n]))
-                .map_err(|e| CliError::io("<stdout>", e))?;
+            let written = chunk.with_secret(|c| out.write_all(&c[..n]));
+            chunk.with_secret_mut(|c| wipe(&mut c[..n]));
+            written.map_err(|e| CliError::io("<stdout>", e))?;
             pos += n as u64;
         }
         Ok(())
@@ -307,7 +307,11 @@ impl Write for Sealed {
             c[..n].copy_from_slice(&data[..n]);
             keystream.with_secret_mut(|ks| apply_keystream(cipher, *written, &mut c[..n], ks));
         });
-        chunk.with_secret(|c| staged.file().write_all(&c[..n]))?;
+        let result = chunk.with_secret(|c| staged.file().write_all(&c[..n]));
+        // The chunk was the plaintext until it was sealed in place; wipe
+        // anyway, so a reused buffer holds no more than a per-call one would.
+        chunk.with_secret_mut(|c| wipe(&mut c[..n]));
+        result?;
         *written += n as u64;
         Ok(n)
     }
@@ -324,6 +328,7 @@ impl Write for Sealed {
 /// random key, so no counter repeats under a key.
 fn apply_keystream(cipher: &Aes256, pos: u64, data: &mut [u8], ks: &mut [u8]) {
     debug_assert!(data.len() <= SEAL_CHUNK);
+    debug_assert!(ks.len() >= SEAL_CHUNK + 16);
     let first = pos / 16;
     let skip = (pos % 16) as usize;
     let len = (skip + data.len()).div_ceil(16) * 16;
@@ -335,6 +340,16 @@ fn apply_keystream(cipher: &Aes256, pos: u64, data: &mut [u8], ks: &mut [u8]) {
     for (d, k) in data.iter_mut().zip(&ks[skip..]) {
         *d ^= *k;
     }
+    // With the sealed bytes on disk, the keystream is as good as the plaintext.
+    wipe(&mut ks[..len]);
+}
+
+/// Zeroes `buf` now rather than when its wrapper drops: the stage reuses its
+/// buffers, and Ctrl-C exits without running `Drop`. `black_box` keeps the
+/// stores from being optimized away.
+fn wipe(buf: &mut [u8]) {
+    buf.fill(0);
+    std::hint::black_box(buf);
 }
 
 impl Drop for Staged {
@@ -574,6 +589,18 @@ mod tests {
             }
             assert!(parts == whole, "split {split} gives a different keystream");
         }
+        // The worst case the buffer is sized for: 15 bytes skipped into a
+        // block, then a full chunk, which needs all `SEAL_CHUNK + 16`.
+        let mut parts = vec![0u8; total];
+        let (head, rest) = parts.split_at_mut(15);
+        apply_keystream(&cipher, 0, head, &mut ks);
+        for (i, piece) in rest.chunks_mut(SEAL_CHUNK).enumerate() {
+            apply_keystream(&cipher, (15 + i * SEAL_CHUNK) as u64, piece, &mut ks);
+        }
+        assert!(
+            parts == whole,
+            "15 bytes then full chunks give a different keystream"
+        );
     }
 
     /// Two sealed stages use different keys: the same plaintext seals to
