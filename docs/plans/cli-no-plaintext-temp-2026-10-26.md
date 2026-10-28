@@ -47,6 +47,7 @@ copy-on-write filesystems; not writing the plaintext at all is the only dependab
      flip output bits, exactly as with the plaintext stage it replaces.
 3. **Plaintext is written unbuffered.** The output stage is written through its `File`
    (`Staged::file`) and the sealed stage in 4 KiB wiped chunks, never through a `BufWriter`.
+   (The chunk is 64 KiB since aescrypt-cli 0.1.0-rc.5: `docs/plans/cli-seal-chunk-2026-10-28.md`.)
    Ciphertext sides are buffered: encrypt output, and reads of the staged stdin.
 4. **Encrypt and decrypt are separate paths:** `encrypt_with` takes a `VersionTap<Box<dyn
    Read>>`, and `decrypt_with` takes a `VersionTap<Box<dyn ReadSeek>>`. The one-pass `decrypt`

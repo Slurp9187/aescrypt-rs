@@ -12,6 +12,12 @@ Versioned independently of `aescrypt-rs`; `--version` shows both.
 ### Changed
 
 - Built on `aescrypt-rs` 0.2.0-rc.17.
+- Decrypting to stdout is about twice as fast. The sealed temp file it goes
+  through is now sealed and read back 64 KiB at a time instead of 4 KiB, in two
+  buffers made once per file and wiped as before. Decrypting a 1 GiB file to
+  stdout took 2.1–2.7 s instead of 4.4–5.0 s, about as long as decrypting to a
+  file (one high-end desktop, Ryzen 9 9950X3D with AES-NI; output discarded).
+  Nothing else changes: the seal, its key, and the all-or-nothing output.
 
 ## [0.1.0-rc.4] - 2026-10-26
 
