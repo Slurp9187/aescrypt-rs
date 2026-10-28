@@ -54,7 +54,7 @@ use aes::{
     Aes256,
     cipher::{BlockEncrypt, KeyInit, consts::U16, inout::InOutBuf},
 };
-use secure_gate::{Fixed, RevealSecret, RevealSecretMut};
+use secure_gate::{Dynamic, Fixed, RevealSecret, RevealSecretMut};
 
 use tempfile::NamedTempFile;
 
@@ -210,9 +210,17 @@ impl Staged {
     }
 }
 
-/// Bytes sealed per step: plaintext is copied into a wiped buffer this size,
-/// sealed in place, and written.
-const SEAL_CHUNK: usize = 4096;
+/// Bytes sealed per step: plaintext is copied into the stage's wiped chunk,
+/// sealed in place, and written. 64 KiB, the library's largest span: at 4 KiB,
+/// decrypting 1 GiB to stdout took over twice as long as decrypting to a file.
+const SEAL_CHUNK: usize = 64 * 1024;
+
+/// A zeroed heap buffer of `len` bytes, wiped on drop. `vec![0u8; len]` is
+/// allocated zeroed at exactly `len`, so nothing this size goes on the stack,
+/// and a boxed slice cannot grow and leave an unwiped copy behind.
+fn wiped_buffer(len: usize) -> Dynamic<[u8]> {
+    Dynamic::new(vec![0u8; len])
+}
 
 /// A private stage whose bytes are sealed before they reach the disk:
 /// AES-256-CTR under a key made for this stage alone and held only in memory.
@@ -230,6 +238,10 @@ pub(crate) struct Sealed {
     cipher: Aes256,
     /// Bytes written so far: the keystream position of the next one.
     written: u64,
+    /// `SEAL_CHUNK` bytes, reused by every write and by `copy_out`.
+    chunk: Dynamic<[u8]>,
+    /// `SEAL_CHUNK + 16` bytes of keystream, reused likewise.
+    keystream: Dynamic<[u8]>,
 }
 
 impl Sealed {
@@ -242,6 +254,8 @@ impl Sealed {
             staged,
             cipher,
             written: 0,
+            chunk: wiped_buffer(SEAL_CHUNK),
+            keystream: wiped_buffer(SEAL_CHUNK + 16),
         })
     }
 
@@ -249,11 +263,16 @@ impl Sealed {
     /// decryption has succeeded. The stage is deleted after.
     pub(crate) fn copy_out(mut self, out: &mut dyn Write) -> Result<(), CliError> {
         let label = self.staged.label().to_path_buf();
-        let Self { staged, cipher, .. } = &mut self;
+        let Self {
+            staged,
+            cipher,
+            chunk,
+            keystream,
+            ..
+        } = &mut self;
         let file = staged.file();
         file.seek(SeekFrom::Start(0))
             .map_err(|e| CliError::io(&label, e))?;
-        let mut chunk = Fixed::new([0u8; SEAL_CHUNK]);
         let mut pos = 0u64;
         loop {
             let n = match chunk.with_secret_mut(|c| file.read(c)) {
@@ -262,10 +281,12 @@ impl Sealed {
                 Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
                 Err(e) => return Err(CliError::io(&label, e)),
             };
-            chunk.with_secret_mut(|c| apply_keystream(cipher, pos, &mut c[..n]));
-            chunk
-                .with_secret(|c| out.write_all(&c[..n]))
-                .map_err(|e| CliError::io("<stdout>", e))?;
+            chunk.with_secret_mut(|c| {
+                keystream.with_secret_mut(|ks| apply_keystream(cipher, pos, &mut c[..n], ks))
+            });
+            let written = chunk.with_secret(|c| out.write_all(&c[..n]));
+            chunk.with_secret_mut(|c| wipe(&mut c[..n]));
+            written.map_err(|e| CliError::io("<stdout>", e))?;
             pos += n as u64;
         }
         Ok(())
@@ -275,13 +296,23 @@ impl Sealed {
 impl Write for Sealed {
     fn write(&mut self, data: &[u8]) -> io::Result<usize> {
         let n = data.len().min(SEAL_CHUNK);
-        let mut chunk = Fixed::new([0u8; SEAL_CHUNK]);
+        let Self {
+            staged,
+            cipher,
+            written,
+            chunk,
+            keystream,
+        } = self;
         chunk.with_secret_mut(|c| {
             c[..n].copy_from_slice(&data[..n]);
-            apply_keystream(&self.cipher, self.written, &mut c[..n]);
+            keystream.with_secret_mut(|ks| apply_keystream(cipher, *written, &mut c[..n], ks));
         });
-        chunk.with_secret(|c| self.staged.file().write_all(&c[..n]))?;
-        self.written += n as u64;
+        let result = chunk.with_secret(|c| staged.file().write_all(&c[..n]));
+        // The chunk was the plaintext until it was sealed in place; wipe
+        // anyway, so a reused buffer holds no more than a per-call one would.
+        chunk.with_secret_mut(|c| wipe(&mut c[..n]));
+        result?;
+        *written += n as u64;
         Ok(n)
     }
 
@@ -291,25 +322,34 @@ impl Write for Sealed {
 }
 
 /// XORs the AES-256-CTR keystream for byte offset `pos` onward into `data`
-/// (at most `SEAL_CHUNK` bytes). Counter block `i` is `i` as a big-endian
-/// 128-bit number; each stage has its own random key, so no counter repeats
-/// under a key.
-fn apply_keystream(cipher: &Aes256, pos: u64, data: &mut [u8]) {
+/// (at most `SEAL_CHUNK` bytes), building it in `ks` (`SEAL_CHUNK + 16` bytes:
+/// up to 15 skipped bytes plus `data`, rounded up to whole blocks). Counter
+/// block `i` is `i` as a big-endian 128-bit number; each stage has its own
+/// random key, so no counter repeats under a key.
+fn apply_keystream(cipher: &Aes256, pos: u64, data: &mut [u8], ks: &mut [u8]) {
     debug_assert!(data.len() <= SEAL_CHUNK);
+    debug_assert!(ks.len() >= SEAL_CHUNK + 16);
     let first = pos / 16;
     let skip = (pos % 16) as usize;
     let len = (skip + data.len()).div_ceil(16) * 16;
-    let mut keystream = Fixed::new([0u8; SEAL_CHUNK + 16]);
-    keystream.with_secret_mut(|ks| {
-        for (i, block) in ks[..len].chunks_exact_mut(16).enumerate() {
-            block.copy_from_slice(&u128::from(first + i as u64).to_be_bytes());
-        }
-        let (blocks, _) = InOutBuf::from(&mut ks[..len]).into_chunks::<U16>();
-        cipher.encrypt_blocks_inout(blocks);
-        for (d, k) in data.iter_mut().zip(&ks[skip..]) {
-            *d ^= *k;
-        }
-    });
+    for (i, block) in ks[..len].chunks_exact_mut(16).enumerate() {
+        block.copy_from_slice(&u128::from(first + i as u64).to_be_bytes());
+    }
+    let (blocks, _) = InOutBuf::from(&mut ks[..len]).into_chunks::<U16>();
+    cipher.encrypt_blocks_inout(blocks);
+    for (d, k) in data.iter_mut().zip(&ks[skip..]) {
+        *d ^= *k;
+    }
+    // With the sealed bytes on disk, the keystream is as good as the plaintext.
+    wipe(&mut ks[..len]);
+}
+
+/// Zeroes `buf` now rather than when its wrapper drops: the stage reuses its
+/// buffers, and Ctrl-C exits without running `Drop`. `black_box` keeps the
+/// stores from being optimized away.
+fn wipe(buf: &mut [u8]) {
+    buf.fill(0);
+    std::hint::black_box(buf);
 }
 
 impl Drop for Staged {
@@ -496,17 +536,20 @@ mod tests {
     use super::*;
 
     /// The sealed stage gives back exactly what was written, through writes of
-    /// odd sizes that straddle AES blocks and seal chunks, and what sits on
-    /// disk meanwhile is not the plaintext.
+    /// odd sizes that straddle AES blocks and seal chunks, or one write of the
+    /// lot, and what sits on disk meanwhile is not the plaintext.
     #[test]
     fn sealed_stage_round_trips_and_holds_no_plaintext() {
         let dir = tempfile::tempdir().unwrap();
-        for len in [0usize, 1, 15, 16, 17, 4095, 4096, 4097, 70_000] {
+        let sizes = [
+            0usize, 1, 15, 16, 17, 4095, 4096, 4097, 65_535, 65_536, 65_537, 200_000,
+        ];
+        for (len, piece_len) in sizes.iter().flat_map(|&l| [(l, 7_001), (l, usize::MAX)]) {
             let plain: Vec<u8> = (0..len as u32)
                 .map(|i| ((i * 31) ^ (i >> 7)) as u8)
                 .collect();
             let mut sealed = Sealed::new_in(dir.path()).unwrap();
-            for piece in plain.chunks(7_001) {
+            for piece in plain.chunks(piece_len) {
                 sealed.write_all(piece).unwrap();
             }
             sealed.flush().unwrap();
@@ -526,6 +569,38 @@ mod tests {
             sealed.copy_out(&mut out).unwrap();
             assert_eq!(out, plain, "{len} bytes");
         }
+    }
+
+    /// Under one key, the keystream does not depend on how the bytes are split
+    /// across calls: every split gives what whole chunks give.
+    #[test]
+    fn keystream_is_the_same_however_it_is_split() {
+        let cipher = Aes256::new(&[7u8; 32].into());
+        let mut ks = vec![0u8; SEAL_CHUNK + 16];
+        let total = 3 * SEAL_CHUNK + 1000;
+        let mut whole = vec![0u8; total];
+        for (i, piece) in whole.chunks_mut(SEAL_CHUNK).enumerate() {
+            apply_keystream(&cipher, (i * SEAL_CHUNK) as u64, piece, &mut ks);
+        }
+        for split in [1usize, 15, 16, 17, 4097, 7_001, SEAL_CHUNK - 1] {
+            let mut parts = vec![0u8; total];
+            for (i, piece) in parts.chunks_mut(split).enumerate() {
+                apply_keystream(&cipher, (i * split) as u64, piece, &mut ks);
+            }
+            assert!(parts == whole, "split {split} gives a different keystream");
+        }
+        // The worst case the buffer is sized for: 15 bytes skipped into a
+        // block, then a full chunk, which needs all `SEAL_CHUNK + 16`.
+        let mut parts = vec![0u8; total];
+        let (head, rest) = parts.split_at_mut(15);
+        apply_keystream(&cipher, 0, head, &mut ks);
+        for (i, piece) in rest.chunks_mut(SEAL_CHUNK).enumerate() {
+            apply_keystream(&cipher, (15 + i * SEAL_CHUNK) as u64, piece, &mut ks);
+        }
+        assert!(
+            parts == whole,
+            "15 bytes then full chunks give a different keystream"
+        );
     }
 
     /// Two sealed stages use different keys: the same plaintext seals to

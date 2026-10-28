@@ -1,6 +1,6 @@
 # aescrypt-cli: seal the stdout stage 64 KiB at a time
 
-**Status (2026-10-28, UTC):** planned, for aescrypt-cli 0.1.0-rc.5. Verified at main `8bbd5f7`.
+**Status (2026-10-28, UTC):** built, in the PR that records this result; for aescrypt-cli 0.1.0-rc.5. Planned at main `8bbd5f7`; built and measured on main `c2d3fd6`.
 Follows #72 (the sealed stage, PR #74). The EFV coordinator agreed: EFV uses only the library,
 so this is CLI-only, and it does not wait on the EFV PERFORMANCE profile (#77, #78). PRs for
 this plan say `Plan: docs/plans/cli-seal-chunk-2026-10-28.md` and `Refs #72`.
@@ -27,7 +27,8 @@ this plan say `Plan: docs/plans/cli-seal-chunk-2026-10-28.md` and `Refs #72`.
 ## Target model
 
 The stage is sealed and unsealed **64 KiB at a time**, the library's largest span, through
-**two heap buffers made once per stage** and wiped on drop: one plaintext chunk and one
+**two heap buffers made once per stage**, the used part wiped after every step (Ctrl-C exits
+without `Drop`) and the rest on drop: one plaintext chunk and one
 keystream. One AES call per chunk, as now. Everything else is unchanged: the seal, the key,
 the all-or-nothing stdout, error labels, and the stage's place and permissions.
 
@@ -54,6 +55,21 @@ the all-or-nothing stdout, error labels, and the stage's place and permissions.
   without private items; `bench --no-run`; fuzz smoke tests.
 - **Acceptance:** decrypting 1 GiB to stdout to NUL takes at most about 1.4x file to file on
   the machine above, with matching output hashes.
+
+## Result
+
+Release CLIs from main (`c2d3fd6`) and the branch, three alternating rounds, same machine and
+file as above. Every stdout output matched the plaintext's SHA-256.
+
+| decrypt 1 GiB | main | branch |
+|---|---|---|
+| file to file | 2.41–4.34 s | 1.96–4.45 s (same code; disk write-back noise) |
+| stdout to NUL | 4.35–5.01 s | 2.14–2.70 s |
+| stdout to a file | 6.96–9.41 s | 2.63–2.91 s |
+
+**Acceptance met:** stdout to NUL in rounds 2 and 3 took 2.14 s against 1.96–1.98 s file to
+file, about 1.1×. Both new tests went red with the CTR offset broken (`skip` dropped), then
+green restored. All gates passed.
 
 ## Non-scope
 
