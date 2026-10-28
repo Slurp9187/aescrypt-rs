@@ -1,8 +1,9 @@
 # aescrypt-rs: speed follow-ups after the span loop — F1, F2, F3
 
 **Status (2026-10-26, UTC):** **F1 dropped: the prototype measured −1%** (see [Prototype
-result](#prototype-result-dropped)). The spike had predicted +8.8%. F2 and F3 stay parked; F2
-is unaffected by F1's result, because it removes the second check rather than replacing it.
+result](#prototype-result-dropped)). The spike had predicted +8.8%. **F2 and F3 are parked,
+tracked in #77 and #78; #68 is closed** (2026-10-28). F2 is unaffected by F1's result, because
+it removes the second check rather than replacing it.
 Before that, the owner had judged F1's predicted +8.8% worth building for rc.17, on the
 condition that the prototype re-bench confirm it. Before the spike: F1 approved
 by the owner to measure first, and to ship in rc.16 if the measurement said go. Verified at main `ee36a0e`, with #71 (encrypt `CbcSpan`)
@@ -176,8 +177,11 @@ process can write, and the file changes between the passes, pass 2 would release
 that pass 1's tag never covered. That is exactly what the second check exists to stop. F2's
 docs must forbid writable mappings, or F2 keeps a check (F1's) and gains less.
 
-**When:** after rc.16, and only if EFV's end-to-end numbers show in-memory verified decrypts
-of large items matter. Small items are dominated by the 600,000-iteration KDF.
+**When: parked, tracked in #77.** EFV moved to rc.16 and its 64 MiB open got about 37× faster
+end to end, so there is no measured need. The +75% is a model from the spike that overestimated
+F1. The API is safe only if callers keep writable mappings out. Unpark when an EFV profile shows
+that `decrypt_to_vec` on large items is a user-facing bottleneck, then prototype and benchmark
+before committing to the API. Small items are dominated by the 600,000-iteration KDF.
 
 **secure-gate: inside, not at the boundary.** The input is ciphertext, which is public.
 Plaintext still streams to `W` and is never returned, and the spans stay `Dynamic<[u8]>`.
@@ -193,6 +197,12 @@ A default-off Cargo feature using `std::thread::scope`, with no new dependency:
   other.
 
 The output stays byte-identical.
+
+**When: parked, tracked in #78.** No measured need since EFV moved to rc.16. Encrypt is capped
+by CBC's serial chain, and pass 1 cannot be threaded. Unpark when EFV benchmarks show that
+large-file encrypt or verified-decrypt throughput is a user-facing bottleneck, then prototype
+and benchmark the real ratio before merging. Small files need a size threshold so they stay
+single-threaded.
 
 **Name: `parallel`.**
 - Not `rayon`. BLAKE3 calls its feature `rayon` because it enables the optional
