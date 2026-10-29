@@ -68,9 +68,9 @@ checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
 
 [[package]]
 name = "bech32"
-version = "0.11.1"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32637268377fc7b10a8c6d51de3e7fba1ce5dd371a96e342b34e6078db558e7f"
+checksum = "efbd3e1070bbdf4cd88a75264e18e8a26f7cb5c6949eadf0ceb85fb159cf08f8"
 
 [[package]]
 name = "block-buffer"
@@ -295,9 +295,9 @@ checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
 
 [[package]]
 name = "secure-gate"
-version = "0.9.0-rc.16"
+version = "0.9.0-rc.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a46f2c31a81579c9be1e5e141bc1c3662a23a4d39d0ad828bb3ddfb9921b9ee"
+checksum = "0eb6dee38c7f22d2ed83355f29744042e44fa3b18da4a16da222d1d0523b02b5"
 dependencies = [
  "base16ct",
  "base32ct",

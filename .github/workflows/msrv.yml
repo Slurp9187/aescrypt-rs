@@ -25,7 +25,7 @@ jobs:
       # `bench --no-run` is not redundant with `test`: it is the only build of
       # criterion and its tree (clap 4.6), so it is the only guard against a
       # dev-dependency drifting past the floor. The floor itself is set by
-      # secure-gate 0.9.0-rc.16 (rust-version 1.87, RUSTSEC-2026-0385).
+      # secure-gate, rust-version 1.87 since 0.9.0-rc.16 (RUSTSEC-2026-0385).
       - run: cargo +1.87 bench --no-run
 
   stable:

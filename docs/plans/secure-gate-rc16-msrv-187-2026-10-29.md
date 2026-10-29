@@ -106,3 +106,17 @@ dependency now offers it, all in this release. They also asked for the tags
 **Gates:** the same as above, plus a throughput comparison against main (alternating rounds) to
 show the AES-NI span loop kept its speed. Cross-target clippy is now split by crate, because
 criterion 0.8's `alloca` build script cannot cross-compile from Windows.
+
+## Addendum 2 (2026-10-29): secure-gate rc.17
+
+secure-gate 0.9.0-rc.17 is on crates.io (index checked: live, rust-version 1.87) and replaces
+rc.16 as the 0.9.0 candidate. The secure-gate owner asked every dependent to take it inside its
+current unpublished release, so this PR re-pins all three manifests to `=0.9.0-rc.17`.
+
+rc.17's changes:
+- bech32 goes from 0.11 to 0.12. That is optional and off here: it appears in the lockfile but
+  is never compiled (`cargo tree -i bech32` prints nothing).
+- Poly1305 state is now wiped under `sealed`, which this crate does not enable.
+- A lockfile refresh.
+
+No code change was needed.

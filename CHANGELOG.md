@@ -12,9 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **MSRV raised from 1.85 to 1.87.** `secure-gate` 0.9.0-rc.16 declares
   rust-version 1.87. It raised its MSRV for RUSTSEC-2026-0385, which affects
   ctutils before 0.4.4. `rust-toolchain.toml` and CI now pin 1.87.
-- `secure-gate` is re-pinned from `=0.9.0-rc.15` to `=0.9.0-rc.16`. rc.16
-  removes `from_rng` and the `From*Str` decoder traits, and this crate used
-  neither. rc.16 requires `zeroize` 1.9.1 or later.
+- `secure-gate` is re-pinned from `=0.9.0-rc.15` to `=0.9.0-rc.17`, the 0.9.0
+  candidate. rc.16 removed `from_rng` and the `From*Str` decoder traits, and this
+  crate used neither. rc.16 also requires `zeroize` 1.9.1 or later. rc.17 moves
+  secure-gate's optional bech32 support to `bech32` 0.12 and wipes Poly1305 state
+  under its `sealed` feature. This crate enables neither, so neither change
+  reaches its build.
 - **The RustCrypto dependencies move to their current generation:** `aes` 0.9
   (was 0.8), `hmac` 0.13 (was 0.12), `sha2` 0.11 (was 0.10) and `pbkdf2` 0.13
   (was 0.12), which bring `cipher` 0.5 and `digest` 0.11. `hmac` now pulls in
