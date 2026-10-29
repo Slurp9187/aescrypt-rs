@@ -7,17 +7,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Versioned independently of `aescrypt-rs`; `--version` shows both.
 
-## [0.1.0-rc.6] - Unreleased
+## [0.1.0-rc.6] - 2026-10-29
 
 ### Changed
 
 - Built on `aescrypt-rs` 0.2.0-rc.18, which this release pins exactly, so
   `aescrypt-rs` 0.2.0-rc.18 must be published first. That library brings
   `secure-gate` 0.9.0-rc.16, which this CLI also pins directly, and `zeroize`
-  1.9.1, now this CLI's declared floor.
+  1.9.1, now this CLI's declared floor. Through the library, the HMAC and
+  SHA-256 states are now wiped when they drop (`hmac` and `sha2` built with
+  `zeroize`).
 - **MSRV raised from 1.85 to 1.87**, as `secure-gate` 0.9.0-rc.16 requires
-  (RUSTSEC-2026-0385). The CLI does not enable the `sealed` feature the
-  advisory concerns.
+  (RUSTSEC-2026-0385).
+- The sealed stdout stage's AES-256-CTR now uses `aes` 0.9 (was 0.8), the same
+  version as the library, still with its `zeroize` feature. The seal format and
+  the files written are unchanged.
+- Dependencies refreshed to their newest compatible releases. `expectrl`
+  (Unix test-only) moves from 0.7 to 0.9.
 
 ## [0.1.0-rc.5] - 2026-10-28
 

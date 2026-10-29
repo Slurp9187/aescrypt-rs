@@ -81,9 +81,14 @@ cargo publish -p aescrypt-cli --locked
 Rust 1.87 is pinned in `rust-toolchain.toml`, and the lint and docs jobs use it too.
 
 - `cargo +1.87 fmt --all --check`
-- `cargo +1.87 clippy --workspace --all-targets --all-features -- -D warnings`, plus the same
-  with `--target x86_64-unknown-linux-gnu` and `--target aarch64-apple-darwin`. The Windows
-  host never compiles the `cfg(unix)` code, and CI's macOS job only runs tests.
+- `cargo +1.87 clippy --workspace --all-targets --all-features -- -D warnings`. Then, for
+  `--target x86_64-unknown-linux-gnu` and `--target aarch64-apple-darwin`, run
+  `clippy -p aescrypt-cli --all-targets --all-features` and `clippy -p aescrypt-rs --lib`.
+  The Windows host never compiles the `cfg(unix)` code, and CI's macOS job only runs tests.
+  The cross runs are split by crate because criterion 0.8 (the library's dev-dependency)
+  pulls in `alloca`, a C build script that cannot cross-compile from Windows. The library
+  has no `cfg(unix)` code, so its `--lib` run covers it. The targets must be installed:
+  `rustup target add --toolchain 1.87 x86_64-unknown-linux-gnu aarch64-apple-darwin`.
 - `cargo +1.87 test --workspace --all-features` (README examples run as doctests)
 - `RUSTDOCFLAGS=-D warnings cargo +1.87 doc --workspace --no-deps --all-features`, then again
   with `--document-private-items`

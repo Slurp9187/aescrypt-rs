@@ -85,7 +85,7 @@ pub fn encrypt_with_fixed_session<R: std::io::Read, W: std::io::Write>(
     derive_setup_key(password, public_iv, iterations, &mut setup_key)?;
     let cipher = setup_key.with_secret(|sk| aes::Aes256Enc::new(sk.into()));
     let mut session_hmac =
-        setup_key.with_secret(|sk| <HmacSha256 as Mac>::new_from_slice(sk).unwrap());
+        setup_key.with_secret(|sk| <HmacSha256 as KeyInit>::new_from_slice(sk).unwrap());
 
     let mut enc_session_block = EncryptedSessionBlock48::new([0u8; 48]);
     encrypt_session_block(
@@ -112,7 +112,7 @@ pub fn encrypt_with_fixed_session<R: std::io::Read, W: std::io::Write>(
 /// If `padded` is not a whole number of blocks.
 #[allow(dead_code)] // Used across multiple test files
 pub fn reference_cbc_encrypt(key: &[u8; 32], iv: &[u8; 16], padded: &[u8]) -> Vec<u8> {
-    use aes::cipher::{BlockEncrypt, KeyInit};
+    use aes::cipher::{BlockCipherEncrypt, KeyInit};
     assert_eq!(padded.len() % 16, 0);
     let cipher = aes::Aes256Enc::new(key.into());
     let mut prev = *iv;
@@ -138,7 +138,7 @@ pub fn reference_cbc_encrypt(key: &[u8; 32], iv: &[u8; 16], padded: &[u8]) -> Ve
 #[allow(dead_code)] // Used across multiple test files
 pub fn reference_hmac(key: &[u8; 32], data: &[u8]) -> [u8; 32] {
     use hmac::Mac;
-    let mut mac = <hmac::Hmac<sha2::Sha256> as Mac>::new_from_slice(key).unwrap();
+    let mut mac = <hmac::Hmac<sha2::Sha256> as hmac::KeyInit>::new_from_slice(key).unwrap();
     mac.update(data);
     mac.finalize().into_bytes().into()
 }

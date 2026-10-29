@@ -817,7 +817,8 @@ mod unix {
     // The prompt, through a pseudo-terminal
     // -----------------------------------------------------------------------
 
-    use expectrl::{Regex, Session};
+    use expectrl::session::OsSession as Session;
+    use expectrl::{Expect, Regex};
 
     /// Runs the binary on a pty. expectrl creates the pty with echo off, which
     /// would make "echo restored" impossible to tell from "never touched", so

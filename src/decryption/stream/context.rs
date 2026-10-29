@@ -10,10 +10,10 @@ use crate::aliases::{Block16, HeapSpan, Iv16, grow_span, heap_span};
 use crate::constants::{FIRST_FILL, SPAN};
 use crate::error::AescryptError;
 use crate::utilities::read_until_full;
-use aes::cipher::BlockDecrypt;
+use aes::Aes256Dec;
+use aes::cipher::BlockCipherDecrypt;
 use aes::cipher::consts::U16;
 use aes::cipher::inout::InOutBuf;
-use aes::{Aes256Dec, Block as AesBlock};
 use hmac::Mac;
 use secure_gate::{RevealSecret, RevealSecretMut};
 use std::io::{Read, Write};
@@ -316,8 +316,8 @@ impl DecryptionContext {
         } = self;
         plaintext_block.with_secret_mut(|pb| {
             chain.with_secret(|ch| pb.copy_from_slice(ch));
-            // Decrypt in place inside the wrapper (borrowed as a GenericArray).
-            cipher.decrypt_block(AesBlock::from_mut_slice(pb));
+            // Decrypt in place inside the wrapper (borrowed as an `aes::Block`).
+            cipher.decrypt_block(pb.into());
             chain_before.with_secret(|before| {
                 for (b, x) in pb.iter_mut().zip(before.iter()) {
                     *b ^= *x;

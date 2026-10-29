@@ -16,14 +16,15 @@
 //!   [`crate::aliases::AckdfHashState32`] and each iteration finalizes
 //!   directly into it (`finalize_into_reset`) — no unwrapped intermediate
 //!   copies. The `Sha256` hasher's *internal* state (chaining variables and
-//!   block buffer) cannot be explicitly zeroized through `sha2`'s public API;
-//!   see the inline comment in the implementation.
+//!   block buffer) is not a secure-gate type; `sha2` is built with `zeroize`,
+//!   so it is wiped when the hasher drops. See the inline comment in the
+//!   implementation.
 
 use crate::AescryptError;
 use crate::aliases::{AckdfDerivedKey32, AckdfHashState32, Salt16};
 use crate::utilities::utf8_to_utf16le;
 use secure_gate::{Dynamic, RevealSecret, RevealSecretMut};
-use sha2::{Digest, Sha256, digest::Output};
+use sha2::{Digest, Sha256};
 
 /// Fixed ACKDF iteration count mandated by the AES Crypt v0–v2 file format
 /// specification.
@@ -101,8 +102,8 @@ pub fn derive_ackdf_key(
     // Note: `Sha256` holds internal chaining state (8 × u32) and a 64-byte block buffer on
     // the stack, neither wrapped in a secure-gate type. `finalize_into_reset()` re-initializes
     // the chaining state to the SHA-256 IV after each iteration, but the block buffer is only
-    // position-reset, so password-derived bytes may linger there until the frame is reused —
-    // `sha2` 0.10 exposes no zeroize hook for hasher internals. The running `hash` state is
+    // position-reset, so password-derived bytes stay there until `hasher` drops. `sha2` is
+    // built with `zeroize`, so the drop wipes both. The running `hash` state is
     // auto-zeroized via secure-gate on drop.
     let mut hasher = Sha256::new();
     let mut hash = AckdfHashState32::new([0u8; 32]); // ← semantic, zero-cost, auto-zeroized
@@ -116,7 +117,7 @@ pub fn derive_ackdf_key(
         hash.with_secret(|h| hasher.update(h));
         password_utf16le.with_secret(|p| hasher.update(p));
         // Finalize straight into the wrapped state — no unwrapped [u8; 32] copy.
-        hash.with_secret_mut(|h| hasher.finalize_into_reset(Output::<Sha256>::from_mut_slice(h)));
+        hash.with_secret_mut(|h| hasher.finalize_into_reset(h.into()));
     }
 
     hash.with_secret(|h| {

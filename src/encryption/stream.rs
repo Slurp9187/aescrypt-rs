@@ -8,7 +8,9 @@ use crate::constants::{FIRST_FILL, SPAN};
 use crate::error::AescryptError;
 use crate::utilities::read_until_full;
 use aes::cipher::consts::U16;
-use aes::cipher::{BlockBackend, BlockClosure, BlockEncrypt, BlockSizeUser, KeyInit};
+use aes::cipher::{
+    BlockCipherEncBackend, BlockCipherEncClosure, BlockCipherEncrypt, BlockSizeUser, KeyInit,
+};
 use aes::{Aes256Enc, Block as AesBlock};
 use hmac::Mac;
 use secure_gate::{RevealSecret, RevealSecretMut};
@@ -61,7 +63,7 @@ const _: () = assert!(SPAN % INTERLEAVE == 0);
 ///
 /// # Panics
 ///
-/// Never panics on valid input. `GenericArray::from_mut_slice` is only called
+/// Never panics on valid input. The conversion to `aes::Block` is only made
 /// on 16-byte chunks of a span whose used length is a multiple of 16.
 ///
 /// # Security
@@ -98,10 +100,11 @@ where
 {
     let cipher = session_key.with_secret(|sk| Aes256Enc::new(sk.into()));
     // Note: the returned `HmacSha256` carries opad/ipad state derived from
-    // `session_key` and is not wrapped — `hmac` 0.12 exposes no zeroize hook.
-    // See the crate-level Security Model.
+    // `session_key`. It is not a secure-gate type, but it is wiped when it drops
+    // (`hmac` and `sha2` are built with `zeroize`); see the crate-level Security
+    // Model.
     let mut hmac = session_key.with_secret(|sk| {
-        <HmacSha256 as Mac>::new_from_slice(sk)
+        <HmacSha256 as KeyInit>::new_from_slice(sk)
             .expect("session_key is always 32 bytes — valid HMAC key")
     });
 
@@ -175,19 +178,20 @@ where
 /// CBC-encrypts `data` (a multiple of 16 bytes) in place, chaining off `prev`
 /// and leaving the last ciphertext block in it.
 ///
-/// A `BlockClosure`, so the whole loop runs inside one call into the AES
-/// backend. On x86 that call is `aes`'s `#[target_feature(enable = "aes")]`
+/// A `BlockCipherEncClosure`, so the whole loop runs inside one call into the
+/// AES backend. On x86 that call is `aes`'s `#[target_feature(enable = "aes")]`
 /// function, so one feature check and call cover the piece where
 /// `encrypt_block` paid both for every block; that is the saving measured.
-/// `aes` 0.8 on aarch64 (without `--cfg aes_armv8`) and on x86 without AES-NI
-/// uses its software backend, where there is no such dispatch to save.
+/// Where `aes` uses its software backend (no AES-NI or Arm AES extensions, or
+/// `--cfg aes_backend="soft"`) there is no such dispatch to save.
 ///
 /// This code copies no block out: each is encrypted in place inside the span
 /// wrapper, and `prev` is the `Block16` wrapper's own storage. What the AES
-/// backend does inside `proc_block` is out of its reach. The AES-NI backend
-/// loads each block into SIMD values, but `aes`'s software backend copies each block (plaintext
-/// XOR the previous ciphertext) into a stack batch it does not wipe. That was
-/// equally true of `encrypt_block`, which runs the same `proc_block`.
+/// backend does inside `encrypt_block_inplace` is out of its reach. The
+/// hardware backends load each block into SIMD values, but `aes`'s software
+/// backend copies each block (plaintext XOR the previous ciphertext) into a
+/// stack batch it does not wipe. That is equally true of the cipher's own
+/// `encrypt_block`, which runs the same backend.
 struct CbcSpan<'a> {
     /// The previous ciphertext block; the last one written, afterwards.
     prev: &'a mut [u8; 16],
@@ -199,14 +203,15 @@ impl BlockSizeUser for CbcSpan<'_> {
     type BlockSize = U16;
 }
 
-impl BlockClosure for CbcSpan<'_> {
+impl BlockCipherEncClosure for CbcSpan<'_> {
     #[inline(always)]
-    fn call<B: BlockBackend<BlockSize = U16>>(self, backend: &mut B) {
+    fn call<B: BlockCipherEncBackend<BlockSize = U16>>(self, backend: &B) {
         for block in self.data.chunks_exact_mut(16) {
             for (b, p) in block.iter_mut().zip(self.prev.iter()) {
                 *b ^= *p;
             }
-            backend.proc_block_inplace(AesBlock::from_mut_slice(block));
+            let block: &mut AesBlock = block.try_into().expect("chunks_exact_mut(16)");
+            backend.encrypt_block_inplace(block);
             self.prev.copy_from_slice(block);
         }
     }

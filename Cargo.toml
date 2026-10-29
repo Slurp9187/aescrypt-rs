@@ -95,9 +95,9 @@ all-features = true
 # Runtime dependencies
 # ----------------------------------------------------------------------
 [dependencies]
-aes = { version = "0.8", features = ["zeroize"] }
-hmac = "0.12"
-pbkdf2 = "0.12"
+aes = { version = "0.9", features = ["zeroize"] }
+hmac = { version = "0.13", features = ["zeroize"] }
+pbkdf2 = { version = "0.13", default-features = false, features = ["hmac"] }
 # Exact pin, registry dep — this crate is publishable in this state.
 #
 # `=` and not a caret, deliberately: secure-gate is still in RC and breaking
@@ -116,18 +116,17 @@ pbkdf2 = "0.12"
 # NOTE: `secure-gate = "0.9"` resolves to NOTHING — a caret matches a pre-release
 # only when the requirement itself carries one for the same major.minor.patch.
 secure-gate = { version = "=0.9.0-rc.16", features = ["rand", "ct-eq"] }
-sha2 = "0.10"
+sha2 = { version = "0.11", default-features = false, features = ["zeroize"] }
 thiserror = "2.0"
 
 # ----------------------------------------------------------------------
 # Dev / test / bench dependencies
 # ----------------------------------------------------------------------
 [dev-dependencies]
-# The 1.87 floor comes from secure-gate 0.9.0-rc.16 (RUSTSEC-2026-0385). criterion
-# 0.7 resolves clap 4.6 (rust-version 1.85); criterion 0.8+ (rustc 1.86) would now
-# fit too, but moving it is a separate change. `cargo bench --no-run` stays in CI
-# as the only build that checks the dev-dependencies against the floor.
-criterion = { version = "0.7", features = ["html_reports"] }
+# The 1.87 floor comes from secure-gate 0.9.0-rc.16 (RUSTSEC-2026-0385); criterion
+# 0.8 declares rustc 1.86. `cargo bench --no-run` stays in CI as the only build
+# that checks the dev-dependencies against the floor.
+criterion = { version = "0.8", features = ["html_reports"] }
 hex = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

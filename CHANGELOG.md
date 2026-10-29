@@ -5,20 +5,47 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0-rc.18] - Unreleased
+## [0.2.0-rc.18] - 2026-10-29
 
 ### Changed
 
 - **MSRV raised from 1.85 to 1.87.** `secure-gate` 0.9.0-rc.16 declares
   rust-version 1.87. It raised its MSRV for RUSTSEC-2026-0385, which affects
-  ctutils before 0.4.4. ctutils is reached only through secure-gate's `sealed`
-  feature, which this crate does not enable, so ctutils is not in this crate's
-  build. `rust-toolchain.toml` and CI now pin 1.87.
-- `secure-gate` is re-pinned from `=0.9.0-rc.15` to `=0.9.0-rc.16`. This
-  crate's public signatures, aliases and behavior are unchanged. rc.16 removes
-  `from_rng` and the `From*Str` decoder traits, and this crate used neither.
-  rc.16 requires `zeroize` 1.9.1 or later, so `zeroize` moves from 1.8.2 to
-  1.9.1 in the lockfile.
+  ctutils before 0.4.4. `rust-toolchain.toml` and CI now pin 1.87.
+- `secure-gate` is re-pinned from `=0.9.0-rc.15` to `=0.9.0-rc.16`. rc.16
+  removes `from_rng` and the `From*Str` decoder traits, and this crate used
+  neither. rc.16 requires `zeroize` 1.9.1 or later.
+- **The RustCrypto dependencies move to their current generation:** `aes` 0.9
+  (was 0.8), `hmac` 0.13 (was 0.12), `sha2` 0.11 (was 0.10) and `pbkdf2` 0.13
+  (was 0.12), which bring `cipher` 0.5 and `digest` 0.11. `hmac` now pulls in
+  ctutils for its tag comparison; the lockfile holds 0.4.7, which is past the
+  advisory. On Rust 1.87 the resolver picks `aes` 0.9.2 and `sha2` 0.11.0;
+  `aes` 0.9.3 and `sha2` 0.11.1 need Rust 1.89 and 1.88 and are taken on newer
+  toolchains.
+  - **`hmac` and `sha2` are now built with their `zeroize` features**, which
+    they did not have before. The HMAC inner and outer states (derived from the
+    setup, session and payload keys), the SHA-256 state of the v0–v2 ACKDF, and
+    their block buffers are now wiped when they drop. Until now the crate-level
+    Security Model listed them as residue this crate could not reach. `aes`
+    keeps its `zeroize` feature, so its key schedule is wiped as before.
+  - **The file format is byte-identical.** `tests/span_golden_tests.rs` and
+    the fixed test vectors pass unchanged.
+  - **Faster.** On `benches/throughput.rs` (64 MiB, two alternating rounds
+    against 0.2.0-rc.17's code), measured on Rust 1.87 with `aes` 0.9.2 and
+    `sha2` 0.11.0 on one high-end x86 desktop with AES-NI:
+    - encrypt: 480 → 719 MiB/s
+    - decrypt: 955 MiB/s → 1.94 GiB/s
+    - `decrypt_verified`: 512 MiB/s → 1.05 GiB/s
+
+    `benches/small_files.rs` is 15–55% faster per call.
+  - **Breaking, advanced API only.** `encryption::encrypt_session_block` takes
+    `&aes::Aes256Enc` and `&mut HmacSha256`, and `encryption::write_hmac` takes
+    `HmacSha256`; these now name the `aes` 0.9 and `hmac` 0.13 types. A caller
+    of those functions must use the same versions. `encrypt`, `decrypt`,
+    `decrypt_verified` and the other crate-root functions name no RustCrypto
+    type and are unaffected.
+- `criterion` (dev-dependency) moves from 0.7 to 0.8, which the 1.87 floor now
+  allows.
 
 ## [0.2.0-rc.17] - 2026-10-28
 

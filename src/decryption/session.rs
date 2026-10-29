@@ -10,8 +10,8 @@
 use crate::aliases::{Aes256Key32, Block16, EncryptedSessionBlock48, Iv16, SessionHmacTag32};
 use crate::decryption::read_exact_span;
 use crate::{aliases::HmacSha256, error::AescryptError, utilities::xor_blocks};
-use aes::cipher::{BlockDecrypt, KeyInit};
-use aes::{Aes256Dec, Block as AesBlock};
+use aes::Aes256Dec;
+use aes::cipher::{BlockCipherDecrypt, KeyInit};
 use hmac::Mac;
 use secure_gate::{ConstantTimeEq, RevealSecret, RevealSecretMut};
 use std::io::Read;
@@ -84,12 +84,11 @@ where
     // HMAC verification — exact same pattern as encryption side.
     //
     // Note: the returned `HmacSha256` carries opad/ipad state derived from
-    // `setup_key`, and it is not wrapped. `hmac` 0.12 has no `Drop` impl and no
-    // zeroize feature to enable, so that state persists until the frame is reused.
-    // Same class as the `Sha256` note in `kdf::ackdf`; see the crate-level Security
-    // Model. Not recoverable to the key, but sufficient to forge tags under it.
+    // `setup_key`. It is not a secure-gate type, but `hmac` and `sha2` are built
+    // with `zeroize`, so that state is wiped when it drops; see the crate-level
+    // Security Model.
     let mut mac = setup_key.with_secret(|key| {
-        <HmacSha256 as hmac::Mac>::new_from_slice(key).expect("setup_key is always 32 bytes")
+        <HmacSha256 as KeyInit>::new_from_slice(key).expect("setup_key is always 32 bytes")
     });
 
     encrypted_block.with_secret(|block| mac.update(block));
@@ -117,12 +116,12 @@ where
             let chunk_array: [u8; 16] = chunk.try_into().expect("chunk is exactly 16 bytes");
 
             // Decrypt a working copy in place inside a secure-gate wrapper
-            // (borrowed as a GenericArray): the recovered session IV/key
+            // (borrowed as an `aes::Block`): the recovered session IV/key
             // material never exists outside it, and the wrapper zeroizes on
             // drop. `chunk_array` itself keeps the (public) ciphertext for
             // CBC chaining below.
             let mut work = Block16::from(chunk_array);
-            work.with_secret_mut(|b| cipher.decrypt_block(AesBlock::from_mut_slice(b)));
+            work.with_secret_mut(|b| cipher.decrypt_block(b.into()));
 
             let xor_pb = previous_block.with_secret(|pb| *pb);
             work.with_secret(|b| match i {
