@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-rc.18] - Unreleased
+
+### Changed
+
+- **MSRV raised from 1.85 to 1.87.** `secure-gate` 0.9.0-rc.16 declares
+  rust-version 1.87. It raised its MSRV for RUSTSEC-2026-0385, which affects
+  ctutils before 0.4.4. ctutils is reached only through secure-gate's `sealed`
+  feature, which this crate does not enable, so ctutils is not in this crate's
+  build. `rust-toolchain.toml` and CI now pin 1.87.
+- `secure-gate` is re-pinned from `=0.9.0-rc.15` to `=0.9.0-rc.16`. This
+  crate's public signatures, aliases and behavior are unchanged. rc.16 removes
+  `from_rng` and the `From*Str` decoder traits, and this crate used neither.
+  rc.16 requires `zeroize` 1.9.1 or later, so `zeroize` moves from 1.8.2 to
+  1.9.1 in the lockfile.
+
 ## [0.2.0-rc.17] - 2026-10-28
 
 ### Added

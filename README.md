@@ -2,7 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/aescrypt-rs.svg)](https://crates.io/crates/aescrypt-rs)
 [![Docs.rs](https://docs.rs/aescrypt-rs/badge.svg)](https://docs.rs/aescrypt-rs)
-[![MSRV](https://img.shields.io/badge/MSRV-1.85-orange)](https://releases.rs/docs/1.85.0/)
+[![MSRV](https://img.shields.io/badge/MSRV-1.87-orange)](https://releases.rs/docs/1.87.0/)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
 
 **Fast, safe, streaming Rust implementation of the AES Crypt file format**
@@ -350,7 +350,7 @@ Passwords come from a terminal prompt, `--password-command` or
 
 ## Installation
 
-**Requires Rust 1.85+**, matching **`rust-version`** in this crate’s `Cargo.toml` (Rust **edition 2024**). Verify with `cargo +1.85 test` if you pin an older toolchain.
+**Requires Rust 1.87+**, matching **`rust-version`** in this crate’s `Cargo.toml` (Rust **edition 2024**). Verify with `cargo +1.87 test` if you pin an older toolchain.
 
 ```toml
 [dependencies]

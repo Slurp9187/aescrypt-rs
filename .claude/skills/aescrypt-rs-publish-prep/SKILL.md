@@ -78,16 +78,16 @@ cargo publish -p aescrypt-cli --locked
 
 ## Checks before a dry run (what CI runs)
 
-Rust 1.85 is pinned in `rust-toolchain.toml`, and the lint and docs jobs use it too.
+Rust 1.87 is pinned in `rust-toolchain.toml`, and the lint and docs jobs use it too.
 
-- `cargo +1.85 fmt --all --check`
-- `cargo +1.85 clippy --workspace --all-targets --all-features -- -D warnings`, plus the same
+- `cargo +1.87 fmt --all --check`
+- `cargo +1.87 clippy --workspace --all-targets --all-features -- -D warnings`, plus the same
   with `--target x86_64-unknown-linux-gnu` and `--target aarch64-apple-darwin`. The Windows
   host never compiles the `cfg(unix)` code, and CI's macOS job only runs tests.
-- `cargo +1.85 test --workspace --all-features` (README examples run as doctests)
-- `RUSTDOCFLAGS=-D warnings cargo +1.85 doc --workspace --no-deps --all-features`, then again
+- `cargo +1.87 test --workspace --all-features` (README examples run as doctests)
+- `RUSTDOCFLAGS=-D warnings cargo +1.87 doc --workspace --no-deps --all-features`, then again
   with `--document-private-items`
-- `cargo +1.85 bench --no-run`
+- `cargo +1.87 bench --no-run`
 - `cargo publish -p <crate> --locked --dry-run`
 - For the CLI, also test the **packaged** crate: `cargo package -p aescrypt-cli --no-verify`,
   unpack the `.crate` outside the repo, run `cargo test` there. It sees the rewritten

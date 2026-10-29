@@ -16,7 +16,7 @@ dependencies = [
 
 [[package]]
 name = "aescrypt-rs"
-version = "0.2.0-rc.17"
+version = "0.2.0-rc.18"
 dependencies = [
  "aes",
  "hmac",
@@ -274,9 +274,9 @@ checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
 
 [[package]]
 name = "secure-gate"
-version = "0.9.0-rc.15"
+version = "0.9.0-rc.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a61215834c24de98e1326f8e7d471fda47419ef1369786add84de59daad7735"
+checksum = "2a46f2c31a81579c9be1e5e141bc1c3662a23a4d39d0ad828bb3ddfb9921b9ee"
 dependencies = [
  "base16ct",
  "base32ct",
@@ -361,6 +361,6 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "zeroize"
-version = "1.8.2"
+version = "1.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b97154e67e32c85465826e8bcc1c59429aaaf107c1e4a9e53c8d8ccd5eff88d0"
+checksum = "e13084392c5e4bc371903e2935a5eaeed24905a7511356b883835e18a78f6879"
