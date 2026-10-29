@@ -17,7 +17,7 @@
 #![allow(clippy::missing_docs_in_private_items)]
 
 use aes::Aes256Enc;
-use aes::cipher::{BlockEncrypt, KeyInit};
+use aes::cipher::{BlockCipherEncrypt, KeyInit};
 use aescrypt_rs::aliases::{Aes256Key32, EncryptedSessionBlock48, Iv16};
 use aescrypt_rs::encryption::{
     derive_setup_key, encrypt_session_block, write_header, write_hmac, write_iterations,
@@ -132,7 +132,7 @@ fn v3_file_with_raw_blocks(blocks: &[[u8; 16]]) -> Vec<u8> {
     derive_setup_key(TEST_PASSWORD, &public_iv, TEST_ITERATIONS, &mut setup_key).unwrap();
     let setup_cipher = setup_key.with_secret(|k| Aes256Enc::new(k.into()));
     let mut session_hmac =
-        setup_key.with_secret(|k| <Hmac<Sha256> as Mac>::new_from_slice(k).unwrap());
+        setup_key.with_secret(|k| <Hmac<Sha256> as KeyInit>::new_from_slice(k).unwrap());
     let mut session_block = EncryptedSessionBlock48::new([0u8; 48]);
     encrypt_session_block(
         &setup_cipher,
@@ -149,7 +149,7 @@ fn v3_file_with_raw_blocks(blocks: &[[u8; 16]]) -> Vec<u8> {
 
     let cipher = session_key.with_secret(|k| Aes256Enc::new(k.into()));
     let mut payload_hmac =
-        session_key.with_secret(|k| <Hmac<Sha256> as Mac>::new_from_slice(k).unwrap());
+        session_key.with_secret(|k| <Hmac<Sha256> as KeyInit>::new_from_slice(k).unwrap());
     let mut chain = session_iv.with_secret(|iv| *iv);
     for plain in blocks {
         let mut block = [0u8; 16];

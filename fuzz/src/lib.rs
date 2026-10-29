@@ -15,7 +15,7 @@
 //! `smoke_legacy_builder_roundtrips` test continuously differential-test it
 //! against the real decryptor.
 
-use aes::cipher::{BlockEncrypt, KeyInit};
+use aes::cipher::{BlockCipherEncrypt, KeyInit};
 use aes::{Aes256Enc, Block};
 use aescrypt_rs::aliases::{AckdfDerivedKey32, Aes256Key32, Iv16, Salt16};
 use aescrypt_rs::decryption::{
@@ -63,7 +63,7 @@ fn cbc_encrypt(key: &[u8; 32], iv: &[u8; 16], padded: &[u8]) -> Vec<u8> {
 }
 
 fn hmac_tag(key: &[u8; 32], data: &[u8]) -> [u8; 32] {
-    let mut mac = <HmacSha256 as Mac>::new_from_slice(key).unwrap();
+    let mut mac = <HmacSha256 as KeyInit>::new_from_slice(key).unwrap();
     mac.update(data);
     mac.finalize().into_bytes().into()
 }

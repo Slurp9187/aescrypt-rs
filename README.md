@@ -2,7 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/aescrypt-rs.svg)](https://crates.io/crates/aescrypt-rs)
 [![Docs.rs](https://docs.rs/aescrypt-rs/badge.svg)](https://docs.rs/aescrypt-rs)
-[![MSRV](https://img.shields.io/badge/MSRV-1.85-orange)](https://releases.rs/docs/1.85.0/)
+[![MSRV](https://img.shields.io/badge/MSRV-1.87-orange)](https://releases.rs/docs/1.87.0/)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
 
 **Fast, safe, streaming Rust implementation of the AES Crypt file format**
@@ -51,7 +51,7 @@ If you find AES Crypt (or this Rust port) useful, please consider supporting Pau
 ## Security Features
 
 - **Constant-time operations**: All HMAC verifications and PKCS#7 padding validation use constant-time comparisons to prevent timing attacks
-- **Secure memory management**: Every key, IV, salt and intermediate buffer this crate *creates* is wrapped in a `secure-gate` type with automatic zeroization. Two things sit outside that: the caller-owned password (below), and third-party cipher/hasher internals this crate cannot reach — `aes` is built with its `zeroize` feature so the key schedule *is* wiped, but `hmac` 0.12 and `sha2` 0.10 expose no zeroize hook, so HMAC opad/ipad state and SHA-256 chaining state persist until their frames are reused. See the crate-level Security Model on [docs.rs](https://docs.rs/aescrypt-rs)
+- **Secure memory management**: Every key, IV, salt and intermediate buffer this crate *creates* is wrapped in a `secure-gate` type with automatic zeroization. Two things sit outside that: the caller-owned password (below), and third-party cipher/hasher internals this crate cannot wrap. `aes`, `hmac` and `sha2` are built with their `zeroize` features, so the AES key schedule, the HMAC opad/ipad state and SHA-256 hasher state are wiped when they drop. Stale copies left by moves, and the block batch of `aes`'s software backend (used only without hardware AES), are not. See the crate-level Security Model on [docs.rs](https://docs.rs/aescrypt-rs)
 - **Caller-owned passwords**: passwords are taken as `&str` borrows — read in place, never copied, never stored — so no `secure-gate` type appears in a signature you have to name, and this crate's `secure-gate` version stays an internal detail. Zeroizing the password itself is the caller's job; see [Password handling](#password-handling)
 - **Verify before release**: `decrypt_verified()` checks the HMAC (and v3's padding) before it writes any plaintext, so a tampered file or a wrong password writes nothing; it needs a seekable input. `decrypt()` reads once and verifies last; see [Verify before writing plaintext](#verify-before-writing-plaintext)
 - **Streaming architecture**: Constant-memory encryption and decryption in spans of up to 64 KiB, with one HMAC update and one write per span and no full-file buffering. Spans start at 1 KiB and grow only as the input does, so small files stay cheap.
@@ -350,7 +350,7 @@ Passwords come from a terminal prompt, `--password-command` or
 
 ## Installation
 
-**Requires Rust 1.85+**, matching **`rust-version`** in this crate’s `Cargo.toml` (Rust **edition 2024**). Verify with `cargo +1.85 test` if you pin an older toolchain.
+**Requires Rust 1.87+**, matching **`rust-version`** in this crate’s `Cargo.toml` (Rust **edition 2024**). Verify with `cargo +1.87 test` if you pin an older toolchain.
 
 ```toml
 [dependencies]

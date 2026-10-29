@@ -251,9 +251,9 @@ where
 ///   [`DecryptOutcome::length_authenticated`].
 ///
 /// The session key is derived once and held only in its zeroizing wrapper
-/// until this returns. The two payload HMAC states (one per pass) are
-/// `hmac` 0.12 values that cannot be wiped; see the crate-level Security
-/// Model. Plaintext is never stored: [`DecryptOutcome`] holds only counts.
+/// until this returns. The two payload HMAC states (one per pass) are wiped
+/// when they drop (`hmac` and `sha2` are built with `zeroize`); see the
+/// crate-level Security Model. Plaintext is never stored: [`DecryptOutcome`] holds only counts.
 ///
 /// # Examples
 ///

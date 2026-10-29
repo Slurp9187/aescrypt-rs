@@ -15,8 +15,8 @@ use crate::constants::{PBKDF2_MAX_ITER, PBKDF2_MIN_ITER};
 use crate::error::AescryptError;
 use crate::kdf::pbkdf2::derive_pbkdf2_key;
 use crate::utilities::xor_blocks;
-use aes::cipher::BlockEncrypt;
-use aes::{Aes256Enc, Block as AesBlock};
+use aes::Aes256Enc;
+use aes::cipher::BlockCipherEncrypt;
 use hmac::Mac;
 use secure_gate::{RevealSecret, RevealSecretMut};
 
@@ -121,14 +121,14 @@ pub fn encrypt_session_block(
     let mut block = Block16::new([0u8; 16]);
 
     // Each block is XORed and encrypted in place inside the secure-gate
-    // wrapper (borrowed as a GenericArray), so the pre-encryption XOR output
+    // wrapper (borrowed as an `aes::Block`), so the pre-encryption XOR output
     // never exists outside a zeroize-on-drop buffer.
 
     // === Block 1: session IV (16 bytes) ===
     session_iv.with_secret(|siv| {
         prev_block.with_secret(|pb| block.with_secret_mut(|b| xor_blocks(siv, pb, b)))
     });
-    block.with_secret_mut(|b| cipher.encrypt_block(AesBlock::from_mut_slice(b)));
+    block.with_secret_mut(|b| cipher.encrypt_block(b.into()));
     block.with_secret(|ct| {
         enc_block.with_secret_mut(|eb| eb[0..16].copy_from_slice(ct));
         hmac.update(ct);
@@ -139,7 +139,7 @@ pub fn encrypt_session_block(
     session_key.with_secret(|sk| {
         prev_block.with_secret(|pb| block.with_secret_mut(|b| xor_blocks(&sk[0..16], pb, b)))
     });
-    block.with_secret_mut(|b| cipher.encrypt_block(AesBlock::from_mut_slice(b)));
+    block.with_secret_mut(|b| cipher.encrypt_block(b.into()));
     block.with_secret(|ct| {
         enc_block.with_secret_mut(|eb| eb[16..32].copy_from_slice(ct));
         hmac.update(ct);
@@ -150,7 +150,7 @@ pub fn encrypt_session_block(
     session_key.with_secret(|sk| {
         prev_block.with_secret(|pb| block.with_secret_mut(|b| xor_blocks(&sk[16..32], pb, b)))
     });
-    block.with_secret_mut(|b| cipher.encrypt_block(AesBlock::from_mut_slice(b)));
+    block.with_secret_mut(|b| cipher.encrypt_block(b.into()));
     block.with_secret(|ct| {
         enc_block.with_secret_mut(|eb| eb[32..48].copy_from_slice(ct));
         hmac.update(ct);

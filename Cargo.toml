@@ -6,9 +6,9 @@
 name = "aescrypt-rs"
 # `aescrypt-cli` is versioned on its own and pins a published release of this
 # crate with `=`; a bump here does not bump it.
-version = "0.2.0-rc.17"
+version = "0.2.0-rc.18"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.87"
 description = "AES Crypt (v0-v3) Rust encryption/decryption library"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Slurp9187/aescrypt-rs"
@@ -95,9 +95,9 @@ all-features = true
 # Runtime dependencies
 # ----------------------------------------------------------------------
 [dependencies]
-aes = { version = "0.8", features = ["zeroize"] }
-hmac = "0.12"
-pbkdf2 = "0.12"
+aes = { version = "0.9", features = ["zeroize"] }
+hmac = { version = "0.13", features = ["zeroize"] }
+pbkdf2 = { version = "0.13", default-features = false, features = ["hmac"] }
 # Exact pin, registry dep — this crate is publishable in this state.
 #
 # `=` and not a caret, deliberately: secure-gate is still in RC and breaking
@@ -115,18 +115,18 @@ pbkdf2 = "0.12"
 #
 # NOTE: `secure-gate = "0.9"` resolves to NOTHING — a caret matches a pre-release
 # only when the requirement itself carries one for the same major.minor.patch.
-secure-gate = { version = "=0.9.0-rc.15", features = ["rand", "ct-eq"] }
-sha2 = "0.10"
+secure-gate = { version = "=0.9.0-rc.17", features = ["rand", "ct-eq"] }
+sha2 = { version = "0.11", default-features = false, features = ["zeroize"] }
 thiserror = "2.0"
 
 # ----------------------------------------------------------------------
 # Dev / test / bench dependencies
 # ----------------------------------------------------------------------
 [dev-dependencies]
-# criterion 0.8+ declares rustc 1.86, above this crate's 1.85 floor. 0.7 resolves
-# clap 4.6 (edition 2024, rust-version 1.85) — satisfied with ZERO margin, which is
-# why `cargo bench --no-run` belongs in CI: it is the only guard on that knife-edge.
-criterion = { version = "0.7", features = ["html_reports"] }
+# The 1.87 floor comes from secure-gate (since 0.9.0-rc.16, RUSTSEC-2026-0385); criterion
+# 0.8 declares rustc 1.86. `cargo bench --no-run` stays in CI as the only build
+# that checks the dev-dependencies against the floor.
+criterion = { version = "0.8", features = ["html_reports"] }
 hex = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

@@ -87,8 +87,8 @@
 //!
 //! # MSRV
 //!
-//! Minimum Supported Rust Version is **1.85** (edition 2024). CI verifies the crate
-//! against `cargo +1.85 test --all-features` and `cargo +1.85 bench --no-run`.
+//! Minimum Supported Rust Version is **1.87** (edition 2024). CI verifies the crate
+//! against `cargo +1.87 test --all-features` and `cargo +1.87 bench --no-run`.
 //!
 //! # Security Model
 //!
@@ -109,21 +109,21 @@
 //!   - The **password**: it enters the crate as a `&str` borrow, is read in place,
 //!     and is never copied or stored — so zeroizing it is the caller's
 //!     responsibility. See [Password ownership](#password-ownership) below.
-//!   - **Third-party cipher and hasher internals**, which this crate cannot reach.
-//!     `aes` is built with its `zeroize` feature, so the AES key schedule *is*
-//!     wiped on drop. `hmac` 0.12 and `sha2` 0.10 expose no zeroize hook at all:
-//!     the HMAC opad/ipad state — derived from the setup, session and payload keys
-//!     — and the SHA-256 chaining state and block buffer persist until their stack
-//!     frames are reused. Recovering a key from that state is preimage-hard, but
-//!     HMAC state is sufficient to forge tags under the key it was built from. This
-//!     is a property of those crates, not a gap this crate can close.
-//!     [`decrypt_verified()`] builds two payload HMAC states, one per pass, both
-//!     from the session key; both are residue of this kind. So is the block
-//!     batch of `aes`'s software backend, which `aes` 0.8 uses on x86 without
-//!     AES-NI and on aarch64 unless built with `--cfg aes_armv8`. It copies each
-//!     block into a stack batch it does not wipe: plaintext XOR the previous
-//!     ciphertext block when encrypting, and the block before its CBC XOR when
-//!     decrypting.
+//!   - **Third-party cipher and hasher internals**, which this crate cannot wrap.
+//!     `aes`, `hmac` and `sha2` are all built with their `zeroize` features, so
+//!     the AES key schedule, the HMAC inner and outer SHA-256 states (derived
+//!     from the setup, session and payload keys), the SHA-256 state of the v0–v2
+//!     ACKDF, and their block buffers are wiped when they drop. What stays out of
+//!     reach: a stale copy that a by-value move leaves behind (Rust moves do not
+//!     wipe their source), and the block batch of `aes`'s software backend. `aes`
+//!     uses that backend on x86 without AES-NI, on aarch64 without the Arm
+//!     AES extensions (detected at run time on Linux and macOS, and elsewhere used
+//!     only with the `aes` target feature), and everywhere
+//!     when built with `--cfg aes_backend="soft"`. It copies each block into a
+//!     stack batch it does not wipe: plaintext XOR the previous ciphertext block
+//!     when encrypting, and the block before its CBC XOR when decrypting.
+//!     Recovering a key from hash state is preimage-hard, but HMAC state is
+//!     sufficient to forge tags under the key it was built from.
 //! - **Decrypt-then-verify**: [`decrypt()`] reads its input once, so the payload HMAC
 //!   is verified **after** the ciphertext stream is decrypted. It therefore
 //!   may write partial unauthenticated plaintext to its `output` before returning an

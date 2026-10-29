@@ -1,6 +1,6 @@
 # secure-gate 0.9.0-rc.16 and MSRV 1.87
 
-**Status (2026-10-29):** approved by the owner and being built. Verified against main at `b49bcf4`.
+**Status (2026-10-29):** approved by the owner and built in PR #81; scope widened the same day (see the addendum). Verified against main at `b49bcf4`.
 
 ## Why
 
@@ -63,3 +63,60 @@ A real build against it now is the feedback they asked for.
 - The fuzz crate's smoke tests on 1.87.
 - Both CI workflows green on the PR.
 - The owner publishes later from main at the tags: library first, then the CLI.
+
+## Addendum (2026-10-29): dependency refresh and RustCrypto zeroize
+
+The owner asked for a recency check of every dependency, with `zeroize` turned on wherever a
+dependency now offers it, all in this release. They also asked for the tags
+(`v0.2.0-rc.18`, `aescrypt-cli-v0.1.0-rc.6`) on the merge commit once it is done.
+
+**What the index showed** (latest release, its rust-version, and whether it has `zeroize`):
+
+| Crate | Was | Now | Note |
+| --- | --- | --- | --- |
+| `aes` | 0.8 | 0.9 | `zeroize` via an optional dep; 0.9.3 needs 1.89, so 1.87 resolves 0.9.2 |
+| `hmac` | 0.12 | 0.13 | **new `zeroize` feature** (`digest/zeroize`) |
+| `sha2` | 0.10 | 0.11 | **new `zeroize` feature**; 0.11.1 needs 1.88, so 1.87 resolves 0.11.0 |
+| `pbkdf2` | 0.12 | 0.13 | `default-features = false, features = ["hmac"]` |
+| `criterion` (dev) | 0.7 | 0.8 | rustc 1.86, fits the new floor |
+| `expectrl` (unix dev) | 0.7 | 0.9 | `Session` became generic: use `session::OsSession` and the `Expect` trait |
+| everything else | | | already on the newest compatible minor; lockfiles refreshed |
+
+**Port to cipher 0.5 / digest 0.11:**
+- `BlockEncrypt`/`BlockDecrypt` → `BlockCipherEncrypt`/`BlockCipherDecrypt`.
+- `BlockClosure`/`BlockBackend` → `BlockCipherEncClosure`/`BlockCipherEncBackend`, which take
+  `&B`.
+- `proc_block_inplace` → `encrypt_block_inplace`.
+- `GenericArray::from_mut_slice` → `From<&mut [u8; N]>`, or `try_into` on chunks.
+- `Mac::new_from_slice` → `KeyInit::new_from_slice`.
+
+**Checked from source:**
+- `Sha256` and `Aes256Enc`/`Aes256Dec` implement `ZeroizeOnDrop` with the features on (a
+  compile-time test).
+- `Hmac<Sha256>` does not declare the marker. Its two SHA-256 cores have `Drop` impls that wipe
+  their state under `sha2/zeroize`, and its `BlockBuffer` wipes under `block-buffer/zeroize`,
+  which `digest/zeroize` enables. That feature is active in our graph (`cargo tree -e
+  features`).
+- What stays out of reach: stale copies left by moves, and the unwiped stack batch of `aes`'s
+  software backend. The Security Model, README, inline comments and changelogs now say this.
+
+**Public API:** `encryption::encrypt_session_block` and `encryption::write_hmac` name `aes` and
+`hmac` types, so those change. The crate-root API names no RustCrypto type.
+
+**Gates:** the same as above, plus a throughput comparison against main (alternating rounds) to
+show the AES-NI span loop kept its speed. Cross-target clippy is now split by crate, because
+criterion 0.8's `alloca` build script cannot cross-compile from Windows.
+
+## Addendum 2 (2026-10-29): secure-gate rc.17
+
+secure-gate 0.9.0-rc.17 is on crates.io (index checked: live, rust-version 1.87) and replaces
+rc.16 as the 0.9.0 candidate. The secure-gate owner asked every dependent to take it inside its
+current unpublished release, so this PR re-pins all three manifests to `=0.9.0-rc.17`.
+
+rc.17's changes:
+- bech32 goes from 0.11 to 0.12. That is optional and off here: it appears in the lockfile but
+  is never compiled (`cargo tree -i bech32` prints nothing).
+- Poly1305 state is now wiped under `sealed`, which this crate does not enable.
+- A lockfile refresh.
+
+No code change was needed.

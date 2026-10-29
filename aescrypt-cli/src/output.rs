@@ -52,7 +52,7 @@ use std::{
 
 use aes::{
     Aes256,
-    cipher::{BlockEncrypt, KeyInit, consts::U16, inout::InOutBuf},
+    cipher::{BlockCipherEncrypt, KeyInit, consts::U16, inout::InOutBuf},
 };
 use secure_gate::{Dynamic, Fixed, RevealSecret, RevealSecretMut};
 

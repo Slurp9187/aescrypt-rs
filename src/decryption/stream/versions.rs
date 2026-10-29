@@ -52,15 +52,16 @@ fn finalize_tag(hmac: HmacSha256) -> Trailer32 {
 /// `encrypt_stream` uses.
 ///
 /// The returned `HmacSha256` carries opad/ipad state derived from
-/// `encryption_key` and is not wrapped — `hmac` 0.12 exposes no zeroize hook.
-/// See the crate-level Security Model.
+/// `encryption_key`. It is not a secure-gate type, but it is wiped when it
+/// drops (`hmac` and `sha2` are built with `zeroize`); see the crate-level
+/// Security Model.
 ///
 /// # Panics
 ///
 /// Never: the key is always 32 bytes, a valid HMAC key length.
 fn payload_hmac(encryption_key: &Aes256Key32) -> HmacSha256 {
     encryption_key.with_secret(|key| {
-        <HmacSha256 as Mac>::new_from_slice(key)
+        <HmacSha256 as KeyInit>::new_from_slice(key)
             .expect("encryption_key is always 32 bytes — valid HMAC key")
     })
 }

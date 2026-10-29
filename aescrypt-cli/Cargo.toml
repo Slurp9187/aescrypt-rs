@@ -5,9 +5,9 @@
 [package]
 name = "aescrypt-cli"
 # Versioned on its own, independently of aescrypt-rs. `--version` shows both.
-version = "0.1.0-rc.5"
+version = "0.1.0-rc.6"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.87"
 description = "Command-line tool for AES Crypt files (decrypts v0-v3, writes v3), built on aescrypt-rs"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Slurp9187/aescrypt-rs"
@@ -35,15 +35,13 @@ name = "aescrypt-cli"
 path = "src/main.rs"
 
 [dependencies]
-# Exact pin: the version this CLI was built and tested against. Usually
-# `path = ".."` as well, so the workspace builds the CLI on the repo's library.
-# For 0.1.0-rc.5 it is the published 0.2.0-rc.16 from crates.io instead: the
-# library is unchanged since then, and rc.17 holds only a bench, so it is not
-# published just for this pin. Restore `path` with the next real library change.
-aescrypt-rs = { version = "=0.2.0-rc.16" }
+# Exact pin: the version this CLI was built and tested against. `path = ".."`
+# makes the workspace build the CLI on the repo's library; crates.io sees only
+# the version. (0.1.0-rc.5 pinned the published 0.2.0-rc.16 without `path`.)
+aescrypt-rs = { path = "..", version = "=0.2.0-rc.18" }
 # AES-256-CTR for the sealed stdout stage (#72). The same `aes` the library
 # uses, so nothing new enters the graph; `zeroize` wipes its key schedule.
-aes = { version = "0.8", features = ["zeroize"] }
+aes = { version = "0.9", features = ["zeroize"] }
 clap = { version = "4.6", features = ["derive"] }
 ctrlc = { version = "3.4", features = ["termination"] }
 rpassword = "7.3"
@@ -51,10 +49,10 @@ same-file = "1.0"
 # MUST stay character-identical to the line in ../Cargo.toml and
 # ../fuzz/Cargo.toml — any divergence puts two semver-incompatible copies of
 # secure-gate in one graph.
-secure-gate = { version = "=0.9.0-rc.15", features = ["rand", "ct-eq"] }
+secure-gate = { version = "=0.9.0-rc.17", features = ["rand", "ct-eq"] }
 tempfile = "3.10"
 thiserror = "2.0"
-zeroize = "1.8"
+zeroize = "1.9.1"
 
 # Saves and restores the terminal around the password prompt (src/signals.rs),
 # and on Linux creates the unnamed O_TMPFILE stage and links it into place
@@ -68,5 +66,5 @@ rustix = { version = "1.0", features = ["fs", "termios"] }
 winapi-util = "0.1"
 
 [target.'cfg(unix)'.dev-dependencies]
-expectrl = "0.7"
+expectrl = "0.9"
 libc = "0.2"
