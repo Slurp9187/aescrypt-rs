@@ -17,23 +17,29 @@ file records only what is true of this crate.**
 secure-gate = { version = "=0.9.0-rc.N", features = ["rand", "ct-eq"] }
 ```
 
-The exact `N` lives in `Cargo.toml`, not here, so a bump does not have to find this file; the
-version the rules below were last read against is recorded under them. **Pinned, and the
-reasoning is already in `Cargo.toml` rather than here** — including the
-`"0.9"`-resolves-to-nothing trap and the rule that a published requirement travels to
-dependents while a lockfile does not. Do not duplicate it; read it there.
+**This file names no secure-gate version, on purpose, so a bump never has to edit it.** The
+current pin is whatever `Cargo.toml` says; the release that took it is in `CHANGELOG.md`. The
+reasoning for the exact pin is in `Cargo.toml` too — including the `"0.9"`-resolves-to-nothing
+trap and the rule that a published requirement travels to dependents while a lockfile does
+not. Do not duplicate it; read it there.
 
-**The same line appears character-identically in `fuzz/Cargo.toml`.** Keep it that way: the
-fuzz crate depends on this one, so a drift between the two produces two secure-gate versions in
-one graph. Bumping means changing both pins and running `cargo update -p secure-gate` in
-**both** lockfiles.
+**The same line appears character-identically in `aescrypt-cli/Cargo.toml` and
+`fuzz/Cargo.toml`.** Keep it that way: both depend on this crate, so a drift produces two
+secure-gate versions in one graph. Bumping means changing all three pins and running
+`cargo update -p secure-gate` in **both** lockfiles (root and `fuzz/`).
 
-**Every rule in the global skill is read against rc.15** (pinned since aescrypt-rs
-0.2.0-rc.15). This crate declares no newtypes, so the rc.13 `derive: [ConstantTimeEq]` break
-did not hit it, and the opt-in `sealed` feature is not enabled, so rc.14 and rc.15, which
-change only `sealed`, did not either. A secure-gate bump is still a
-coordinated ecosystem wave, since several first-party crates pin exactly and two different exact
-requirements in one compatibility range cannot resolve.
+**What a bump has to be checked against** — the crate's surface, which changes only when the
+code does:
+- Features: `rand` and `ct-eq` only. Not `sealed`, not serde, not any encoding feature
+  (hex/Base32/Base64url/bech32), so breaks confined to those never reach this crate.
+- No newtypes and no derives: every secret type is a `Fixed`/`Dynamic` alias in
+  `src/aliases.rs`, so derive-macro changes do not reach it either.
+- So the check is: read secure-gate's changelog between the old and new pin, and `grep` this
+  repo for any removed or renamed name. If neither turns anything up, the bump is
+  pins + lockfiles + changelog entries, with no code change.
+
+A secure-gate bump is still a coordinated ecosystem wave, since several first-party crates pin
+exactly and two different exact requirements in one compatibility range cannot resolve.
 
 ## Fixed-dominant, and that is the format's doing
 
