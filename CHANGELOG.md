@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-rc.19] - 2026-11-12
+
+### Changed
+
+- `secure-gate` is re-pinned from `=0.9.0-rc.17` to `=0.9.0-rc.18`, the last
+  candidate before 0.9.0. Nothing rc.18 changes reaches this crate's API or
+  output. rc.18 makes the bech32 checksum types private, renames
+  `traits::revealed_secrets` to `traits::encoded_secret`, stops enabling serde's
+  `derive` and raises its serde floor to 1.0.95; this crate names none of those
+  and enables none of secure-gate's serde or encoding features. rc.18's wipe fix
+  for rejected hex, Base32 and Base64url input is in decoders this crate does not
+  call. The release exists so a consumer's graph can hold one `secure-gate`,
+  which this crate's exact pin otherwise prevents.
+
 ## [0.2.0-rc.18] - 2026-10-29
 
 ### Changed
