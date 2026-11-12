@@ -28,12 +28,10 @@ fuzz crate depends on this one, so a drift between the two produces two secure-g
 one graph. Bumping means changing both pins and running `cargo update -p secure-gate` in
 **both** lockfiles.
 
-**Every rule in the global skill is read against rc.18** (pinned since aescrypt-rs
-0.2.0-rc.19). This crate declares no newtypes, so the rc.13 `derive: [ConstantTimeEq]` break
+**Every rule in the global skill is read against rc.15** (pinned since aescrypt-rs
+0.2.0-rc.15). This crate declares no newtypes, so the rc.13 `derive: [ConstantTimeEq]` break
 did not hit it, and the opt-in `sealed` feature is not enabled, so rc.14 and rc.15, which
-change only `sealed`, did not either. rc.16 removed `from_rng` and the `From*Str` traits,
-and rc.18 made the bech32 checksum types private and renamed `traits::revealed_secrets`;
-this crate used none of them. A secure-gate bump is still a
+change only `sealed`, did not either. A secure-gate bump is still a
 coordinated ecosystem wave, since several first-party crates pin exactly and two different exact
 requirements in one compatibility range cannot resolve.
 
