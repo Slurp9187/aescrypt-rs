@@ -7,6 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Versioned independently of `aescrypt-rs`; `--version` shows both.
 
+## [0.1.0-rc.8] - 2026-11-13
+
+### Changed
+
+- Built on `aescrypt-rs` 0.2.0-rc.20, which this release pins exactly, so
+  `aescrypt-rs` 0.2.0-rc.20 must be published first. `secure-gate`, which this
+  CLI also pins directly, moves from `=0.9.0-rc.18` to `=0.9.0-rc.19`. No
+  behavior change.
+
 ## [0.1.0-rc.7] - 2026-11-12
 
 ### Changed
