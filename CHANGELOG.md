@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0-rc.20] - 2026-11-13
+
+### Changed
+
+- `secure-gate` is re-pinned from `=0.9.0-rc.18` to `=0.9.0-rc.19`. Nothing
+  rc.19 changes reaches this crate's API or output: rc.19 adds
+  `sealed_dynamic_newtype!` and a conversion impl for `dynamic_newtype!`, both
+  under the `sealed` feature, which this crate does not enable, and otherwise
+  changes documentation and CI. The release exists so a consumer's graph can
+  hold one `secure-gate`, which this crate's exact pin otherwise prevents.
+
 ## [0.2.0-rc.19] - 2026-11-12
 
 ### Changed
