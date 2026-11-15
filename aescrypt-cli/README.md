@@ -14,12 +14,10 @@ format version (v0–v3) and writes v3.
 > `aescrypt` command-line program.
 
 ```sh
-cargo install aescrypt-cli --version "^0.1.0-rc"
+cargo install aescrypt-cli
 ```
 
-Requires Rust 1.87 or newer. Until 0.1.0 is released only release candidates
-exist, and plain `cargo install` skips those; `^0.1.0-rc` asks for the newest
-one. The quotes keep Windows `cmd` from eating the `^`.
+Requires Rust 1.87 or newer.
 
 ## Support the Original Author
 

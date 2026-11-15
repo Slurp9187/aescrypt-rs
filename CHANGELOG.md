@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),  
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-11-14
+
+First stable release of the 0.2 line. From this release the public API follows
+semantic versioning: breaking changes wait for 0.3.0. The API is the same as
+0.2.0-rc.20.
+
+### Changed
+
+- `secure-gate` now uses a caret requirement on its stable line, `"0.9"`,
+  instead of the exact `=0.9.0-rc.19` pin, so consumers take its patch releases
+  without waiting for this crate. 0.9.0 has the same API as rc.19, and its only
+  source changes are doc comments in the `sealed` module, which this crate does
+  not enable. No secure-gate type appears in this crate's public API, so a
+  consumer's graph may hold any 0.9.x.
+- The README dependency snippet is now `aescrypt-rs = "0.2"`.
+
 ## [0.2.0-rc.20] - 2026-11-13
 
 ### Changed

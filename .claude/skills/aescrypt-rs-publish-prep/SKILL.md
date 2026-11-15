@@ -13,8 +13,8 @@ repo.**
 
 | Crate | Manifest | Changelog | Tag |
 | --- | --- | --- | --- |
-| `aescrypt-rs` (library) | `Cargo.toml` | `CHANGELOG.md` | `v<version>`, e.g. `v0.2.0-rc.N` |
-| `aescrypt-cli` | `aescrypt-cli/Cargo.toml` | `aescrypt-cli/CHANGELOG.md` | `aescrypt-cli-v<version>`, e.g. `aescrypt-cli-v0.1.0-rc.N` |
+| `aescrypt-rs` (library) | `Cargo.toml` | `CHANGELOG.md` | `v<version>`, e.g. `v0.2.0` |
+| `aescrypt-cli` | `aescrypt-cli/Cargo.toml` | `aescrypt-cli/CHANGELOG.md` | `aescrypt-cli-v<version>`, e.g. `aescrypt-cli-v0.1.0` |
 
 They are versioned independently; the CLI does **not** mirror the library's version (it did
 until 0.1.0-rc.1). `aescrypt-cli --version` prints both, as
@@ -26,8 +26,9 @@ until 0.1.0-rc.1). `aescrypt-cli --version` prints both, as
 
 `aescrypt-cli/Cargo.toml` has
 `aescrypt-rs = { path = "..", version = "=<library version>" }`: the path is for the
-workspace, and crates.io sees only the exact version. Release candidates break APIs between
-each other, so the pin is `=` on purpose; don't loosen it to a caret, and don't drop the
+workspace, and crates.io sees only the exact version. The pin is `=` on purpose, so a
+published CLI links the library version it was tested on (during the release candidates it
+also guarded against API breaks between them); don't loosen it to a caret, and don't drop the
 `path` (the CLI's tests and CI would then stop exercising the library in the repo).
 
 **One sanctioned exception: a CLI release on an unchanged library.** When the library's
@@ -49,18 +50,18 @@ So **a library bump is not complete until the CLI follows it**, in the same comm
 4. Both lockfiles: run `cargo check --workspace` at the root, and `cargo metadata` (or any
    build) in `fuzz/`. `fuzz/` is outside the workspace and has its own lockfile.
 
-Within a release-candidate line, nothing else names the version. The README dependency snippet
-is `aescrypt-rs = "0.2.0-rc"`, which selects the newest RC, so it moves only when the line
-does: to `"0.2.0"` at the stable release, or to the next line's `-rc`.
+Nothing else names the version. The README dependency snippet is `aescrypt-rs = "0.2"`, a
+caret on the line, so it moves only when the line does (to `"0.3"`, or to `"0.3.0-rc"` while
+a 0.3 line is in release candidates). Stable since 0.2.0 (2026-11-14).
 
 **CLI bump touches:**
 1. `aescrypt-cli/Cargo.toml`: `version`.
 2. `aescrypt-cli/CHANGELOG.md`: open `## [<version>] - Unreleased`.
 3. `Cargo.lock`: run `cargo check --workspace`.
 
-The install lines in `README.md` and `aescrypt-cli/README.md` are
-`cargo install aescrypt-cli --version "^0.1.0-rc"`, the newest RC (plain `cargo install` skips
-release candidates). Like the snippet, they move only when the line does.
+The install lines in `README.md` and `aescrypt-cli/README.md` are a plain
+`cargo install aescrypt-cli`, since 0.1.0 (2026-11-14). They name a version again only if
+the CLI ever ships release candidates of a new line, which plain `cargo install` skips.
 
 ## Release order
 
