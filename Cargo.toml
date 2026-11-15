@@ -6,7 +6,7 @@
 name = "aescrypt-rs"
 # `aescrypt-cli` is versioned on its own and pins a published release of this
 # crate with `=`; a bump here does not bump it.
-version = "0.2.0-rc.20"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.87"
 description = "AES Crypt (v0-v3) Rust encryption/decryption library"
@@ -98,24 +98,19 @@ all-features = true
 aes = { version = "0.9", features = ["zeroize"] }
 hmac = { version = "0.13", features = ["zeroize"] }
 pbkdf2 = { version = "0.13", default-features = false, features = ["hmac"] }
-# Exact pin, registry dep — this crate is publishable in this state.
+# A caret on the stable 0.9 line, so consumers take secure-gate patch releases
+# (security fixes included) without waiting for this crate. Until 0.9.0 this was
+# an exact `=0.9.0-rc.N` pin, because the release candidates broke APIs between
+# each other; semver now does that job. No secure-gate type appears in this
+# crate's public API (#48), so a consumer on a different 0.9.x is unaffected.
 #
-# `=` and not a caret, deliberately: secure-gate is still in RC and breaking
-# changes land between them (rc.9 deleted the alias macros, rc.12 reshaped
-# `Dynamic::new_with`). A published requirement travels to dependents; a lockfile
-# does not. A caret here would let a downstream `cargo build` float onto the next
-# RC and break against a version this crate never tested.
-#
-# Bump deliberately: change the pin, `cargo update -p secure-gate` in BOTH this
-# lockfile and `fuzz/Cargo.lock`, then run the full suite. Keep this line
+# After changing it, run `cargo update -p secure-gate` in BOTH this lockfile and
+# `fuzz/Cargo.lock`, then the full suite. Keep this line
 # character-identical to the one in `fuzz/Cargo.toml` — that crate depends on
 # secure-gate directly as well as on this one by path, and any divergence puts two
 # semver-incompatible copies in one graph (`expected Fixed<[u8; 32]>, found
 # Fixed<[u8; 32]>`).
-#
-# NOTE: `secure-gate = "0.9"` resolves to NOTHING — a caret matches a pre-release
-# only when the requirement itself carries one for the same major.minor.patch.
-secure-gate = { version = "=0.9.0-rc.19", features = ["rand", "ct-eq"] }
+secure-gate = { version = "0.9", features = ["rand", "ct-eq"] }
 sha2 = { version = "0.11", default-features = false, features = ["zeroize"] }
 thiserror = "2.0"
 

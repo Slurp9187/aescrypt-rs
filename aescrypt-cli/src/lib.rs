@@ -717,9 +717,9 @@ impl<R: Seek> Seek for VersionTap<R> {
 mod tests {
     use super::*;
 
-    /// The aescrypt-rs dependency stays an exact `=` pin (release candidates
-    /// break APIs between each other), and it names the library this build
-    /// linked. Nothing here hard-codes a version: both sides come from the
+    /// The aescrypt-rs dependency stays an exact `=` pin, so a published CLI
+    /// links the library version it was tested on, and it names the library
+    /// this build linked. Nothing here hard-codes a version: both sides come from the
     /// manifests.
     #[test]
     fn lib_pin_is_exact() {

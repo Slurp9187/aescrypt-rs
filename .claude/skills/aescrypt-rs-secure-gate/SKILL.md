@@ -14,19 +14,21 @@ file records only what is true of this crate.**
 ## Dependency
 
 ```toml
-secure-gate = { version = "=0.9.0-rc.N", features = ["rand", "ct-eq"] }
+secure-gate = { version = "0.9", features = ["rand", "ct-eq"] }
 ```
 
-**This file names no secure-gate version, on purpose, so a bump never has to edit it.** The
-current pin is whatever `Cargo.toml` says; the release that took it is in `CHANGELOG.md`. The
-reasoning for the exact pin is in `Cargo.toml` too — including the `"0.9"`-resolves-to-nothing
-trap and the rule that a published requirement travels to dependents while a lockfile does
-not. Do not duplicate it; read it there.
+A caret on secure-gate's stable 0.9 line, since aescrypt-rs 0.2.0 (2026-11-14). Until then
+it was an exact `=0.9.0-rc.N` pin, because the release candidates broke APIs between each
+other. The current requirement is whatever `Cargo.toml` says, with its reasoning in the
+comment above it; do not duplicate it here. Do not go back to an exact pin in a stable
+release: it would block every consumer from secure-gate patch releases, security fixes
+included.
 
 **The same line appears character-identically in `aescrypt-cli/Cargo.toml` and
 `fuzz/Cargo.toml`.** Keep it that way: both depend on this crate, so a drift produces two
-secure-gate versions in one graph. Bumping means changing all three pins and running
-`cargo update -p secure-gate` in **both** lockfiles (root and `fuzz/`).
+secure-gate versions in one graph. Changing it means changing all three lines and running
+`cargo update -p secure-gate` in **both** lockfiles (root and `fuzz/`). A secure-gate patch
+release needs no manifest change at all, only the lockfile update.
 
 **What a bump has to be checked against** — the crate's surface, which changes only when the
 code does:
